@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "dev.typearchy.game",
+  "name": "Typearchy",
+  "version": "1.0.0",
+  "author": "tsouth89",
+  "license": "MIT",
+  "description": "A focused, local-first typing game built for Omarchy",
+  "kinds": [
+    "bar-widget",
+    "overlay"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml"
+  },
+  "barWidget": {
+    "displayName": "Typearchy",
+    "description": "Launch typing tests and see local stats",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

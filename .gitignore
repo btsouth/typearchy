@@ -1,0 +1,8 @@
+.DS_Store
+*.bak.*
+website/node_modules/
+website/.next/
+website/.vinext/
+website/dist/
+website/.wrangler/
+website/.env*
