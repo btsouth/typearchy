@@ -33,6 +33,24 @@ function correctCharacters(prompt, typed) {
   return count
 }
 
+function alignCharacter(prompt, typed, character) {
+  var source = String(prompt || "")
+  var entered = String(typed || "")
+  var value = String(character || "")
+  var index = entered.length
+  var expected = source.charAt(index)
+
+  if (!value || !expected)
+    return { text: entered, expected: expected, correct: false, recovered: false }
+  if (value === expected)
+    return { text: entered + value, expected: expected, correct: true, recovered: false }
+  if (index + 1 < source.length && value === source.charAt(index + 1))
+    return { text: entered + "\u0000" + value, expected: expected, correct: false, recovered: true }
+  if (index > 0 && value === source.charAt(index - 1))
+    return { text: entered, expected: expected, correct: false, recovered: true }
+  return { text: entered + value, expected: expected, correct: false, recovered: false }
+}
+
 function wordsPerMinute(correctChars, elapsedMs) {
   if (!(elapsedMs > 0)) return 0
   return round((correctChars / 5) / (elapsedMs / 60000), 1)

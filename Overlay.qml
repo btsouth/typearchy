@@ -277,16 +277,16 @@ Item {
     if (root.challenge.available === false || root.phase === "results" || root.typedText.length >= root.prompt.length) return
     if (root.phase === "ready") root.beginTest()
     var index = root.typedText.length
-    var expected = root.prompt.charAt(index)
+    var aligned = Model.alignCharacter(root.prompt, root.typedText, character)
     root.totalKeypresses++
-    if (character !== expected) {
+    if (!aligned.correct) {
       root.incorrectKeypresses++
-      var mistake = Model.addMistake(root.keyMistakes, root.bigramMistakes, expected,
+      var mistake = Model.addMistake(root.keyMistakes, root.bigramMistakes, aligned.expected,
         index > 0 ? root.prompt.charAt(index - 1) : "")
       root.keyMistakes = mistake.keys
       root.bigramMistakes = mistake.bigrams
     }
-    root.typedText += character
+    root.typedText = aligned.text
     if (!root.isTimed && root.typedText.length >= root.prompt.length) root.finishTest(true)
   }
 
