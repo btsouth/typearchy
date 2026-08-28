@@ -126,6 +126,24 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(model.alignCharacter("hello", "he", "x"))),
   { text: "hex", expected: "l", correct: false, recovered: false }
 )
+assert.equal(model.advanceLineBreaks("quote", "one\ntwo", "one", "e"), "one\u0001")
+assert.equal(model.advanceLineBreaks("code", "one\ntwo", "one", "e"), "one")
+assert.equal(model.advanceLineBreaks("code", "one\n\ntwo", "one\n", "\n"), "one\n\u0001")
+assert.equal(model.advanceLineBreaks("shell", "one\ntwo", "one\n", "\n"), "one\n")
+assert.equal(
+  model.advanceLineBreaks("code", "build() {\n\tlocal path=$1", "build() {\n", "\n"),
+  "build() {\n\u0001"
+)
+assert.equal(
+  model.advanceLineBreaks("shell", "if ready; then\n  deploy", "if ready; then\n", "\n"),
+  "if ready; then\n\u0001\u0001"
+)
+const indentedCodePrompt = "build_manifest() {\n\tlocal path=$1"
+const enteredCodeBreak = model.alignCharacter(indentedCodePrompt, "build_manifest() {", "\n")
+const advancedCodeBreak = model.advanceLineBreaks("code", indentedCodePrompt, enteredCodeBreak.text, "\n")
+assert.equal(enteredCodeBreak.correct, true)
+assert.equal(advancedCodeBreak, "build_manifest() {\n\u0001")
+assert.equal(model.alignCharacter(indentedCodePrompt, advancedCodeBreak, "l").correct, true)
 assert.equal(model.correctCharacters("one two", "one\u0000two"), 6)
 assert.equal(model.correctCharacters("one\ntwo", "one\u0001two"), 6)
 assert.match(model.renderedPrompt("one\ntwo", "one\u0001", {

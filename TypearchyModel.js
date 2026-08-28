@@ -64,6 +64,19 @@ function alignCharacter(prompt, typed, character) {
   return { text: entered + value, expected: expected, correct: false, recovered: false }
 }
 
+function advanceLineBreaks(mode, prompt, typed, character) {
+  var source = String(prompt || "")
+  var next = String(typed || "")
+  var technical = mode === "shell" || mode === "code"
+  if (technical && character !== "\n") return next
+  while (source.charAt(next.length) === "\n") next += ASSISTED_CHARACTER
+  if (technical) {
+    while (source.charAt(next.length) === " " || source.charAt(next.length) === "\t")
+      next += ASSISTED_CHARACTER
+  }
+  return next
+}
+
 function wordsPerMinute(correctChars, elapsedMs) {
   if (!(elapsedMs > 0)) return 0
   return round((correctChars / 5) / (elapsedMs / 60000), 1)

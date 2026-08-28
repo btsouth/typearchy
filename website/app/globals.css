@@ -55,8 +55,8 @@ h1 { margin: 0; font-size: clamp(54px, 6.4vw, 104px); line-height: .89; letter-s
 .game-head > div > span { display: block; margin-top: 7px; color: var(--demo-accent); font-size: 8px; font-weight: 700; letter-spacing: .15em; }
 .metrics { display: flex; gap: 22px; } .metrics span { color: var(--demo-ink); font-size: 11px; font-weight: 700; text-align: right; }
 .metrics small { display: block; margin-bottom: 5px; color: var(--demo-muted); font-size: 7px; letter-spacing: .14em; }
-.live-prompt { width: 100%; max-width: 820px; height: 2.96em; align-self: center; overflow: hidden; color: color-mix(in srgb, var(--demo-muted) 68%, var(--demo-bg)); font-size: clamp(25px, 2vw, 36px); line-height: 1.48; letter-spacing: -.035em; }
-.live-prompt.technical { height: 2.76em; white-space: pre-wrap; font-size: clamp(19px, 1.45vw, 26px); line-height: 1.38; letter-spacing: -.02em; }
+.live-prompt { width: 100%; max-width: 820px; height: 4.44em; align-self: center; overflow: hidden; scroll-behavior: smooth; color: color-mix(in srgb, var(--demo-muted) 68%, var(--demo-bg)); font-size: clamp(25px, 2vw, 36px); line-height: 1.48; letter-spacing: -.035em; }
+.live-prompt.technical { height: 4.14em; white-space: pre-wrap; font-size: clamp(19px, 1.45vw, 26px); line-height: 1.38; letter-spacing: -.02em; }
 .live-prompt .correct { color: var(--demo-ink); } .live-prompt .wrong { color: var(--demo-error); text-decoration: underline; text-underline-offset: 5px; }
 .live-prompt .current { color: var(--demo-bg); background: var(--demo-accent); animation: blink 1.05s steps(1) infinite; }
 .demo-callout { align-self: center; margin-top: -26px; color: var(--demo-accent); font-size: 8px; font-weight: 700; letter-spacing: .14em; }
@@ -106,6 +106,8 @@ h1 { margin: 0; font-size: clamp(54px, 6.4vw, 104px); line-height: .89; letter-s
 .web-game-settings { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--demo-muted); font-size: 7px; letter-spacing: .1em; }
 .web-game-settings > span { margin-left: auto; }
 .web-game-language { display: flex; border: 1px solid color-mix(in srgb, var(--demo-muted) 38%, transparent); }
+.web-game-language.sprint-style { position: relative; margin-left: 9px; }
+.web-game-language.sprint-style::before { content: ''; position: absolute; top: 6px; bottom: 6px; left: -10px; width: 1px; background: color-mix(in srgb, var(--demo-muted) 38%, transparent); }
 .web-game-language button, .web-game-edit { padding: 8px 10px; border: 0; border-right: 1px solid color-mix(in srgb, var(--demo-muted) 38%, transparent); color: var(--demo-muted); background: transparent; font-size: 7px; font-weight: 800; cursor: pointer; }
 .web-game-language button:last-child { border-right: 0; }
 .web-game-language button.active, .web-game-language button:hover, .web-game-edit:hover { color: var(--demo-bg); background: var(--demo-accent); }
@@ -500,4 +502,4 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
   .install-command { grid-template-columns: auto 1fr; font-size: 11px; } .install-command b { grid-column: 2; }
   footer { grid-template-columns: 1fr auto; } footer p { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .live-prompt .current, .mode-sample > p i { animation: none; } .primary-action, .game-stage, .mode-bars i { transition: none; } }
+@media (prefers-reduced-motion: reduce) { html, .live-prompt { scroll-behavior: auto; } .live-prompt .current, .mode-sample > p i { animation: none; } .primary-action, .game-stage, .mode-bars i { transition: none; } }

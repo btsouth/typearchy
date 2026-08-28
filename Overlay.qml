@@ -286,15 +286,8 @@ Item {
       root.keyMistakes = mistake.keys
       root.bigramMistakes = mistake.bigrams
     }
-    root.typedText = root.withAutomaticLineBreaks(aligned.text)
+    root.typedText = Model.advanceLineBreaks(root.mode, root.prompt, aligned.text, character)
     if (!root.isTimed && root.typedText.length >= root.prompt.length) root.finishTest(true)
-  }
-
-  function withAutomaticLineBreaks(text) {
-    var next = String(text || "")
-    if (root.mode === "shell" || root.mode === "code") return next
-    while (root.prompt.charAt(next.length) === "\n") next += Model.ASSISTED_CHARACTER
-    return next
   }
 
   function eraseCharacter() {

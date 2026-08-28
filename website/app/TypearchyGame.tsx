@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { generateCode, generateProse, generateQuoteRelay, generateShell, generateWords } from './contentEngine';
 import contentPack from './contentPack.json';
+import { advanceLineBreaks, alignCharacter, countCorrectCharacters, eraseInput, isCorrectCharacter } from './typingEngine';
 
 type ModeKey = 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
 type Language = 'bash' | 'python' | 'javascript' | 'rust';
@@ -97,7 +98,9 @@ function consistency(samples: number[]) {
 function promptRuns(prompt: string, typed: string) {
   const runs: { state: string; text: string; start: number }[] = [];
   for (let index = 0; index < prompt.length; index += 1) {
-    const state = index < typed.length ? (typed[index] === prompt[index] ? 'correct' : 'wrong') : index === typed.length ? 'current' : '';
+    const state = index < typed.length
+      ? (isCorrectCharacter(prompt[index], typed[index]) ? 'correct' : 'wrong')
+      : index === typed.length ? 'current' : '';
     const previous = runs[runs.length - 1];
     if (previous && previous.state === state) previous.text += prompt[index];
     else runs.push({ state, text: prompt[index], start: index });
@@ -194,7 +197,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
   const target = mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? `${duration} SEC` : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'code' ? language.toUpperCase() : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE';
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
-  const correct = [...typed].filter((char, index) => char === prompt[index]).length;
+  const correct = countCorrectCharacters(prompt, typed);
   const accuracy = keystrokes ? Math.round(((keystrokes - mistakes) / keystrokes) * 100) : 100;
   const wpm = elapsed > 0.75 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
   const timeValue = timed ? Math.max(0, Math.ceil(duration - elapsed)) : prompt.length ? Math.round((typed.length / prompt.length) * 100) : 0;
@@ -237,7 +240,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     if (!startedRef.current || completedRef.current) return;
     completedRef.current = true;
     const elapsedMs = Math.max(1000, endedAt - startedRef.current);
-    const correctCharacters = [...typedRef.current].filter((char, index) => char === prompt[index]).length;
+    const correctCharacters = countCorrectCharacters(prompt, typedRef.current);
     const finalWpm = Math.round(correctCharacters / 5 / (elapsedMs / 60000));
     const finalRaw = Math.round(keystrokesRef.current / 5 / (elapsedMs / 60000));
     const finalPace = paceRef.current.length ? [...paceRef.current, finalWpm].slice(-20) : [finalWpm];
@@ -277,7 +280,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
       const current = Date.now();
       setNow(current);
       const seconds = Math.max(0.75, (current - startedRef.current) / 1000);
-      const liveCorrect = [...typedRef.current].filter((char, index) => char === prompt[index]).length;
+      const liveCorrect = countCorrectCharacters(prompt, typedRef.current);
       const sample = Math.round(liveCorrect / 5 / (seconds / 60));
       paceRef.current = [...paceRef.current, sample].slice(-19);
       setPace(paceRef.current);
@@ -290,10 +293,11 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     const container = promptRef.current;
     const current = container?.querySelector<HTMLElement>('.current');
     if (!container || !current) return;
-    const nextLineTop = Math.max(0, current.offsetTop);
-    if (Math.abs(nextLineTop - promptLineTopRef.current) < 1) return;
-    promptLineTopRef.current = nextLineTop;
-    container.scrollTop = nextLineTop;
+    const lineHeight = Number.parseFloat(window.getComputedStyle(container).lineHeight) || current.offsetHeight;
+    const nextScrollTop = Math.max(0, current.offsetTop - lineHeight);
+    if (Math.abs(nextScrollTop - promptLineTopRef.current) < 1) return;
+    promptLineTopRef.current = nextScrollTop;
+    container.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
   }, [typed, prompt]);
 
   const chooseMode = (next: ModeKey) => {
@@ -315,7 +319,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     reset(false, true);
   };
 
-  const handleValue = (value: string) => {
+  const addCharacters = (characters: string) => {
     if (result || editingCustom || !prompt) return;
     if (!startedRef.current) {
       const start = Date.now();
@@ -323,25 +327,29 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
       setStartedAt(start);
       setNow(start);
     }
-    const previous = typedRef.current;
-    const next = value.slice(0, prompt.length);
-    if (next.length > previous.length) {
-      let addedMistakes = 0;
-      const addedKeys: string[] = [];
-      const addedPairs: string[] = [];
-      const addedEvents: { key: string; pair: string }[] = [];
-      for (let index = previous.length; index < next.length; index += 1) {
-        if (next[index] !== prompt[index]) {
-          addedMistakes += 1;
-          const key = prompt[index].toLowerCase();
-          const pair = index > 0 ? `${prompt[index - 1].toLowerCase()}→${key}` : '';
-          addedKeys.push(key);
-          if (/^[a-z]→[a-z]$/.test(pair)) addedPairs.push(pair);
-          addedEvents.push({ key, pair });
-        }
+    let next = typedRef.current;
+    let addedMistakes = 0;
+    let addedKeystrokes = 0;
+    const addedKeys: string[] = [];
+    const addedPairs: string[] = [];
+    const addedEvents: { key: string; pair: string }[] = [];
+    for (const character of characters) {
+      if (next.length >= prompt.length) break;
+      const index = next.length;
+      const aligned = alignCharacter(prompt, next, character);
+      addedKeystrokes += 1;
+      if (!aligned.correct) {
+        addedMistakes += 1;
+        const key = aligned.expected.toLowerCase();
+        const pair = index > 0 ? `${prompt[index - 1].toLowerCase()}→${key}` : '';
+        addedKeys.push(key);
+        if (/^[a-z]→[a-z]$/.test(pair)) addedPairs.push(pair);
+        addedEvents.push({ key, pair });
       }
-      const added = next.length - previous.length;
-      keystrokesRef.current += added;
+      next = advanceLineBreaks(mode, prompt, aligned.text, character);
+    }
+    if (addedKeystrokes) {
+      keystrokesRef.current += addedKeystrokes;
       setKeystrokes(keystrokesRef.current);
       if (addedMistakes) {
         mistakesRef.current += addedMistakes;
@@ -356,6 +364,13 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     if (next.length === prompt.length) window.setTimeout(() => finishTest(Date.now()), 0);
   };
 
+  const eraseTyped = (word: boolean) => {
+    if (result || editingCustom || !typedRef.current.length) return;
+    const next = eraseInput(typedRef.current, word);
+    typedRef.current = next;
+    setTyped(next);
+  };
+
   const handleKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r') {
       event.preventDefault();
@@ -364,6 +379,21 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'h') {
       event.preventDefault();
       setScreen((value) => value === 'history' ? 'test' : 'history');
+      return;
+    }
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+      eraseTyped(event.ctrlKey || event.metaKey);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if ((mode === 'shell' || mode === 'code') && prompt[typedRef.current.length] === '\n') addCharacters('\n');
+      return;
+    }
+    if (event.key === 'Tab' && prompt[typedRef.current.length] === '\t') {
+      event.preventDefault();
+      addCharacters('\t');
     }
   };
 
@@ -390,7 +420,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
 
       <div className="web-game-settings" onClick={(event) => event.stopPropagation()}>
         {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setDuration(seconds); reset(false, true); }}>{seconds}</button>)}</div>}
-        {mode === 'sprint' && <div className="web-game-language" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>WORDS</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>PROSE</button></div>}
+        {mode === 'sprint' && <div className="web-game-language sprint-style" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>WORDS</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>PROSE</button></div>}
         {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
         {mode === 'custom' && <button className="web-game-edit" type="button" onClick={() => setEditingCustom(true)}>EDIT PASSAGE</button>}
         <span>{mode === 'sprint' ? `TIMED ${sprintStyle.toUpperCase()}` : mode === 'drill' && drillProfile.calibrating ? `CALIBRATING / ${Math.min(3, history.length)} OF 3 RUNS` : MODE_HINTS[mode]}</span>
@@ -401,7 +431,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
         {screen === 'test' && <div className="metrics" aria-label="Live typing statistics"><span><small>ACC</small>{accuracy}%</span><span><small>WPM</small>{wpm}</span><span><small>{timed ? 'LEFT' : 'DONE'}</small>{timeValue}{timed ? '' : '%'}</span></div>}
       </div>
 
-      <textarea ref={inputRef} className="demo-input" value={typed} onChange={(event) => handleValue(event.target.value)} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+      <textarea ref={inputRef} className="demo-input" onInput={(event) => { const value = (event.nativeEvent as InputEvent).data || ''; event.currentTarget.value = ''; if (value) addCharacters(value); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
 
       {screen === 'history' ? (
         <div className="web-game-history" onClick={(event) => event.stopPropagation()}>

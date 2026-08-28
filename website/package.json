@@ -9,6 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
+    "test": "node --experimental-strip-types --test tests/typing-engine.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json --name typearchy",
     "deploy:production": "npm run build && wrangler deploy --config dist/server/wrangler.json --name typearchy --domain typearchy.com --domain www.typearchy.com"
