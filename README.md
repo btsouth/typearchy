@@ -1,5 +1,9 @@
 # Typearchy
 
+[Play in the browser](https://typearchy.com) · [Install for Omarchy](#install)
+
+![Typearchy](website/public/og.png)
+
 Typearchy is a local-first typing game for the Omarchy shell. It adds a compact
 bar launcher, a focused fullscreen typing experience, and a movable, resizable
 History window that follows the current Omarchy theme.
@@ -25,20 +29,18 @@ insights stay on the local machine.
 - Pace graphs and PNG result cards saved locally and copied to the clipboard
 - Automatic Omarchy theme colors and typography
 
-## Install for development
+## Install
 
-From the repository's parent directory:
+```bash
+omarchy plugin add https://github.com/tsouth89/typearchy.git --enable
+```
+
+For local development, run these commands from the repository's parent directory:
 
 ```bash
 omarchy plugin validate ./typearchy
 cp -R ./typearchy ~/.config/omarchy/plugins/dev.typearchy.game
 omarchy plugin enable dev.typearchy.game
-```
-
-Install directly from GitHub with:
-
-```bash
-omarchy plugin add https://github.com/tsouth89/typearchy.git --enable
 ```
 
 ## Website
