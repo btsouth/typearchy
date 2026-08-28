@@ -815,7 +815,11 @@ Item {
               interactive: false
 
               Behavior on contentY {
-                NumberAnimation { duration: 70; easing.type: Easing.OutCubic }
+                SmoothedAnimation {
+                  duration: 170
+                  velocity: -1
+                  maximumEasingTime: 70
+                }
               }
 
               TextEdit {
