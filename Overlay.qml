@@ -752,15 +752,26 @@ Item {
                 selected: root.duration === 60
                 onClicked: root.chooseNumber(2)
               }
-            }
-
-            Row {
-              anchors.horizontalCenter: parent.horizontalCenter
-              spacing: Style.space(7)
-              visible: root.phase === "ready" && root.mode === "sprint"
-
-              Choice { text: "WORDS"; selected: root.sprintStyle === "words"; onClicked: root.setSprintStyle("words") }
-              Choice { text: "PROSE"; selected: root.sprintStyle === "prose"; onClicked: root.setSprintStyle("prose") }
+              Rectangle {
+                visible: root.mode === "sprint"
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(1, Style.normalBorderWidth)
+                height: Style.space(18)
+                color: root.muted
+                opacity: 0.35
+              }
+              Choice {
+                visible: root.mode === "sprint"
+                text: "WORDS"
+                selected: root.sprintStyle === "words"
+                onClicked: root.setSprintStyle("words")
+              }
+              Choice {
+                visible: root.mode === "sprint"
+                text: "PROSE"
+                selected: root.sprintStyle === "prose"
+                onClicked: root.setSprintStyle("prose")
+              }
             }
 
             Row {
