@@ -286,18 +286,29 @@ Item {
       root.keyMistakes = mistake.keys
       root.bigramMistakes = mistake.bigrams
     }
-    root.typedText = aligned.text
+    root.typedText = root.withAutomaticLineBreaks(aligned.text)
     if (!root.isTimed && root.typedText.length >= root.prompt.length) root.finishTest(true)
+  }
+
+  function withAutomaticLineBreaks(text) {
+    var next = String(text || "")
+    if (root.mode === "shell" || root.mode === "code") return next
+    while (root.prompt.charAt(next.length) === "\n") next += Model.ASSISTED_CHARACTER
+    return next
   }
 
   function eraseCharacter() {
     if (root.phase === "results" || root.typedText.length === 0) return
-    root.typedText = root.typedText.slice(0, -1)
+    var next = root.typedText
+    while (next.charAt(next.length - 1) === Model.ASSISTED_CHARACTER) next = next.slice(0, -1)
+    root.typedText = next.slice(0, -1)
   }
 
   function eraseWord() {
     if (root.phase === "results" || root.typedText.length === 0) return
-    root.typedText = root.typedText.slice(0, Model.eraseWordIndex(root.typedText))
+    var next = root.typedText
+    while (next.charAt(next.length - 1) === Model.ASSISTED_CHARACTER) next = next.slice(0, -1)
+    root.typedText = next.slice(0, Model.eraseWordIndex(next))
   }
 
   function finishTest(completed) {
@@ -396,11 +407,11 @@ Item {
     if (root.mode === "sprint")
       return "start typing  /  w words  /  p prose  /  1 2 3 changes duration"
     if (root.mode === "quote")
-      return "start typing  /  enter advances the relay  /  tab changes mode"
+      return "start typing  /  line breaks advance automatically  /  tab changes mode"
     if (root.mode === "shell")
       return "start typing  /  1 2 3 changes duration  /  enter types return"
     if (root.mode === "code")
-      return "start typing  /  1 2 3 changes duration  /  choose a language above"
+      return "start typing  /  1 2 3 changes duration  /  enter types return"
     if (root.mode === "drill")
       return "start typing  /  recent mistakes set the targets  /  tab changes mode"
     if (root.mode === "custom")
@@ -443,7 +454,8 @@ Item {
     if (prompt.length < 1) return
     Qt.callLater(function() {
       if (promptFlick.contentHeight <= promptFlick.height || typeof promptText.positionToRectangle !== "function") return
-      var cursorRect = promptText.positionToRectangle(Math.min(root.typedText.length, root.prompt.length))
+      var sourcePosition = Math.min(root.typedText.length, root.prompt.length)
+      var cursorRect = promptText.positionToRectangle(Model.documentPosition(root.prompt, sourcePosition))
       var nextLineY = Math.max(0, cursorRect.y)
       if (Math.abs(nextLineY - root.promptLineY) < 1) return
       root.promptRowHeight = Math.abs(nextLineY - root.promptLineY)

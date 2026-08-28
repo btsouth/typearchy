@@ -2,6 +2,8 @@
 
 var STATE_VERSION = 5
 var MODES = ["sprint", "words", "daily", "quote", "shell", "code", "focus", "drill", "custom"]
+var MISSING_CHARACTER = "\u0000"
+var ASSISTED_CHARACTER = "\u0001"
 
 function clamp(value, low, high) {
   return Math.max(low, Math.min(high, value))
@@ -33,6 +35,17 @@ function correctCharacters(prompt, typed) {
   return count
 }
 
+function documentPosition(prompt, sourcePosition) {
+  var source = String(prompt || "")
+  var limit = clamp(Number(sourcePosition) || 0, 0, source.length)
+  var position = limit
+  for (var i = 0; i < limit; i++) {
+    if (source.charAt(i) === "\n") position++
+    else if (source.charAt(i) === "\t") position += 3
+  }
+  return position
+}
+
 function alignCharacter(prompt, typed, character) {
   var source = String(prompt || "")
   var entered = String(typed || "")
@@ -45,7 +58,7 @@ function alignCharacter(prompt, typed, character) {
   if (value === expected)
     return { text: entered + value, expected: expected, correct: true, recovered: false }
   if (index + 1 < source.length && value === source.charAt(index + 1))
-    return { text: entered + "\u0000" + value, expected: expected, correct: false, recovered: true }
+    return { text: entered + MISSING_CHARACTER + value, expected: expected, correct: false, recovered: true }
   if (index > 0 && value === source.charAt(index - 1))
     return { text: entered, expected: expected, correct: false, recovered: true }
   return { text: entered + value, expected: expected, correct: false, recovered: false }
@@ -462,7 +475,7 @@ function renderedPrompt(prompt, typed, colors) {
     else if (expected === "\t") shown = "&nbsp;&nbsp;&nbsp;&nbsp;"
     if (i < entered.length && entered.charAt(i) !== expected && expected === " ") shown = "_"
     var style
-    if (i < entered.length) style = entered.charAt(i) === expected
+    if (i < entered.length) style = entered.charAt(i) === expected || entered.charAt(i) === ASSISTED_CHARACTER
       ? "color:" + normal
       : "color:" + error + ";text-decoration:underline"
     else if (i === entered.length) style = "color:" + background + ";background-color:" + cursor

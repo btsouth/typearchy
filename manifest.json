@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "dev.typearchy.game",
   "name": "Typearchy",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "author": "tsouth89",
   "license": "MIT",
   "description": "A focused, local-first typing game built for Omarchy",

@@ -111,6 +111,9 @@ for (let nonce = 0; nonce < 30; nonce++)
 assert.ok(codeVariants.size >= content.CODE_CHALLENGES.python.length)
 
 assert.equal(model.correctCharacters("hello", "hxllo"), 4)
+assert.equal(model.documentPosition("one\ntwo", 3), 3)
+assert.equal(model.documentPosition("one\ntwo", 4), 5)
+assert.equal(model.documentPosition("a\tb", 2), 5)
 assert.deepEqual(
   JSON.parse(JSON.stringify(model.alignCharacter("one two", "one", "t"))),
   { text: "one\u0000t", expected: " ", correct: false, recovered: true }
@@ -124,6 +127,10 @@ assert.deepEqual(
   { text: "hex", expected: "l", correct: false, recovered: false }
 )
 assert.equal(model.correctCharacters("one two", "one\u0000two"), 6)
+assert.equal(model.correctCharacters("one\ntwo", "one\u0001two"), 6)
+assert.match(model.renderedPrompt("one\ntwo", "one\u0001", {
+  normal: "#ffffff", dim: "#777777", error: "#ff0000", cursor: "#ffffff", background: "#000000"
+}), /color:#ffffff/)
 assert.equal(model.wordsPerMinute(150, 30000), 60)
 assert.equal(model.rawWordsPerMinute(175, 30000), 70)
 assert.equal(model.accuracy(100, 3), 97)
