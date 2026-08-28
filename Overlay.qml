@@ -806,7 +806,8 @@ Item {
               id: promptFlick
               width: parent.width
               height: Math.min(promptText.contentHeight,
-                promptText.font.pixelSize * promptText.lineHeight * 2 + Style.space(2))
+                promptText.font.pixelSize * (root.mode === "code" || root.mode === "shell" ? 2.76 : 2.96)
+                  + Style.space(2))
               contentWidth: width
               contentHeight: promptText.contentHeight
               clip: true
@@ -833,8 +834,6 @@ Item {
                 font.pixelSize: Math.max(Style.font.heading,
                   Style.space(root.mode === "code" || root.mode === "shell" ? 25 : 34)) * root.fontScale
                 font.letterSpacing: root.mode === "code" || root.mode === "shell" ? 0 : 0.4
-                lineHeight: root.mode === "code" || root.mode === "shell" ? 1.38 : 1.48
-                lineHeightMode: TextEdit.ProportionalHeight
               }
             }
 

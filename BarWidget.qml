@@ -41,7 +41,7 @@ Panel {
   function activate(index) {
     if (index === 0) root.launch("sprint", root.stats.settings.duration)
     else if (index === 1) root.launch("daily", 30)
-    else if (index === 2) root.launch("focus", 30)
+    else if (index === 2) root.launch("drill", 30)
     else if (index === 3) root.launch(root.stats.settings.defaultMode, root.stats.settings.duration, "stats")
     else root.copyLatest()
   }
@@ -130,7 +130,7 @@ Panel {
       onTextKey: function(value) {
         if (value === "q") root.launch("sprint", root.stats.settings.duration)
         else if (value === "d") root.launch("daily", 30)
-        else if (value === "f") root.launch("focus", 30)
+        else if (value === "f") root.launch("drill", 30)
         else if (value === "h") root.launch(root.stats.settings.defaultMode, root.stats.settings.duration, "stats")
         else if (value === "s") root.copyLatest()
       }
@@ -220,13 +220,13 @@ Panel {
         Button {
           width: parent.width
           text: Model.weakKeys(root.stats, 4).length
-            ? "Focus practice  ·  " + Model.weakKeys(root.stats, 4).join(" ")
-            : "Focus practice  ·  build accuracy"
+            ? "Drill practice  ·  " + Model.weakKeys(root.stats, 4).join(" ")
+            : "Drill practice  ·  build accuracy"
           bordered: true
           leftAlign: true
           hasCursor: root.cursorIndex === 2
           foreground: root.foreground
-          onClicked: { root.cursorIndex = 2; root.launch("focus", 30) }
+          onClicked: { root.cursorIndex = 2; root.launch("drill", 30) }
           onHovered: function(value) { if (value) root.cursorIndex = 2 }
         }
 
