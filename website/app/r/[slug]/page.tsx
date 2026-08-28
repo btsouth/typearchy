@@ -26,11 +26,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const run = demoRuns[slug as DemoSlug];
   if (!run) return {};
 
-  const title = `${run.wpm} WPM on Typearchy ${run.label}`;
-  const description = 'Can you beat this run? Take the same Typearchy challenge and keep your fingers sharp.';
+  const title = `${run.wpm} WPM Typearchy run preview`;
+  const description = 'A seeded preview of a Typearchy result page. Public run publishing is not connected yet.';
   return {
     title,
     description,
+    robots: { index: false, follow: false },
     openGraph: { title, description, url: `https://typearchy.com/r/${slug}`, images: [] },
     twitter: { card: 'summary', title, description, images: [] },
   };
@@ -46,14 +47,14 @@ export default async function ResultPage({ params }: PageProps) {
       <nav className="receipt-nav">
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a className="wordmark" href="/" aria-label="Typearchy home"><span className="mark">T</span><span>TYPEARCHY</span></a>
-        <span>SHARED RUN / SCORE RECEIPT</span>
+        <span>DEMO RUN / SCORE RECEIPT</span>
       </nav>
 
       <section className="receipt-hero">
         <div className="receipt-intro">
-          <p className="section-tag">{run.label} / SHARED RUN</p>
-          <h1>BEAT<br />THIS RUN.</h1>
-          <p>Their score is the target. Take the same challenge, run it back as many times as you want, and beat it.</p>
+          <p className="section-tag">{run.label} / SEEDED PREVIEW</p>
+          <h1>RUN<br />RECEIPT.</h1>
+          <p>This demonstrates the planned public result page. The app does not create public run URLs yet.</p>
           <ShareActions accuracy={run.accuracy} label={run.label} paceText={run.paceText} slug={slug} wpm={run.wpm} />
           <small>NO ACCOUNT REQUIRED / NO KEYSTROKES SHARED</small>
         </div>
@@ -68,9 +69,9 @@ export default async function ResultPage({ params }: PageProps) {
       </section>
 
       <section className="receipt-contract" aria-label="Typearchy sharing contract">
-        <span><b>01</b><small>ONE SHORT LINK</small></span>
-        <span><b>02</b><small>THE SAME CHALLENGE</small></span>
-        <span><b>03</b><small>ONE TAP REMATCH</small></span>
+        <span><b>01</b><small>SEEDED DEMO URL</small></span>
+        <span><b>02</b><small>RESULT CARD PREVIEW</small></span>
+        <span><b>03</b><small>WEB CLIENT AVAILABLE</small></span>
         <span><b>00</b><small>TYPED TEXT UPLOADED</small></span>
       </section>
     </main>

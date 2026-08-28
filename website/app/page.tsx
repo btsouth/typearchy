@@ -24,8 +24,7 @@ const history = [
 
 function SharePreview() {
   const [copied, setCopied] = useState(false);
-  const resultUrl = 'https://typearchy.com/r/7K2M9Q';
-  const result = `TYPEARCHY / DAILY #241\n94 WPM  |  98% ACC\nPACE  ▁▂▄▅▆▇▆█\nBEAT THIS RUN  ${resultUrl}`;
+  const result = 'TYPEARCHY / DAILY #241\n94 WPM  |  98% ACC\nPACE  ▁▂▄▅▆▇▆█\nSHARE FLOW PREVIEW / NOT PUBLISHED';
 
   const copyResult = async () => {
     await navigator.clipboard.writeText(result);
@@ -37,12 +36,12 @@ function SharePreview() {
     <section className="share-section">
       <div className="share-copy">
         <p className="section-tag">05 / SHARE</p>
-        <h2>Share a score. Start a rematch.</h2>
-        <p>Short result URLs open the same challenge. Passages and keystrokes stay private.</p>
+        <h2>Share cards now. Rematch links next.</h2>
+        <p>The app exports a local result card and summary today. Public result URLs are a preview of the planned publishing flow.</p>
         <div className="share-actions">
           <button type="button" onClick={copyResult}>{copied ? 'COPIED TO CLIPBOARD' : 'COPY DEMO RESULT'}</button>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/r/7K2M9Q">OPEN SHARE PAGE</a>
+          <a href="/r/7K2M9Q">OPEN URL PREVIEW</a>
         </div>
         <code className="result-url">typearchy.com/r/7K2M9Q</code>
       </div>
@@ -61,20 +60,20 @@ function ProfilePreview() {
   return (
     <section className="profile-preview-section" id="profiles">
       <div className="profile-preview-copy">
-        <p className="section-tag">06 / PROFILE</p>
-        <h2>Public profiles.</h2>
-        <p>Publish selected scores, comparable personal bests, progress, and a pinned ghost.</p>
+        <p className="section-tag">06 / PROFILE PREVIEW</p>
+        <h2>Selected runs. Nothing automatic.</h2>
+        <p>A preview of opt-in profiles built from runs you choose to publish. App connection and publishing are not live yet.</p>
         <div className="profile-preview-actions">
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/u/bts">VIEW @BTS PROFILE</a>
-          <span>OPTIONAL / OPT-IN</span>
+          <a href="/u/bts">VIEW PROFILE PREVIEW</a>
+          <span>PLANNED / OPT-IN</span>
         </div>
       </div>
       <div className="profile-preview-card" aria-label="Preview of the @bts Typearchy public profile">
         <div className="profile-preview-head"><div className="mini-avatar">B</div><div><small>TYPEARCHY PLAYER</small><strong>@bts</strong></div><span>OSAKA JADE</span></div>
-        <div className="profile-preview-best"><span>ALL-TIME BEST</span><div><b>112</b><small>WPM</small></div><p>SPRINT / 15 SEC&nbsp;&nbsp;·&nbsp;&nbsp;98% ACC</p></div>
-        <div className="profile-preview-stats"><span><small>LAST 10 AVG</small>94 WPM</span><span><small>STREAK</small>12 DAYS</span><span><small>PUBLIC RUNS</small>43</span></div>
-        <div className="profile-preview-bars" aria-label="Recent speed trend rose from 72 to 104 words per minute">{[38, 45, 42, 53, 50, 62, 58, 69, 73, 67, 82, 78, 91, 86, 100].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>
+        <div className="profile-preview-best"><span>BEST PINNED RUN</span><div><b>104</b><small>WPM</small></div><p>SPRINT / 30 SEC&nbsp;&nbsp;·&nbsp;&nbsp;97% ACC</p></div>
+        <div className="profile-preview-stats"><span><small>DAILY</small>94 WPM</span><span><small>CODE / RUST</small>79 WPM</span><span><small>PINNED</small>3 RUNS</span></div>
+        <div className="profile-preview-bars" aria-label="Pace samples from selected preview runs">{[38, 45, 42, 53, 50, 62, 58, 69, 73, 67, 82, 78, 91, 86, 100].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>
         <div className="profile-preview-foot"><span>PINNED GHOST / WATCH + CHALLENGE</span><span>TYPEARCHY.COM/U/BTS</span></div>
       </div>
     </section>
@@ -97,7 +96,7 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow">AI CAN TAKE THE DICTATION.</p>
           <h1>KEEP YOUR<br />FINGERS SHARP.</h1>
-          <p className="lede">Local-first typing for Omarchy. Timed tests, code and shell practice, weak-key drills, history, ghosts, and shareable challenges.</p>
+          <p className="lede">Local-first typing for Omarchy. Timed tests, code and shell practice, weak-key drills, history, ghosts, and local result cards.</p>
           <div className="hero-actions"><a className="primary-action" href="#typing-demo" onClick={() => window.setTimeout(() => (document.querySelector('.demo-input') as HTMLTextAreaElement | null)?.focus(), 0)}>PLAY IN THE BROWSER</a><span className="release-note">07 MODES / 06 THEMES / LOCAL HISTORY</span></div>
         </div>
         <TypearchyGame compact />
@@ -131,13 +130,13 @@ export default function Home() {
       <section className="progress-section" id="progress">
         <div className="progress-copy"><p className="section-tag">02 / PROGRESS</p><h2>History that changes the next test.</h2><p>Local trends, personal bests, and adaptive drills.</p><div className="loop-line" aria-label="Typearchy practice loop"><span>MISTAKES</span><i>→</i><span>WEAK PAIRS</span><i>→</i><span>DRILL</span><i>→</i><span>RETEST</span></div></div>
         <div className="history-panel">
-          <div className="panel-title"><div><strong>HISTORY</strong><span>DEMO PROFILE / 43 RUNS</span></div><div><small>12 DAY</small><b>STREAK</b></div></div>
+          <div className="panel-title"><div><strong>HISTORY</strong><span>LOCAL DEMO / 43 RUNS</span></div><div><small>12 DAY</small><b>STREAK</b></div></div>
           <div className="history-summary"><span><small>TODAY</small>94 WPM</span><span><small>BEST</small>112 WPM</span><span><small>AVG ACC</small>97.4%</span></div>
           <div className="trend-plot" aria-label="Fourteen-run speed trend from 74 to 94 words per minute"><span>14 RUN TREND</span><div>{[40, 48, 43, 55, 51, 62, 58, 66, 71, 63, 78, 74, 86, 94].map((value, index) => <i key={index} style={{ height: `${value}%` }} />)}</div><b>+14.8%</b></div>
           <div className="history-table">{history.map((row) => <div className="history-row" key={`${row[0]}-${row[1]}`}>{row.map((cell, index) => <span key={`${cell}-${index}`} className={index === 4 ? 'gain' : ''}>{cell}</span>)}</div>)}</div>
           <div className="weak-keys"><span>NEXT DRILL</span><b>R&nbsp;&nbsp;T&nbsp;&nbsp;TH&nbsp;&nbsp;ER</b><small>WEIGHTED FROM RECENT ERRORS</small></div>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a className="history-profile-link" href="/u/bts">OPEN PUBLIC PROFILE&nbsp;&nbsp;→</a>
+          <a className="history-profile-link" href="/u/bts">OPEN PROFILE PREVIEW&nbsp;&nbsp;→</a>
         </div>
       </section>
 
@@ -173,9 +172,9 @@ export default function Home() {
       </section>
 
       <section className="install-section" id="install">
-        <p className="section-tag">08 / INSTALL</p><h2>Install and type.</h2><p>Local plugin now. Public repository and shared Daily challenge at launch.</p>
-        <div className="launch-status" aria-label="Typearchy launch progress"><span className="complete"><i />DOMAIN SECURED</span><span className="complete"><i />PLUGIN RUNNING</span><span><i />PUBLIC REPOSITORY NEXT</span></div>
-        <div className="install-command"><span>$</span><code>omarchy plugin add [typearchy repository] --enable</code><b>REPOSITORY PUBLISHES AT LAUNCH</b></div><a href="#top">PLAY THE DEMO AGAIN ↑</a>
+        <p className="section-tag">08 / INSTALL</p><h2>Install and type.</h2><p>The Omarchy plugin and browser client are live. Daily uses the same deterministic UTC prompt for every player.</p>
+        <div className="launch-status" aria-label="Typearchy launch status"><span className="complete"><i />DOMAIN LIVE</span><span className="complete"><i />PLUGIN PUBLISHED</span><span className="complete"><i />WEB CLIENT LIVE</span></div>
+        <div className="install-command"><span>$</span><code>omarchy plugin add https://github.com/tsouth89/typearchy.git --enable</code><b>GITHUB / TSOUTH89</b></div><a href="#top">PLAY THE DEMO AGAIN ↑</a>
       </section>
 
       <footer><a className="wordmark" href="#top"><span className="mark">T</span><span>TYPEARCHY</span></a><p>KEEP YOUR FINGERS SHARP.</p><span>TYPEARCHY.COM / 2026</span></footer>

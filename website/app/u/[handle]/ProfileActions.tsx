@@ -15,7 +15,7 @@ export default function ProfileActions({ handle }: { handle: string }) {
   return (
     <div className="profile-actions">
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a className="primary-action" href="/r/7K2M9Q">CHALLENGE THIS RUN</a>
+      <a className="primary-action" href="/r/F4S8RP">OPEN PRIMARY PIN</a>
       <button type="button" onClick={copyProfile}>{copied ? 'PROFILE LINK COPIED' : 'COPY PROFILE'}</button>
     </div>
   );

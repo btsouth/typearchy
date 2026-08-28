@@ -13,8 +13,7 @@ type ShareActionsProps = {
 export default function ShareActions({ accuracy, label, paceText, slug, wpm }: ShareActionsProps) {
   const [copied, setCopied] = useState(false);
   const resultUrl = `https://typearchy.com/r/${slug}`;
-  const resultText = `TYPEARCHY / ${label}\n${wpm} WPM  |  ${accuracy}% ACC\nPACE  ${paceText}\nBEAT THIS RUN  ${resultUrl}`;
-  const postUrl = `https://x.com/intent/post?text=${encodeURIComponent(resultText)}`;
+  const resultText = `TYPEARCHY / ${label}\n${wpm} WPM  |  ${accuracy}% ACC\nPACE  ${paceText}\nDEMO RUN  ${resultUrl}`;
 
   const copy = async () => {
     await navigator.clipboard.writeText(resultText);
@@ -24,10 +23,8 @@ export default function ShareActions({ accuracy, label, paceText, slug, wpm }: S
 
   return (
     <div className="receipt-actions">
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a className="primary-action" href="/#typing-demo">BEAT THIS RUN</a>
-      <button type="button" onClick={copy}>{copied ? 'COPIED' : 'COPY RESULT'}</button>
-      <a href={postUrl} target="_blank" rel="noreferrer">POST TO X</a>
+      <a className="primary-action" href="/play">TRY TYPEARCHY</a>
+      <button type="button" onClick={copy}>{copied ? 'COPIED' : 'COPY DEMO'}</button>
     </div>
   );
 }
