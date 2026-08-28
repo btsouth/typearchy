@@ -370,6 +370,15 @@ function updateRunPublication(state, timestamp, slug, pinned) {
   return next
 }
 
+function clearRunPublications(state) {
+  var next = parseState(JSON.stringify(state || emptyState()))
+  for (var index = 0; index < next.runs.length; index++) {
+    next.runs[index].publicSlug = ""
+    next.runs[index].publicPinned = false
+  }
+  return next
+}
+
 function bestForDate(state, key) {
   var best = 0
   var runs = state && state.runs ? state.runs : []

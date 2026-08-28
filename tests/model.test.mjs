@@ -232,6 +232,10 @@ state = model.updateRunPublication(state, model.latestRun(state).timestamp, "ABC
 assert.equal(model.latestRun(state).publicSlug, "ABCDEFGH")
 assert.equal(model.latestRun(state).publicPinned, true)
 assert.match(model.shareText(model.latestRun(state)), /TYPEARCHY\.COM\/R\/ABCDEFGH/)
+state = model.clearRunPublications(state)
+assert.equal(state.runs.length, 2)
+assert.equal(model.latestRun(state).publicSlug, "")
+assert.equal(model.latestRun(state).publicPinned, false)
 assert.match(model.shareText(model.normalizeRun({ mode: "sprint", duration: 30, wpm: 80, accuracy: 98, pace: [60, 70, 80] })), /PACE  ▁▄█/)
 assert.match(model.shareText(model.normalizeRun({ mode: "quote", target: "CRAFT", wpm: 70, accuracy: 98 })), /QUOTE RELAY CRAFT/)
 

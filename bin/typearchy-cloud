@@ -134,6 +134,15 @@ disconnect_profile() {
   jq -cn '{status:"disconnected"}'
 }
 
+delete_profile() {
+  [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
+  local token response
+  token="$(token_from_file "$credentials_path")"
+  response="$(request DELETE /api/profile "$token")"
+  rm -f "$credentials_path" "$pending_path"
+  printf '%s\n' "$response"
+}
+
 publish_run() {
   [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
   local input_path="${1:-}" token body
@@ -171,6 +180,7 @@ case "${1:-status}" in
   connect) connect_profile ;;
   recover) recover_profile ;;
   disconnect) disconnect_profile ;;
+  delete-profile) delete_profile ;;
   publish) publish_run "${2:-}" ;;
   pin) pin_run "${2:-}" "${3:-true}" ;;
   delete) delete_run "${2:-}" ;;

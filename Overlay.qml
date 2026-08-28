@@ -56,6 +56,7 @@ Item {
   property string profileHandle: ""
   property string profileCode: ""
   property string profileMessage: ""
+  property bool profileDeleteArmed: false
   property string cloudAction: ""
   property string cloudTargetTimestamp: ""
   property double resultsShownAt: 0
@@ -135,6 +136,8 @@ Item {
     ticker.stop()
     sampleTimer.stop()
     profilePoll.stop()
+    profileDeleteTimer.stop()
+    root.profileDeleteArmed = false
     root.opened = false
     root.windowedStats = false
   }
@@ -434,7 +437,21 @@ Item {
   }
 
   function disconnectProfile() {
+    root.profileDeleteArmed = false
     root.startCloudAction("disconnect", ["disconnect"])
+  }
+
+  function deleteProfile() {
+    if (root.profileStatus !== "connected") return
+    if (!root.profileDeleteArmed) {
+      root.profileDeleteArmed = true
+      root.profileMessage = "Delete profile and public runs? Press CONFIRM"
+      profileDeleteTimer.restart()
+      return
+    }
+    profileDeleteTimer.stop()
+    root.profileMessage = "Deleting public profile..."
+    root.startCloudAction("delete-profile", ["delete-profile"])
   }
 
   function openProfile() {
@@ -516,6 +533,22 @@ Item {
     if (root.cloudAction === "delete") {
       root.applyPublishedRun(root.cloudTargetTimestamp, "", false)
       root.profileMessage = "Public run removed. Local result kept."
+      return
+    }
+    if (root.cloudAction === "delete-profile") {
+      root.stats = Model.clearRunPublications(root.stats)
+      statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+      if (root.currentResult) {
+        root.currentResult = Model.normalizeRun(root.stats.runs.find(function(run) {
+          return run.timestamp === root.currentResult.timestamp
+        }) || root.currentResult)
+      }
+      root.profileStatus = "disconnected"
+      root.profileHandle = ""
+      root.profileCode = ""
+      root.profileDeleteArmed = false
+      root.profileMessage = "Public profile deleted. Local history kept."
+      profilePoll.stop()
       return
     }
     root.profileStatus = String(response.status || "disconnected")
@@ -653,6 +686,15 @@ Item {
     onTriggered: {
       if (!root.opened || root.profileStatus !== "pending") stop()
       else root.checkProfileStatus()
+    }
+  }
+
+  Timer {
+    id: profileDeleteTimer
+    interval: 8000
+    onTriggered: {
+      root.profileDeleteArmed = false
+      if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle
     }
   }
 
@@ -1922,6 +1964,12 @@ Item {
           selected: root.profileStatus === "connected"
           onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
             : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())
+        }
+        HistoryChoice {
+          visible: root.profileStatus === "connected"
+          text: root.profileDeleteArmed ? "CONFIRM" : "DELETE"
+          selected: root.profileDeleteArmed
+          onClicked: root.deleteProfile()
         }
         HistoryChoice {
           visible: root.profileStatus !== "connected"

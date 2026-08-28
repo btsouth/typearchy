@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     const nextRecoveryHash = await sha256(nextRecoveryCode);
     const now = Math.floor(Date.now() / 1000);
     await database.batch([
+      database.prepare(`UPDATE devices SET revoked_at = ?
+        WHERE profile_id = ? AND revoked_at IS NULL`).bind(now, profile.id),
       database.prepare(`INSERT INTO devices
         (id, profile_id, token_hash, label, created_at, last_used_at)
         VALUES (?, ?, ?, ?, ?, ?)`).bind(crypto.randomUUID(), profile.id, tokenHash, validateDeviceLabel(body.label), now, now),

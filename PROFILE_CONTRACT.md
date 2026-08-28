@@ -30,10 +30,13 @@ or another identity provider.
 The connection expires after 15 minutes. The raw device token stays in a
 user-only local file and is never included in a command-line argument. A
 one-time recovery code is shown after claiming the handle. Recovery rotates
-that code and adds a new revocable device token.
+that code, revokes previous device access, and connects the new device.
 
 Disconnecting in the app revokes that device. It does not remove other devices,
 the profile, or published runs.
+
+Deleting the profile requires a second confirmation in the app. It removes the
+profile and every public run while preserving all local history.
 
 ## Publishing
 
