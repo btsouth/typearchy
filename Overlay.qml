@@ -21,6 +21,8 @@ Item {
   readonly property string statePath: stateDir + "/stats.json"
   readonly property string customDir: home + "/.local/share/typearchy"
   readonly property string customPath: customDir + "/passages.txt"
+  readonly property string publishPath: stateDir + "/publish.json"
+  readonly property string cloudHelper: home + "/.config/omarchy/plugins/" + pluginId + "/bin/typearchy-cloud"
 
   property bool opened: false
   property bool windowedStats: false
@@ -50,6 +52,12 @@ Item {
   property var currentResult: null
   property var ghostRun: null
   property string shareStatus: ""
+  property string profileStatus: "disconnected"
+  property string profileHandle: ""
+  property string profileCode: ""
+  property string profileMessage: ""
+  property string cloudAction: ""
+  property string cloudTargetTimestamp: ""
   property double resultsShownAt: 0
   property bool exportingCard: false
   property int runNonce: 0
@@ -116,6 +124,7 @@ Item {
     root.codeLanguage = Content.validLanguage(payload.language || root.stats.settings.codeLanguage)
     root.resetTest()
     root.statsOpen = payload.view === "stats"
+    root.checkProfileStatus()
     Qt.callLater(function() {
       if (root.windowedStats) statsKeyCatcher.forceActiveFocus()
       else keyCatcher.forceActiveFocus()
@@ -125,6 +134,7 @@ Item {
   function close() {
     ticker.stop()
     sampleTimer.stop()
+    profilePoll.stop()
     root.opened = false
     root.windowedStats = false
   }
@@ -237,6 +247,16 @@ Item {
   function toggleStats() {
     if (root.phase === "running") return
     root.statsOpen = !root.statsOpen
+  }
+
+  function openRunResult(run) {
+    if (!run || root.phase === "running") return
+    root.currentResult = Model.normalizeRun(run)
+    root.phase = "results"
+    root.resultsShownAt = Date.now()
+    root.statsOpen = false
+    root.windowedStats = false
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
   function setDuration(seconds) {
@@ -379,6 +399,135 @@ Item {
     root.shareStatus = "Result text copied"
   }
 
+  function applyPublishedRun(timestamp, slug, pinned) {
+    root.stats = Model.updateRunPublication(root.stats, timestamp, slug, pinned)
+    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+    if (root.currentResult && root.currentResult.timestamp === timestamp) {
+      root.currentResult = Model.normalizeRun(root.stats.runs.find(function(run) { return run.timestamp === timestamp }) || root.currentResult)
+    }
+  }
+
+  function startCloudAction(action, args) {
+    if (cloudProc.running) {
+      if (action !== "status") root.profileMessage = "Profile action already running"
+      return
+    }
+    root.cloudAction = action
+    cloudProc.command = [root.cloudHelper].concat(args || [])
+    cloudProc.running = true
+  }
+
+  function checkProfileStatus() {
+    root.startCloudAction("status", ["status"])
+  }
+
+  function connectProfile() {
+    root.profileStatus = "pending"
+    root.profileMessage = "Opening secure connection page..."
+    root.startCloudAction("connect", ["connect"])
+  }
+
+  function recoverProfile() {
+    root.profileStatus = "pending"
+    root.profileMessage = "Opening recovery page..."
+    root.startCloudAction("recover", ["recover"])
+  }
+
+  function disconnectProfile() {
+    root.startCloudAction("disconnect", ["disconnect"])
+  }
+
+  function openProfile() {
+    if (!root.profileHandle) return
+    openCustomProc.command = ["xdg-open", "https://typearchy.com/u/" + root.profileHandle]
+    openCustomProc.running = true
+  }
+
+  function publishRun(run) {
+    if (!run) return
+    if (root.profileStatus !== "connected") {
+      root.connectProfile()
+      return
+    }
+    if (run.mode === "custom") {
+      root.profileMessage = "Custom passages stay local"
+      return
+    }
+    if (run.publicSlug) {
+      copyTextProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", "https://typearchy.com/r/" + run.publicSlug]
+      copyTextProc.running = true
+      root.profileMessage = "Public link copied"
+      return
+    }
+    root.cloudTargetTimestamp = run.timestamp
+    var payload = {
+      timestamp: run.timestamp,
+      contentVersion: run.contentVersion || "unknown",
+      mode: run.mode,
+      challengeKey: run.challengeKey,
+      target: run.target || (run.duration + " seconds"),
+      duration: run.duration,
+      wpm: run.wpm,
+      rawWpm: run.rawWpm,
+      accuracy: run.accuracy,
+      consistency: run.consistency,
+      errors: run.errors,
+      pace: run.pace
+    }
+    publishFile.setText(JSON.stringify(payload) + "\n")
+    root.profileMessage = "Publishing score summary..."
+    Qt.callLater(function() { root.startCloudAction("publish", ["publish", root.publishPath]) })
+  }
+
+  function toggleRunPin(run) {
+    if (!run || !run.publicSlug || root.profileStatus !== "connected") return
+    root.cloudTargetTimestamp = run.timestamp
+    root.profileMessage = run.publicPinned ? "Removing profile pin..." : "Pinning run to profile..."
+    root.startCloudAction("pin", ["pin", run.publicSlug, run.publicPinned ? "false" : "true"])
+  }
+
+  function deletePublishedRun(run) {
+    if (!run || !run.publicSlug || root.profileStatus !== "connected") return
+    root.cloudTargetTimestamp = run.timestamp
+    root.profileMessage = "Removing public run..."
+    root.startCloudAction("delete", ["delete", run.publicSlug])
+  }
+
+  function handleCloudResponse(exitCode) {
+    var raw = String(cloudOutput.text || "").trim()
+    var errorText = String(cloudErrors.text || "").trim()
+    var response = {}
+    try { response = JSON.parse(raw || errorText || "{}") || {} } catch (error) {}
+    if (exitCode !== 0 || response.error) {
+      root.profileMessage = String(response.error || "Profile service unavailable")
+      if (root.cloudAction === "status") root.profileStatus = "disconnected"
+      return
+    }
+    if (root.cloudAction === "publish") {
+      root.applyPublishedRun(root.cloudTargetTimestamp, response.slug, false)
+      root.profileMessage = "Published  /  typearchy.com/r/" + response.slug
+      return
+    }
+    if (root.cloudAction === "pin") {
+      root.applyPublishedRun(root.cloudTargetTimestamp, undefined, response.pinned === true)
+      root.profileMessage = response.pinned ? "Pinned to public profile" : "Removed from public profile"
+      return
+    }
+    if (root.cloudAction === "delete") {
+      root.applyPublishedRun(root.cloudTargetTimestamp, "", false)
+      root.profileMessage = "Public run removed. Local result kept."
+      return
+    }
+    root.profileStatus = String(response.status || "disconnected")
+    root.profileHandle = String(response.handle || "")
+    root.profileCode = String(response.code || "")
+    if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle
+    else if (root.profileStatus === "pending") root.profileMessage = root.profileCode ? "Finish in browser  /  " + root.profileCode : "Finish recovery in browser"
+    else root.profileMessage = ""
+    if (root.profileStatus === "pending") profilePoll.start()
+    else profilePoll.stop()
+  }
+
   function mistakeSummary(counts, limit) {
     var rows = Model.sortedCounts(counts, limit)
     if (!rows.length) return "None yet"
@@ -474,6 +623,13 @@ Item {
   Process { id: copyTextProc }
   Process { id: openCustomProc }
 
+  Process {
+    id: cloudProc
+    stdout: StdioCollector { id: cloudOutput; waitForEnd: true }
+    stderr: StdioCollector { id: cloudErrors; waitForEnd: true }
+    onExited: function(exitCode) { root.handleCloudResponse(exitCode) }
+  }
+
   FileView {
     id: statsFile
     path: root.statePath
@@ -481,6 +637,23 @@ Item {
     printErrors: false
     onLoaded: root.loadStats(text())
     onLoadFailed: root.loadStats("")
+  }
+
+  FileView {
+    id: publishFile
+    path: root.publishPath
+    atomicWrites: true
+    printErrors: false
+  }
+
+  Timer {
+    id: profilePoll
+    interval: 2200
+    repeat: true
+    onTriggered: {
+      if (!root.opened || root.profileStatus !== "pending") stop()
+      else root.checkProfileStatus()
+    }
   }
 
   FileView {
@@ -1062,8 +1235,21 @@ Item {
                 spacing: Style.space(8)
 
                 ResultAction { text: "RETRY  CTRL+R"; onClicked: root.resetTest() }
+                ResultAction {
+                  text: root.currentResult && root.currentResult.publicSlug ? "COPY LINK" : (root.profileStatus === "connected" ? "PUBLISH" : "CONNECT")
+                  onClicked: root.publishRun(root.currentResult)
+                }
+                ResultAction {
+                  text: root.currentResult && root.currentResult.publicPinned ? "UNPIN" : "PIN"
+                  enabled: root.currentResult && root.currentResult.publicSlug && root.profileStatus === "connected"
+                  onClicked: root.toggleRunPin(root.currentResult)
+                }
+                ResultAction {
+                  text: "REMOVE"
+                  enabled: root.currentResult && root.currentResult.publicSlug && root.profileStatus === "connected"
+                  onClicked: root.deletePublishedRun(root.currentResult)
+                }
                 ResultAction { text: "SAVE CARD  CTRL+S"; onClicked: root.shareResult() }
-                ResultAction { text: "COPY TEXT  CTRL+C"; onClicked: root.copyResultText() }
                 ResultAction { text: "HISTORY  CTRL+H"; onClicked: root.toggleStats() }
               }
 
@@ -1268,6 +1454,8 @@ Item {
                 }
               }
 
+              ProfileSettings { width: parent.width }
+
               Text {
                 text: "TEST HISTORY  /  " + root.historyFilter.toUpperCase()
                 color: root.muted
@@ -1302,6 +1490,12 @@ Item {
                       height: Style.space(34)
                       radius: Math.max(2, Style.cornerRadius / 2)
                       color: index % 2 ? "transparent" : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.035)
+
+                      MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.openRunResult(modelData)
+                      }
 
                       Row {
                         anchors.fill: parent
@@ -1559,6 +1753,8 @@ Item {
           }
         }
 
+        ProfileSettings { width: parent.width }
+
         Text {
           text: "TEST HISTORY"
           color: root.muted
@@ -1592,6 +1788,11 @@ Item {
                 height: Style.space(38)
                 radius: Math.max(2, Style.cornerRadius / 2)
                 color: index % 2 ? "transparent" : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.035)
+                MouseArea {
+                  anchors.fill: parent
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.openRunResult(modelData)
+                }
                 Row {
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(10)
@@ -1673,12 +1874,63 @@ Item {
   }
 
   component ResultAction: Button {
-    width: (parent.width - parent.spacing * 3) / 4
+    width: (parent.width - parent.spacing * 5) / 6
     foreground: root.foreground
     bordered: true
     fontSize: Style.font.caption
     horizontalPadding: Style.space(8)
     verticalPadding: Style.space(6)
+  }
+
+  component ProfileSettings: Rectangle {
+    height: Style.space(42)
+    radius: Math.max(2, Style.cornerRadius / 2)
+    color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.028)
+    border.width: 1
+    border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+    Row {
+      anchors.fill: parent
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(8)
+      spacing: Style.space(7)
+
+      Text {
+        width: Math.max(Style.space(210), parent.width - actionButtons.width - parent.spacing)
+        anchors.verticalCenter: parent.verticalCenter
+        text: "PUBLIC PROFILE  /  " + (root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "NOT CONNECTED"))
+        color: root.profileStatus === "connected" ? root.accent : root.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1
+        elide: Text.ElideRight
+      }
+
+      Row {
+        id: actionButtons
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(4)
+        HistoryChoice {
+          visible: root.profileStatus === "connected"
+          text: "OPEN"
+          selected: false
+          onClicked: root.openProfile()
+        }
+        HistoryChoice {
+          text: root.profileStatus === "connected" ? "DISCONNECT" : (root.profileStatus === "pending" ? "CHECK" : "CONNECT")
+          selected: root.profileStatus === "connected"
+          onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
+            : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())
+        }
+        HistoryChoice {
+          visible: root.profileStatus !== "connected"
+          text: "RECOVER"
+          selected: false
+          onClicked: root.recoverProfile()
+        }
+      }
+    }
   }
 
   component PaceGraph: Item {

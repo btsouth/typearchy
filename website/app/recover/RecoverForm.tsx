@@ -1,0 +1,11 @@
+'use client';
+
+import { useState } from 'react';
+
+export default function RecoverForm({ tokenHash, label }: { tokenHash: string; label: string }) {
+  const [handle, setHandle] = useState(''); const [recoveryCode, setRecoveryCode] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [nextCode, setNextCode] = useState('');
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { const response = await fetch('/api/recover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle, recoveryCode, tokenHash, label }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Recovery failed'); setNextCode(data.recoveryCode); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Recovery failed'); } finally { setBusy(false); } };
+  if (!/^[a-f0-9]{64}$/.test(tokenHash)) return <section className="connect-card"><p className="section-tag">RECOVERY</p><h1>START IN THE APP.</h1><p>Open Typearchy settings and choose Recover profile to securely prepare this device.</p></section>;
+  if (nextCode) return <section className="connect-card connect-success"><p className="section-tag">PROFILE RECOVERED</p><h1>DEVICE CONNECTED.</h1><p>Your previous recovery code is no longer valid. Save the replacement now.</p><div className="recovery-code">{nextCode}</div><button className="primary-action" type="button" onClick={() => navigator.clipboard.writeText(nextCode)}>COPY NEW RECOVERY CODE</button></section>;
+  return <form className="connect-card" onSubmit={submit}><p className="section-tag">RECOVER PROFILE</p><h1>CONNECT THIS DEVICE.</h1><p>Enter your handle and recovery code. Successful recovery rotates the code and leaves other devices connected.</p><label>HANDLE<input value={handle} onChange={(event) => setHandle(event.target.value.toLowerCase())} required /></label><label>RECOVERY CODE<input value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} required /></label>{error && <div className="connect-error">{error}</div>}<button className="primary-action" disabled={busy}>{busy ? 'RECOVERING...' : 'RECOVER PROFILE'}</button></form>;
+}

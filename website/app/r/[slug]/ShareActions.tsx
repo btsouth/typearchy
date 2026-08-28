@@ -4,16 +4,18 @@ import { useState } from 'react';
 
 type ShareActionsProps = {
   accuracy: number;
+  challengeKey: string;
+  demo: boolean;
   label: string;
   paceText: string;
   slug: string;
   wpm: number;
 };
 
-export default function ShareActions({ accuracy, label, paceText, slug, wpm }: ShareActionsProps) {
+export default function ShareActions({ accuracy, challengeKey, demo, label, paceText, slug, wpm }: ShareActionsProps) {
   const [copied, setCopied] = useState(false);
   const resultUrl = `https://typearchy.com/r/${slug}`;
-  const resultText = `TYPEARCHY / ${label}\n${wpm} WPM  |  ${accuracy}% ACC\nPACE  ${paceText}\nDEMO RUN  ${resultUrl}`;
+  const resultText = `TYPEARCHY / ${label}\n${Math.round(wpm)} WPM  |  ${accuracy}% ACC\nPACE  ${paceText}\n${demo ? 'EXAMPLE' : 'CHALLENGE'}  ${resultUrl}`;
 
   const copy = async () => {
     await navigator.clipboard.writeText(resultText);
@@ -23,8 +25,8 @@ export default function ShareActions({ accuracy, label, paceText, slug, wpm }: S
 
   return (
     <div className="receipt-actions">
-      <a className="primary-action" href="/play">TRY TYPEARCHY</a>
-      <button type="button" onClick={copy}>{copied ? 'COPIED' : 'COPY DEMO'}</button>
+      <a className="primary-action" href={`/play?challenge=${encodeURIComponent(challengeKey)}`}>BEAT THIS RUN</a>
+      <button type="button" onClick={copy}>{copied ? 'COPIED' : 'COPY RESULT'}</button>
     </div>
   );
 }

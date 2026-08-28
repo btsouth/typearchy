@@ -3,15 +3,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { cumulativeWordsAt, paceAt, racePosition, replayProgress } from './ghostEngine';
 
-const runPace = [88, 96, 102, 108, 112, 106, 110, 116, 108, 112, 104, 104];
-const ghostPace = [84, 90, 96, 100, 104, 98, 102, 106, 98, 100, 98, 98];
-const testLengthSeconds = 30;
-const replayLengthMs = 15_000;
+type GhostRun = {
+  slug: string;
+  handle: string;
+  mode: string;
+  target: string;
+  wpm: number;
+  accuracy: number;
+  consistency: number;
+  date: string;
+  duration: number;
+  pace: number[];
+};
 
-export default function PinnedGhost() {
+export default function PinnedGhost({ run }: { run: GhostRun }) {
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const origin = useRef(0);
+  const replayLengthMs = Math.max(7000, Math.min(20_000, run.duration * 500));
 
   useEffect(() => {
     if (!playing) return;
@@ -24,21 +33,17 @@ export default function PinnedGhost() {
     };
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [playing]);
+  }, [playing, replayLengthMs]);
 
-  const runWpm = paceAt(runPace, progress);
-  const ghostWpm = paceAt(ghostPace, progress);
-  const runWords = cumulativeWordsAt(runPace, progress, testLengthSeconds);
-  const ghostWords = cumulativeWordsAt(ghostPace, progress, testLengthSeconds);
-  const finishWords = Math.max(cumulativeWordsAt(runPace, 1, testLengthSeconds), cumulativeWordsAt(ghostPace, 1, testLengthSeconds));
-  const activeSample = Math.min(runPace.length - 1, Math.floor(progress * runPace.length));
-  const elapsed = Math.round(progress * testLengthSeconds);
+  const currentWpm = paceAt(run.pace, progress);
+  const words = cumulativeWordsAt(run.pace, progress, run.duration);
+  const finishWords = cumulativeWordsAt(run.pace, 1, run.duration);
+  const activeSample = Math.min(run.pace.length - 1, Math.floor(progress * run.pace.length));
+  const elapsed = Math.round(progress * run.duration);
+  const maximumPace = Math.max(1, ...run.pace);
 
   const toggle = () => {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
+    if (playing) return setPlaying(false);
     const next = progress >= 1 ? 0 : progress;
     if (progress >= 1) setProgress(0);
     origin.current = performance.now() - next * replayLengthMs;
@@ -51,35 +56,32 @@ export default function PinnedGhost() {
   };
 
   return (
-    <article className="profile-ghost-card" aria-label="Pinned ghost replay preview of a 104 words per minute Sprint run">
+    <article className="profile-ghost-card" aria-label={`Replay ${run.handle}'s pinned ${run.wpm} words per minute run`}>
       <div className="profile-ghost-summary">
-        <div className="profile-run-meta"><span>PRIMARY PIN / SPRINT / 30 SEC</span><small>AUG 27</small></div>
-        <div className="profile-run-score"><b>104</b><span>WPM</span></div>
-        <div className="profile-run-metrics"><span><small>ACC</small>97%</span><span><small>CONSISTENCY</small>90%</span><span><small>VS PB GHOST</small>+6 WPM</span></div>
+        <div className="profile-run-meta"><span>PRIMARY PIN / {run.mode} / {run.target}</span><small>{run.date}</small></div>
+        <div className="profile-run-score"><b>{Math.round(run.wpm)}</b><span>WPM</span></div>
+        <div className="profile-run-metrics"><span><small>ACC</small>{run.accuracy}%</span><span><small>CONSISTENCY</small>{run.consistency}%</span><span><small>DURATION</small>{run.duration} SEC</span></div>
         <div className="profile-ghost-actions">
-          <button type="button" onClick={toggle}>{playing ? 'PAUSE' : progress >= 1 ? 'REPLAY' : progress > 0 ? 'RESUME' : 'WATCH GHOST'}</button>
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/r/F4S8RP">OPEN DEMO RUN</a>
+          <button type="button" onClick={toggle}>{playing ? 'PAUSE' : progress >= 1 ? 'REPLAY' : progress > 0 ? 'RESUME' : 'WATCH RUN'}</button>
+          <a href={`/r/${run.slug}`}>CHALLENGE RUN</a>
         </div>
       </div>
 
       <div className="ghost-tape ghost-tape-compact">
-        <div className="ghost-scoreboard ghost-scoreboard-compact">
-          <span><small>@BTS PACE</small><b>{runWpm}</b> WPM</span>
-          <i>{runWpm - ghostWpm >= 0 ? '+' : ''}{runWpm - ghostWpm}</i>
-          <span><small>PB GHOST</small><b>{ghostWpm}</b> WPM</span>
+        <div className="ghost-scoreboard ghost-scoreboard-compact ghost-scoreboard-single">
+          <span><small>{run.handle.toUpperCase()} / RECORDED PACE</small><b>{currentWpm}</b> WPM</span>
+          <i>{Math.round(progress * 100)}%</i>
         </div>
-        <div className="ghost-race">
-          <div className="ghost-lane"><span>@BTS</span><div><i className="runner player" style={{ left: `${racePosition(runWords, finishWords)}%` }}>▲</i></div><b>{runWords.toFixed(1)} WORDS</b></div>
-          <div className="ghost-lane"><span>GHOST</span><div><i className="runner previous" style={{ left: `${racePosition(ghostWords, finishWords)}%` }}>◇</i></div><b>{ghostWords.toFixed(1)} WORDS</b></div>
+        <div className="ghost-race ghost-race-single">
+          <div className="ghost-lane"><span>GHOST</span><div><i className="runner player" style={{ left: `${racePosition(words, finishWords)}%` }}>▲</i></div><b>{words.toFixed(1)} WORDS</b></div>
         </div>
         <div className="ghost-pace-strip" aria-hidden="true">
-          {runPace.map((value, index) => <i className={index <= activeSample ? 'passed' : ''} key={`${value}-${index}`} style={{ height: `${((value - 65) / 50) * 100}%` }} />)}
+          {run.pace.map((value, index) => <i className={index <= activeSample ? 'passed' : ''} key={`${value}-${index}`} style={{ height: `${Math.max(8, value / maximumPace * 100)}%` }} />)}
         </div>
         <div className="ghost-scrubber">
           <span>{playing ? 'PLAYING' : progress >= 1 ? 'FINISHED' : progress > 0 ? 'PAUSED' : 'READY'}</span>
           <input type="range" min="0" max="1000" value={Math.round(progress * 1000)} onChange={(event) => seek(Number(event.target.value) / 1000)} aria-label="Ghost replay position" />
-          <span>0:{elapsed.toString().padStart(2, '0')} / 0:30</span>
+          <span>0:{elapsed.toString().padStart(2, '0')} / {Math.floor(run.duration / 60)}:{(run.duration % 60).toString().padStart(2, '0')}</span>
         </div>
       </div>
     </article>

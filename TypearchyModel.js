@@ -1,6 +1,6 @@
 .pragma library
 
-var STATE_VERSION = 5
+var STATE_VERSION = 6
 var MODES = ["sprint", "words", "daily", "quote", "shell", "code", "focus", "drill", "custom"]
 var MISSING_CHARACTER = "\u0000"
 var ASSISTED_CHARACTER = "\u0001"
@@ -189,7 +189,9 @@ function normalizeRun(run) {
     bigramMistakes: normalizeCounts(value.bigramMistakes),
     pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
       return Math.max(0, Number(sample) || 0)
-    }).slice(0, 180) : []
+    }).slice(0, 180) : [],
+    publicSlug: /^[A-HJ-NP-Z2-9]{8}$/.test(String(value.publicSlug || "")) ? String(value.publicSlug) : "",
+    publicPinned: value.publicPinned === true
   }
   if (!normalized.challengeKey) normalized.challengeKey = fallbackChallengeKey(normalized)
   return normalized
@@ -198,7 +200,7 @@ function normalizeRun(run) {
 function parseState(raw) {
   var parsed
   try { parsed = JSON.parse(String(raw || "")) } catch (error) { return emptyState() }
-  if (!parsed || [1, 2, 3, 4, 5].indexOf(Number(parsed.version)) < 0) return emptyState()
+  if (!parsed || [1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0) return emptyState()
   var state = emptyState()
   state.runs = Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun).slice(0, 500) : []
   state.bestWpm = Math.max(0, Number(parsed.bestWpm) || 0)
@@ -356,6 +358,18 @@ function latestRun(state) {
   return state && state.runs && state.runs.length > 0 ? normalizeRun(state.runs[0]) : null
 }
 
+function updateRunPublication(state, timestamp, slug, pinned) {
+  var next = parseState(JSON.stringify(state || emptyState()))
+  var wanted = String(timestamp || "")
+  for (var index = 0; index < next.runs.length; index++) {
+    if (next.runs[index].timestamp !== wanted) continue
+    if (slug !== undefined) next.runs[index].publicSlug = String(slug || "")
+    if (pinned !== undefined) next.runs[index].publicPinned = pinned === true
+    return next
+  }
+  return next
+}
+
 function bestForDate(state, key) {
   var best = 0
   var runs = state && state.runs ? state.runs : []
@@ -455,7 +469,7 @@ function shareText(run) {
   return "TYPEARCHY / " + label + "\n" + Math.round(run.wpm) + " WPM  |  "
     + round(run.accuracy, 1) + "% ACCURACY" + achievement
     + (pace ? "\nPACE  " + pace : "")
-    + "\nBEAT THIS RUN  TYPEARCHY.COM"
+    + "\nBEAT THIS RUN  " + (run.publicSlug ? "TYPEARCHY.COM/R/" + run.publicSlug : "TYPEARCHY.COM")
 }
 
 function colorString(color) {

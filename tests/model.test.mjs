@@ -14,7 +14,7 @@ function loadLibrary(path) {
 const model = loadLibrary("../TypearchyModel.js")
 const content = loadLibrary("../Content.js")
 
-assert.equal(model.STATE_VERSION, 5)
+assert.equal(model.STATE_VERSION, 6)
 assert.equal(model.dateKey(new Date("2026-08-28T23:00:00Z")), "2026-08-28")
 assert.match(model.localDateKey(new Date()), /^\d{4}-\d{2}-\d{2}$/)
 assert.equal(new Set(content.WORDS).size, content.WORDS.length)
@@ -228,6 +228,10 @@ assert.equal(model.recentTrend(state, "all", 10)[0].wpm, 80)
 assert.match(model.shareText(model.latestRun(state)), /92 WPM/)
 assert.match(model.shareText(model.latestRun(state)), /TYPEARCHY\.COM/)
 assert.match(model.shareText(model.latestRun(state)), /BEAT THIS RUN/)
+state = model.updateRunPublication(state, model.latestRun(state).timestamp, "ABCDEFGH", true)
+assert.equal(model.latestRun(state).publicSlug, "ABCDEFGH")
+assert.equal(model.latestRun(state).publicPinned, true)
+assert.match(model.shareText(model.latestRun(state)), /TYPEARCHY\.COM\/R\/ABCDEFGH/)
 assert.match(model.shareText(model.normalizeRun({ mode: "sprint", duration: 30, wpm: 80, accuracy: 98, pace: [60, 70, 80] })), /PACE  ▁▄█/)
 assert.match(model.shareText(model.normalizeRun({ mode: "quote", target: "CRAFT", wpm: 70, accuracy: 98 })), /QUOTE RELAY CRAFT/)
 
@@ -263,7 +267,7 @@ assert.equal(drillProfile.keys[0], "x")
 assert.equal(drillProfile.bigrams[0], "e→x")
 assert.equal(model.drillTargetErrors({ drillKeys: ["x"], drillBigrams: ["e→x"] }, { x: 2 }, { "e→x": 1 }), 3)
 
-for (const version of [1, 2, 3, 4]) {
+for (const version of [1, 2, 3, 4, 5]) {
   const migrated = model.parseState(JSON.stringify({
     version,
     runs: [],
@@ -273,7 +277,7 @@ for (const version of [1, 2, 3, 4]) {
     lastPlayedDate: "2026-08-27",
     settings: { showLiveStats: false }
   }))
-  assert.equal(migrated.version, 5)
+  assert.equal(migrated.version, 6)
   assert.equal(migrated.bestWpm, 70)
   assert.equal(migrated.settings.defaultMode, "sprint")
   assert.equal(migrated.settings.showLiveStats, false)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-export default function ProfileActions({ handle }: { handle: string }) {
+export default function ProfileActions({ handle, primarySlug }: { handle: string; primarySlug?: string }) {
   const [copied, setCopied] = useState(false);
   const profileUrl = `https://typearchy.com/u/${handle}`;
 
@@ -14,8 +14,7 @@ export default function ProfileActions({ handle }: { handle: string }) {
 
   return (
     <div className="profile-actions">
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a className="primary-action" href="/r/F4S8RP">OPEN PRIMARY PIN</a>
+      {primarySlug ? <a className="primary-action" href={`/r/${primarySlug}`}>CHALLENGE PRIMARY PIN</a> : <a className="primary-action" href="/play">PLAY TYPEARCHY</a>}
       <button type="button" onClick={copyProfile}>{copied ? 'PROFILE LINK COPIED' : 'COPY PROFILE'}</button>
     </div>
   );

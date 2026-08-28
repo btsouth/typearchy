@@ -9,7 +9,7 @@ bar launcher, a focused fullscreen typing experience, and a movable, resizable
 History window that follows the current Omarchy theme.
 
 The game works without an account or network connection. Results and practice
-insights stay on the local machine.
+insights stay on the local machine unless you explicitly publish one.
 
 ## Included
 
@@ -19,7 +19,7 @@ insights stay on the local machine.
 - Curated Quote Relay, Shell, Code, adaptive Drill, and local Custom modes
 - Bash, Python, JavaScript, and Rust code practice
 - A seeded content engine for balanced words, shell workflows, prose, quote relays, and complete code programs
-- Reproducible challenge keys that can power exact URL rematches later
+- Reproducible challenge keys and exact URL rematches
 - Eight themed Quote Relays with attributed excerpts and a maintained source list
 - WPM, raw WPM, accuracy, consistency, and error counts
 - Per-key and bigram mistake tracking with readable, targeted drills
@@ -27,6 +27,7 @@ insights stay on the local machine.
 - Optional live stats, a personal-best pace ghost, and three type sizes
 - A keyboard-and-bolt bar widget with a quick-launch panel
 - Pace graphs and PNG result cards saved locally and copied to the clipboard
+- Optional public handles with three pinned runs and replayable pace ghosts
 - Automatic Omarchy theme colors and typography
 
 ## Install
@@ -71,6 +72,8 @@ Production builds target Cloudflare Workers through Vinext.
 - On results, use the visible actions or press `Ctrl+R` to retry, `Ctrl+S` to
   save a card, `Ctrl+C` to copy text, or `Ctrl+H` to open history. Ordinary
   typing is ignored so a finished result cannot disappear accidentally.
+- In History, connect a public profile with one browser step. Publishing,
+  pinning, unpinning, and removing a public run are always explicit.
 
 Before a test starts:
 
@@ -106,10 +109,16 @@ Share cards:
 ~/Pictures/Typearchy/
 ```
 
+The optional profile credential is stored with user-only permissions at:
+
+```text
+~/.local/state/typearchy/profile.json
+```
+
 Quote attributions are documented in [QUOTE_SOURCES.md](QUOTE_SOURCES.md).
 The local generation and validation contract is documented in
 [CONTENT_ENGINE.md](CONTENT_ENGINE.md).
-The future opt-in result URL and privacy boundary are documented in
+The opt-in result URL and privacy boundary are documented in
 [SHARING_CONTRACT.md](SHARING_CONTRACT.md).
 
 Personal streaks use the machine's local calendar. The shared Daily challenge

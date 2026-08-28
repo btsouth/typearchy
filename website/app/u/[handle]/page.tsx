@@ -1,93 +1,73 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { profileRuns, publicProfile, type RunRow } from '../../lib/db';
+import { profileSummary } from '../../lib/profileContract';
 import PinnedGhost from './PinnedGhost';
 import ProfileActions from './ProfileActions';
 
-const profileHandle = 'bts';
-
-const pinnedRuns = [
-  { slug: '7K2M9Q', mode: 'DAILY', target: '#241', wpm: 94, accuracy: 98, consistency: 92, date: 'AUG 28', pace: [58, 66, 74, 82, 88, 94] },
-  { slug: 'C8D3VX', mode: 'CODE', target: 'RUST', wpm: 79, accuracy: 99, consistency: 95, date: 'AUG 26', pace: [52, 61, 68, 73, 76, 79] },
-];
-
 type PageProps = { params: Promise<{ handle: string }> };
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { handle } = await params;
-  if (handle !== profileHandle) return {};
-  const title = '@bts profile preview on Typearchy';
-  const description = 'A preview of selected typing runs, comparable personal bests, and a pinned ghost to challenge.';
+const demoRuns: RunRow[] = [
+  { id: 'demo-1', slug: 'F4S8RP', profile_id: 'demo', schema_version: 1, content_version: '2026.08.2', mode: 'sprint', challenge_key: 'sprint:prose:30:generated:prose:demo', target: 'prose / 30 seconds', duration: 30, wpm: 104, raw_wpm: 109, accuracy: 97, consistency: 90, errors: 5, pace_json: '[88,96,102,108,112,106,110,116,108,112,104,104]', created_at: 1787961600, pinned_at: 1787961600 },
+  { id: 'demo-2', slug: '7K2M9Q', profile_id: 'demo', schema_version: 1, content_version: '2026.08.2', mode: 'daily', challenge_key: 'daily:241', target: '#241', duration: 74, wpm: 94, raw_wpm: 98, accuracy: 98, consistency: 92, errors: 3, pace_json: '[58,66,74,82,88,94]', created_at: 1787875200, pinned_at: 1787875200 },
+  { id: 'demo-3', slug: 'C8D3VX', profile_id: 'demo', schema_version: 1, content_version: '2026.08.2', mode: 'code', challenge_key: 'code:rust:30:generated:code:rust:demo', target: 'rust / 30 seconds', duration: 30, wpm: 79, raw_wpm: 81, accuracy: 99, consistency: 95, errors: 2, pace_json: '[52,61,68,73,76,79]', created_at: 1787788800, pinned_at: 1787788800 },
+];
+
+function displayRun(run: RunRow, handle: string) {
+  let pace: number[] = [];
+  try { pace = JSON.parse(run.pace_json); } catch { pace = [run.wpm]; }
   return {
-    title,
-    description,
-    robots: { index: false, follow: false },
-    openGraph: { title, description, url: `https://typearchy.com/u/${profileHandle}`, images: [] },
-    twitter: { card: 'summary', title, description, images: [] },
+    slug: run.slug, handle, mode: run.mode.toUpperCase(), target: run.target.toUpperCase(),
+    wpm: run.wpm, accuracy: run.accuracy, consistency: run.consistency,
+    duration: run.duration, pace: pace.length ? pace : [run.wpm],
+    date: new Date(run.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase(),
   };
 }
 
-export default async function ProfilePage({ params }: PageProps) {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { handle } = await params;
-  if (handle !== profileHandle) notFound();
+  if (handle === 'demo') {
+    const title = 'Typearchy public profile example';
+    const description = 'A working example of selected public runs and a replayable pinned ghost.';
+    return { title, description, robots: { index: false, follow: true }, openGraph: { title, description, images: [] }, twitter: { card: 'summary', title, description, images: [] } };
+  }
+  const profile = await publicProfile(handle);
+  if (!profile) return {};
+  const title = `@${profile.handle} on Typearchy`;
+  const description = `Selected typing runs and personal bests from @${profile.handle}.`;
+  return { title, description, openGraph: { title, description, url: `https://typearchy.com/u/${profile.handle}`, images: [] }, twitter: { card: 'summary', title, description, images: [] } };
+}
+
+export default async function ProfilePage({ params }: PageProps) {
+  const { handle: requestedHandle } = await params;
+  const demo = requestedHandle === 'demo';
+  const profile = demo ? { id: 'demo', handle: 'demo' } : await publicProfile(requestedHandle);
+  if (!profile) notFound();
+  const runs = demo ? demoRuns : await profileRuns(profile.id, 50);
+  const summary = profileSummary(runs);
+  const pinned = runs.filter((run) => run.pinned_at != null).sort((left, right) => Number(right.pinned_at) - Number(left.pinned_at)).slice(0, 3);
+  const primary = pinned[0] ? displayRun(pinned[0], profile.handle) : null;
 
   return (
     <main className="profile-page profile-page-compact">
-      <nav className="profile-nav">
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="wordmark" href="/" aria-label="Typearchy home"><span className="mark">T</span><span>TYPEARCHY</span></a>
-        <div><span className="status-dot" /><span>PROFILE PREVIEW / SEEDED RUNS</span></div>
-      </nav>
-
+      <nav className="profile-nav"><Link className="wordmark" href="/" aria-label="Typearchy home"><span className="mark">T</span><span>TYPEARCHY</span></Link><div><span className="status-dot" /><span>{demo ? 'PROFILE EXAMPLE / SEEDED RUNS' : 'PUBLIC PROFILE / SELECTED RUNS'}</span></div></nav>
       <header className="profile-compact-head">
-        <div className="profile-compact-id">
-          <div className="profile-avatar" aria-hidden="true"><span>B</span></div>
-          <div>
-            <p className="profile-kicker">TYPEARCHY PLAYER</p>
-            <h1>@bts</h1>
-            <p>Three selected runs. Local history stays local.</p>
-          </div>
-        </div>
-        <ProfileActions handle={profileHandle} />
+        <div className="profile-compact-id"><div className="profile-avatar" aria-hidden="true"><span>{profile.handle[0].toUpperCase()}</span></div><div><p className="profile-kicker">TYPEARCHY PLAYER</p><h1>@{profile.handle}</h1><p>{pinned.length ? `${pinned.length} selected ${pinned.length === 1 ? 'run' : 'runs'}. Local history stays local.` : 'No pinned runs yet.'}</p></div></div>
+        <ProfileActions handle={profile.handle} primarySlug={primary?.slug} />
       </header>
-
-      <section className="profile-compact-stats" aria-label="Public profile preview summary">
-        <span><small>BEST</small><b>104</b><em>WPM / 30S</em></span>
-        <span><small>AVG ACC</small><b>98</b><em>PERCENT</em></span>
-        <span><small>CODE</small><b>79</b><em>WPM / RUST</em></span>
-        <span><small>PINNED</small><b>3</b><em>RUNS</em></span>
+      <section className="profile-compact-stats" aria-label="Public profile summary">
+        <span><small>BEST</small><b>{summary.best || '-'}</b><em>WPM</em></span><span><small>AVG ACC</small><b>{summary.averageAccuracy || '-'}</b><em>PERCENT</em></span><span><small>CODE</small><b>{summary.codeBest || '-'}</b><em>WPM</em></span><span><small>PINNED</small><b>{summary.pinned}</b><em>RUNS</em></span>
       </section>
-
       <section className="profile-pins">
-        <div className="profile-pins-head">
-          <div><p className="section-tag">PINNED RUNS</p><h2>Proof, not a feed.</h2></div>
-          <p>Profile publishing is not connected yet. The intended model is explicit publishing from the app, with a maximum of three pins.</p>
-        </div>
-
-        <PinnedGhost />
-
-        <div className="profile-run-grid">
-          {pinnedRuns.map((run) => {
-            const maximum = Math.max(...run.pace);
-            return (
-              <article className="profile-run-card" key={run.slug}>
-                <div className="profile-run-meta"><span>{run.mode} / {run.target}</span><small>{run.date}</small></div>
-                <div className="profile-run-score"><b>{run.wpm}</b><span>WPM</span></div>
-                <div className="profile-run-metrics"><span><small>ACC</small>{run.accuracy}%</span><span><small>CONSISTENCY</small>{run.consistency}%</span></div>
-                <div className="profile-run-pace" aria-label={`${run.mode} pace over time`}>
-                  {run.pace.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, value / maximum * 100)}%` }} />)}
-                </div>
-                <a href={`/r/${run.slug}`}>OPEN DEMO RUN <span>→</span></a>
-              </article>
-            );
-          })}
-        </div>
+        <div className="profile-pins-head"><div><p className="section-tag">PINNED RUNS</p><h2>Proof, not a feed.</h2></div><p>Only runs explicitly published and pinned from the app appear here. Typed text and local history never leave the device.</p></div>
+        {primary ? <PinnedGhost run={primary} /> : <div className="profile-empty"><b>NO PINS YET</b><span>Published runs can be pinned from Typearchy history.</span></div>}
+        {pinned.length > 1 && <div className="profile-run-grid">{pinned.slice(1).map((run) => {
+          const shown = displayRun(run, profile.handle); const maximum = Math.max(...shown.pace);
+          return <article className="profile-run-card" key={shown.slug}><div className="profile-run-meta"><span>{shown.mode} / {shown.target}</span><small>{shown.date}</small></div><div className="profile-run-score"><b>{Math.round(shown.wpm)}</b><span>WPM</span></div><div className="profile-run-metrics"><span><small>ACC</small>{shown.accuracy}%</span><span><small>CONSISTENCY</small>{shown.consistency}%</span></div><div className="profile-run-pace" aria-label={`${shown.mode} pace over time`}>{shown.pace.map((value, index) => <i key={`${value}-${index}`} style={{ height: `${Math.max(12, value / maximum * 100)}%` }} />)}</div><a href={`/r/${shown.slug}`}>CHALLENGE RUN <span>→</span></a></article>;
+        })}</div>}
       </section>
-
-      <footer className="profile-footer">
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="wordmark" href="/"><span className="mark">T</span><span>TYPEARCHY</span></a>
-        <p>TYPEARCHY.COM/U/BTS</p><span>PREVIEW / 3 PINS</span>
-      </footer>
+      <footer className="profile-footer"><Link className="wordmark" href="/"><span className="mark">T</span><span>TYPEARCHY</span></Link><p>TYPEARCHY.COM/U/{profile.handle.toUpperCase()}</p><span>{demo ? 'EXAMPLE' : 'PUBLIC'} / {pinned.length} PINS</span></footer>
     </main>
   );
 }

@@ -70,6 +70,35 @@ function dailyPrompt(index: number) {
     .join(' ');
 }
 
+type SharedChallenge = {
+  mode: ModeKey;
+  duration: number;
+  sprintStyle: SprintStyle;
+  language: Language;
+  target: string;
+  prompt: string;
+  key: string;
+  version: string;
+};
+
+function sharedChallengeFromKey(key: string): SharedChallenge | null {
+  let match = key.match(/^daily:(\d+)$/);
+  if (match) return { mode: 'daily', duration: 60, sprintStyle: 'prose', language: 'javascript', target: `#${match[1]}`, prompt: dailyPrompt(Number(match[1])), key, version: 'daily-v2' };
+  match = key.match(/^sprint:(words|prose):(15|30|60):(generated:(?:words|prose):[a-z0-9]+)$/);
+  if (match) {
+    const style = match[1] as SprintStyle; const duration = Number(match[2]);
+    const generated = style === 'words' ? generateWords(WORD_BANK, Math.min(WORD_BANK.length, Math.max(160, Math.ceil(duration * 5.5))), match[3]) : generateProse(DAILY_PROMPTS, match[3], Math.max(680, duration * 18));
+    return { mode: 'sprint', duration, sprintStyle: style, language: 'javascript', target: `${style.toUpperCase()} / ${duration} SEC`, prompt: generated.prompt, key, version: generated.version };
+  }
+  match = key.match(/^shell:(15|30|60):(generated:shell:[a-z0-9]+)$/);
+  if (match) { const duration = Number(match[1]); const generated = generateShell(match[2], Math.max(360, duration * 16)); return { mode: 'shell', duration, sprintStyle: 'prose', language: 'bash', target: `${duration} SEC`, prompt: generated.prompt, key, version: generated.version }; }
+  match = key.match(/^code:(bash|python|javascript|rust):(15|30|60):(generated:code:\1:[a-z0-9]+)$/);
+  if (match) { const language = match[1] as Language; const duration = Number(match[2]); const generated = generateCode(language, match[3], Math.max(360, duration * 16)); return { mode: 'code', duration, sprintStyle: 'prose', language, target: `${language.toUpperCase()} / ${duration} SEC`, prompt: generated.prompt, key, version: generated.version }; }
+  match = key.match(/^(generated:quote:[a-z0-9]+)$/);
+  if (match) { const generated = generateQuoteRelay(WEB_QUOTES, match[1], 4); return { mode: 'quote', duration: 60, sprintStyle: 'prose', language: 'javascript', target: '4 EXCERPTS', prompt: generated.prompt, key, version: generated.version }; }
+  return null;
+}
+
 function drillChallenge(keys: string[], bigrams: string[], nonce: number) {
   const score = (text: string, pattern: string) => text.toLowerCase().split(pattern.toLowerCase()).length - 1;
   const ranked = DAILY_PROMPTS.map((prompt, index) => ({
@@ -108,12 +137,14 @@ function promptRuns(prompt: string, typed: string) {
   return runs;
 }
 
-export default function TypearchyGame({ compact = false }: { compact?: boolean }) {
-  const [mode, setMode] = useState<ModeKey>('sprint');
+export default function TypearchyGame({ compact = false, initialChallengeKey = '' }: { compact?: boolean; initialChallengeKey?: string }) {
+  const initialShared = sharedChallengeFromKey(initialChallengeKey);
+  const [sharedChallenge, setSharedChallenge] = useState<SharedChallenge | null>(initialShared);
+  const [mode, setMode] = useState<ModeKey>(initialShared?.mode || 'sprint');
   const [screen, setScreen] = useState<Screen>('test');
-  const [duration, setDuration] = useState(30);
-  const [sprintStyle, setSprintStyle] = useState<SprintStyle>('prose');
-  const [language, setLanguage] = useState<Language>('javascript');
+  const [duration, setDuration] = useState(initialShared?.duration || 30);
+  const [sprintStyle, setSprintStyle] = useState<SprintStyle>(initialShared?.sprintStyle || 'prose');
+  const [language, setLanguage] = useState<Language>(initialShared?.language || 'javascript');
   const [themeIndex, setThemeIndex] = useState(0);
   const [nonce, setNonce] = useState(0);
   const [customText, setCustomText] = useState('Paste or write a passage here, then apply it and start typing. Everything in Custom mode stays inside this browser.');
@@ -179,6 +210,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
   }, [history]);
 
   const challenge = useMemo(() => {
+    if (sharedChallenge) return { prompt: sharedChallenge.prompt, key: sharedChallenge.key, version: sharedChallenge.version };
     const seed = `${mode}-${nonce}-${duration}-${sprintStyle}-${language}`;
     if (mode === 'sprint') return sprintStyle === 'words'
       ? generateWords(WORD_BANK, Math.min(WORD_BANK.length, Math.max(160, Math.ceil(duration * 5.5))), `sprint-words-${seed}`)
@@ -189,12 +221,12 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     if (mode === 'code') return generateCode(language, seed, Math.max(480, duration * 18));
     if (mode === 'drill') return drillChallenge(drillProfile.keys, drillProfile.bigrams, nonce);
     return { prompt: customText.trim(), key: `custom:${customText.length}:${nonce}`, version: 'custom-v1' };
-  }, [mode, nonce, duration, sprintStyle, language, drillProfile, customText]);
+  }, [mode, nonce, duration, sprintStyle, language, drillProfile, customText, sharedChallenge]);
   const prompt = challenge.prompt;
   const renderedRuns = useMemo(() => promptRuns(prompt, typed), [prompt, typed]);
 
   const timed = mode === 'sprint' || mode === 'shell' || mode === 'code';
-  const target = mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? `${duration} SEC` : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'code' ? language.toUpperCase() : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE';
+  const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? `${duration} SEC` : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'code' ? language.toUpperCase() : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
   const correct = countCorrectCharacters(prompt, typed);
@@ -232,7 +264,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
     setCopied(false);
     promptLineTopRef.current = 0;
     if (promptRef.current) promptRef.current.scrollTop = 0;
-    if (advance) setNonce((value) => value + 1);
+    if (advance) { setSharedChallenge(null); setNonce((value) => value + 1); }
     if (focus) window.setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
@@ -301,6 +333,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
   }, [typed, prompt]);
 
   const chooseMode = (next: ModeKey) => {
+    setSharedChallenge(null);
     setMode(next);
     setScreen('test');
     setEditingCustom(next === 'custom');
@@ -314,6 +347,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
   };
 
   const chooseSprintStyle = (style: SprintStyle) => {
+    setSharedChallenge(null);
     setSprintStyle(style);
     try { localStorage.setItem('typearchy.web.sprint-style.v1', style); } catch { /* Browser storage is optional. */ }
     reset(false, true);
@@ -419,9 +453,9 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
       <div className="demo-mode-tabs web-game-modes" role="tablist" aria-label="Typearchy modes">{MODES.map((item) => <button type="button" role="tab" aria-selected={mode === item.key} className={mode === item.key ? 'active' : ''} key={item.key} onClick={(event) => { event.stopPropagation(); chooseMode(item.key); }}>{item.label}</button>)}</div>
 
       <div className="web-game-settings" onClick={(event) => event.stopPropagation()}>
-        {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setDuration(seconds); reset(false, true); }}>{seconds}</button>)}</div>}
+        {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setSharedChallenge(null); setDuration(seconds); reset(false, true); }}>{seconds}</button>)}</div>}
         {mode === 'sprint' && <div className="web-game-language sprint-style" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>WORDS</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>PROSE</button></div>}
-        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
+        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
         {mode === 'custom' && <button className="web-game-edit" type="button" onClick={() => setEditingCustom(true)}>EDIT PASSAGE</button>}
         <span>{mode === 'sprint' ? `TIMED ${sprintStyle.toUpperCase()}` : mode === 'drill' && drillProfile.calibrating ? `CALIBRATING / ${Math.min(3, history.length)} OF 3 RUNS` : MODE_HINTS[mode]}</span>
       </div>
@@ -436,7 +470,7 @@ export default function TypearchyGame({ compact = false }: { compact?: boolean }
       {screen === 'history' ? (
         <div className="web-game-history" onClick={(event) => event.stopPropagation()}>
           <div className="web-game-history-head"><div><span>LOCAL RUN HISTORY</span><strong>{history.length} RUNS</strong></div>{history.length > 0 && <button type="button" onClick={() => { setHistory([]); localStorage.removeItem('typearchy.web.runs.v1'); }}>CLEAR</button>}</div>
-          {history.length ? <div className="web-game-history-list">{history.map((run) => <button type="button" key={run.id} onClick={() => { setMode(run.mode === 'words' ? 'sprint' : run.mode === 'focus' ? 'drill' : run.mode); if (run.sprintStyle) setSprintStyle(run.sprintStyle); setScreen('test'); reset(false); }}><span>{new Date(run.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}</span><strong>{run.mode.toUpperCase()} / {run.target}</strong><b>{run.wpm} WPM</b><i>{run.accuracy}%</i></button>)}</div> : <div className="web-game-empty">FINISH A TEST TO START LOCAL HISTORY.</div>}
+          {history.length ? <div className="web-game-history-list">{history.map((run) => <button type="button" key={run.id} onClick={() => { setSharedChallenge(null); setMode(run.mode === 'words' ? 'sprint' : run.mode === 'focus' ? 'drill' : run.mode); if (run.sprintStyle) setSprintStyle(run.sprintStyle); setScreen('test'); reset(false); }}><span>{new Date(run.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}</span><strong>{run.mode.toUpperCase()} / {run.target}</strong><b>{run.wpm} WPM</b><i>{run.accuracy}%</i></button>)}</div> : <div className="web-game-empty">FINISH A TEST TO START LOCAL HISTORY.</div>}
         </div>
       ) : editingCustom ? (
         <div className="web-game-custom" onClick={(event) => event.stopPropagation()}><label htmlFor={`custom-passage-${compact ? 'compact' : 'full'}`}>CUSTOM PASSAGE</label><textarea id={`custom-passage-${compact ? 'compact' : 'full'}`} value={customText} onChange={(event) => setCustomText(event.target.value)} spellCheck={false} /><div><span>{customText.trim().length} CHARACTERS / STORED FOR THIS SESSION</span><button type="button" disabled={!customText.trim()} onClick={() => { setEditingCustom(false); reset(); }}>APPLY PASSAGE</button></div></div>

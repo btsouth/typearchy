@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+api_url="${TYPEARCHY_API_URL:-https://typearchy.com}"
+state_dir="${TYPEARCHY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/typearchy}"
+credentials_path="$state_dir/profile.json"
+pending_path="$state_dir/profile-pending.json"
+
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+umask 077
+
+json_error() {
+  jq -cn --arg error "$1" '{error:$error}'
+  exit 1
+}
+
+token_from_file() {
+  jq -er '.token' "$1" 2>/dev/null || json_error "Profile connection is missing or damaged"
+}
+
+request() {
+  local method="$1" path="$2" token="${3:-}" body="${4:-}"
+  local config_path body_path=""
+  config_path="$(mktemp "$state_dir/request.XXXXXX")"
+  if [[ -n "$body" ]]; then
+    body_path="$(mktemp "$state_dir/body.XXXXXX")"
+    printf '%s' "$body" > "$body_path"
+  fi
+  {
+    printf 'silent\nshow-error\nfail-with-body\n'
+    printf 'url = "%s%s"\n' "$api_url" "$path"
+    printf 'request = "%s"\n' "$method"
+    printf 'header = "Accept: application/json"\n'
+    if [[ -n "$token" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$token"; fi
+    if [[ -n "$body" ]]; then printf 'header = "Content-Type: application/json"\ndata-binary = "@%s"\n' "$body_path"; fi
+  } > "$config_path"
+  local output status
+  set +e
+  output="$(curl --config "$config_path")"
+  status=$?
+  set -e
+  rm -f "$config_path"
+  if [[ -n "$body_path" ]]; then rm -f "$body_path"; fi
+  printf '%s' "$output"
+  return "$status"
+}
+
+new_token() {
+  printf 'tpy_%s' "$(openssl rand -hex 32)"
+}
+
+save_connected() {
+  local token="$1" response="$2"
+  jq -cn --arg token "$token" --arg handle "$(jq -r '.handle' <<<"$response")" \
+    --arg profileUrl "$(jq -r '.profileUrl' <<<"$response")" \
+    '{version:1,token:$token,handle:$handle,profileUrl:$profileUrl}' > "$credentials_path"
+  chmod 600 "$credentials_path"
+  rm -f "$pending_path"
+}
+
+status() {
+  if [[ -f "$credentials_path" ]]; then
+    local token response
+    token="$(token_from_file "$credentials_path")"
+    if response="$(request GET /api/device "$token" 2>/dev/null)"; then
+      save_connected "$token" "$response"
+      printf '%s\n' "$response"
+    else
+      rm -f "$credentials_path"
+      jq -cn '{status:"disconnected"}'
+    fi
+    return
+  fi
+  if [[ -f "$pending_path" ]]; then
+    local token kind response
+    token="$(token_from_file "$pending_path")"
+    kind="$(jq -r '.kind // "connect"' "$pending_path")"
+    if [[ "$kind" == "recover" ]]; then
+      if response="$(request GET /api/device "$token" 2>/dev/null)"; then
+        save_connected "$token" "$response"
+        printf '%s\n' "$response"
+      else
+        jq -cn '{status:"pending",kind:"recover"}'
+      fi
+      return
+    fi
+    if response="$(request GET /api/connect/status "$token" 2>/dev/null)"; then
+      if [[ "$(jq -r '.status' <<<"$response")" == "connected" ]]; then save_connected "$token" "$response"; fi
+      printf '%s\n' "$response"
+    else
+      rm -f "$pending_path"
+      jq -cn '{status:"disconnected"}'
+    fi
+    return
+  fi
+  jq -cn '{status:"disconnected"}'
+}
+
+connect_profile() {
+  if [[ -f "$credentials_path" ]]; then status; return; fi
+  local token label payload response
+  token="$(new_token)"
+  label="Typearchy on $(hostnamectl hostname 2>/dev/null || hostname)"
+  payload="$(jq -cn --arg token "$token" --arg label "$label" '{token:$token,label:$label}')"
+  response="$(request POST /api/connect/start '' "$payload")"
+  jq -cn --arg token "$token" --arg code "$(jq -r '.code' <<<"$response")" \
+    --arg url "$(jq -r '.verificationUrl' <<<"$response")" \
+    '{version:1,kind:"connect",token:$token,code:$code,url:$url}' > "$pending_path"
+  chmod 600 "$pending_path"
+  if [[ "${TYPEARCHY_NO_BROWSER:-0}" != "1" ]]; then xdg-open "$(jq -r '.verificationUrl' <<<"$response")" >/dev/null 2>&1 & fi
+  printf '%s\n' "$response"
+}
+
+recover_profile() {
+  local token token_hash label url
+  token="$(new_token)"
+  token_hash="$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)"
+  label="Typearchy on $(hostnamectl hostname 2>/dev/null || hostname)"
+  url="$api_url/recover?token_hash=$token_hash&label=$(jq -rn --arg value "$label" '$value|@uri')"
+  jq -cn --arg token "$token" --arg url "$url" '{version:1,kind:"recover",token:$token,url:$url}' > "$pending_path"
+  chmod 600 "$pending_path"
+  if [[ "${TYPEARCHY_NO_BROWSER:-0}" != "1" ]]; then xdg-open "$url" >/dev/null 2>&1 & fi
+  jq -cn --arg url "$url" '{status:"pending",kind:"recover",verificationUrl:$url}'
+}
+
+disconnect_profile() {
+  if [[ -f "$credentials_path" ]]; then
+    local token
+    token="$(token_from_file "$credentials_path")"
+    request DELETE /api/device "$token" >/dev/null 2>&1 || true
+  fi
+  rm -f "$credentials_path" "$pending_path"
+  jq -cn '{status:"disconnected"}'
+}
+
+publish_run() {
+  [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
+  local input_path="${1:-}" token body
+  token="$(token_from_file "$credentials_path")"
+  if [[ -n "$input_path" ]]; then
+    [[ "$input_path" == "$state_dir/"* && -f "$input_path" ]] || json_error "Run data is unavailable"
+    body="$(jq -c '.' "$input_path" 2>/dev/null)" || json_error "Run data is invalid"
+    rm -f "$input_path"
+  else
+    body="$(jq -c '.' 2>/dev/null)" || json_error "Run data is invalid"
+  fi
+  request POST /api/runs "$token" "$body"
+}
+
+pin_run() {
+  [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
+  local slug="${1:-}" pinned="${2:-true}" token body
+  [[ "$slug" =~ ^[A-HJ-NP-Z2-9]{8}$ ]] || json_error "Run URL is invalid"
+  [[ "$pinned" == "true" || "$pinned" == "false" ]] || json_error "Pin state is invalid"
+  token="$(token_from_file "$credentials_path")"
+  body="$(jq -cn --argjson pinned "$pinned" '{pinned:$pinned}')"
+  request PATCH "/api/runs/$slug" "$token" "$body"
+}
+
+delete_run() {
+  [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
+  local slug="${1:-}" token
+  [[ "$slug" =~ ^[A-HJ-NP-Z2-9]{8}$ ]] || json_error "Run URL is invalid"
+  token="$(token_from_file "$credentials_path")"
+  request DELETE "/api/runs/$slug" "$token"
+}
+
+case "${1:-status}" in
+  status) status ;;
+  connect) connect_profile ;;
+  recover) recover_profile ;;
+  disconnect) disconnect_profile ;;
+  publish) publish_run "${2:-}" ;;
+  pin) pin_run "${2:-}" "${3:-true}" ;;
+  delete) delete_run "${2:-}" ;;
+  *) json_error "Unknown profile action" ;;
+esac

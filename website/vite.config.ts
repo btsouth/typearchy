@@ -6,6 +6,7 @@ import hostingConfig from './.openai/hosting.json' with { type: 'json' };
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
+const TYPEARCHY_DATABASE_ID = '01d89dca-3a71-458d-9485-4dbc4282bfb7';
 
 const { d1, r2 } = hostingConfig;
 
@@ -19,8 +20,8 @@ const localBindingConfig = {
     ? [
         {
           binding: d1,
-          database_name: 'site-creator-d1',
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          database_name: d1 === 'DB' ? 'typearchy-prod' : 'site-creator-d1',
+          database_id: d1 === 'DB' ? TYPEARCHY_DATABASE_ID : SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
         },
       ]
     : [],

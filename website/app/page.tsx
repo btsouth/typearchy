@@ -24,7 +24,7 @@ const history = [
 
 function SharePreview() {
   const [copied, setCopied] = useState(false);
-  const result = 'TYPEARCHY / DAILY #241\n94 WPM  |  98% ACC\nPACE  ▁▂▄▅▆▇▆█\nSHARE FLOW PREVIEW / NOT PUBLISHED';
+  const result = 'TYPEARCHY / DAILY #241\n94 WPM  |  98% ACC\nPACE  ▁▂▄▅▆▇▆█\nCHALLENGE  TYPEARCHY.COM/R/7K2M9Q';
 
   const copyResult = async () => {
     await navigator.clipboard.writeText(result);
@@ -36,12 +36,12 @@ function SharePreview() {
     <section className="share-section">
       <div className="share-copy">
         <p className="section-tag">05 / SHARE</p>
-        <h2>Share cards now. Rematch links next.</h2>
-        <p>The app exports a local result card and summary today. Public result URLs are a preview of the planned publishing flow.</p>
+        <h2>Publish a run. Send the challenge.</h2>
+        <p>Connect a handle once, then publish a finished run only when you choose. Every link opens an immutable score receipt and reproducible challenge.</p>
         <div className="share-actions">
           <button type="button" onClick={copyResult}>{copied ? 'COPIED TO CLIPBOARD' : 'COPY DEMO RESULT'}</button>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/r/7K2M9Q">OPEN URL PREVIEW</a>
+          <a href="/r/7K2M9Q">OPEN RESULT EXAMPLE</a>
         </div>
         <code className="result-url">typearchy.com/r/7K2M9Q</code>
       </div>
@@ -60,21 +60,21 @@ function ProfilePreview() {
   return (
     <section className="profile-preview-section" id="profiles">
       <div className="profile-preview-copy">
-        <p className="section-tag">06 / PROFILE PREVIEW</p>
+        <p className="section-tag">06 / PUBLIC PROFILES</p>
         <h2>Selected runs. Nothing automatic.</h2>
-        <p>A preview of opt-in profiles built from runs you choose to publish. App connection and publishing are not live yet.</p>
+        <p>Up to three pinned runs, one replayable pace ghost, and no feed. Local history remains on your machine.</p>
         <div className="profile-preview-actions">
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a href="/u/bts">VIEW PROFILE PREVIEW</a>
-          <span>PLANNED / OPT-IN</span>
+          <a href="/u/demo">VIEW PROFILE EXAMPLE</a>
+          <span>LIVE / OPT-IN</span>
         </div>
       </div>
-      <div className="profile-preview-card" aria-label="Preview of the @bts Typearchy public profile">
-        <div className="profile-preview-head"><div className="mini-avatar">B</div><div><small>TYPEARCHY PLAYER</small><strong>@bts</strong></div><span>OSAKA JADE</span></div>
+      <div className="profile-preview-card" aria-label="Example Typearchy public profile">
+        <div className="profile-preview-head"><div className="mini-avatar">D</div><div><small>TYPEARCHY PLAYER</small><strong>@demo</strong></div><span>PUBLIC</span></div>
         <div className="profile-preview-best"><span>BEST PINNED RUN</span><div><b>104</b><small>WPM</small></div><p>SPRINT / 30 SEC&nbsp;&nbsp;·&nbsp;&nbsp;97% ACC</p></div>
         <div className="profile-preview-stats"><span><small>DAILY</small>94 WPM</span><span><small>CODE / RUST</small>79 WPM</span><span><small>PINNED</small>3 RUNS</span></div>
         <div className="profile-preview-bars" aria-label="Pace samples from selected preview runs">{[38, 45, 42, 53, 50, 62, 58, 69, 73, 67, 82, 78, 91, 86, 100].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>
-        <div className="profile-preview-foot"><span>PINNED GHOST / WATCH + CHALLENGE</span><span>TYPEARCHY.COM/U/BTS</span></div>
+        <div className="profile-preview-foot"><span>PINNED GHOST / WATCH + CHALLENGE</span><span>TYPEARCHY.COM/U/DEMO</span></div>
       </div>
     </section>
   );
@@ -136,7 +136,7 @@ export default function Home() {
           <div className="history-table">{history.map((row) => <div className="history-row" key={`${row[0]}-${row[1]}`}>{row.map((cell, index) => <span key={`${cell}-${index}`} className={index === 4 ? 'gain' : ''}>{cell}</span>)}</div>)}</div>
           <div className="weak-keys"><span>NEXT DRILL</span><b>R&nbsp;&nbsp;T&nbsp;&nbsp;TH&nbsp;&nbsp;ER</b><small>WEIGHTED FROM RECENT ERRORS</small></div>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a className="history-profile-link" href="/u/bts">OPEN PROFILE PREVIEW&nbsp;&nbsp;→</a>
+          <a className="history-profile-link" href="/u/demo">OPEN PROFILE EXAMPLE&nbsp;&nbsp;→</a>
         </div>
       </section>
 

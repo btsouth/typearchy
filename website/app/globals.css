@@ -434,6 +434,12 @@ h1 { margin: 0; font-size: clamp(54px, 6.4vw, 104px); line-height: .89; letter-s
 .ghost-tape-compact .ghost-race { gap: 14px; }
 .ghost-tape-compact .ghost-pace-strip { height: 46px; margin: 24px 0 18px; }
 .profile-ghost-card .runner { transition: none; }
+.ghost-scoreboard-single { grid-template-columns: 1fr auto; }
+.ghost-scoreboard-single > span:last-of-type { text-align: left; }
+.ghost-race-single { min-height: 92px; align-content: center; }
+.profile-empty { min-height: 220px; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 40px; border: 1px solid var(--faint); color: var(--muted); background: var(--panel); }
+.profile-empty b { color: var(--accent); font-size: 11px; letter-spacing: .14em; }
+.profile-empty span { font-size: 10px; }
 .profile-run-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-top: 16px; }
 .profile-run-card { min-width: 0; padding: clamp(22px, 2.4vw, 30px); border: 1px solid var(--faint); background: var(--panel-2); }
 .profile-run-card .profile-run-score { margin: 26px 0 16px; }
@@ -442,6 +448,28 @@ h1 { margin: 0; font-size: clamp(54px, 6.4vw, 104px); line-height: .89; letter-s
 .profile-run-pace i { flex: 1; background: var(--accent); opacity: .55; }
 .profile-run-card > a { display: flex; justify-content: space-between; padding-top: 18px; border-top: 1px solid var(--faint); color: var(--accent); font-size: 8px; font-weight: 800; letter-spacing: .1em; }
 .profile-run-card > a:hover { color: var(--ink); }
+
+.connect-page { min-height: 100vh; background: radial-gradient(circle at 70% 18%, rgba(86,164,123,.12), transparent 30%), var(--bg); }
+.connect-card { width: min(680px, calc(100% - 36px)); display: flex; flex-direction: column; gap: 22px; margin: clamp(64px, 10vh, 120px) auto; padding: clamp(30px, 5vw, 58px); border: 1px solid rgba(86,164,123,.45); background: rgba(16,29,23,.94); box-shadow: 22px 22px 0 rgba(86,164,123,.05); }
+.connect-card h1 { font-size: clamp(52px, 7vw, 84px); }
+.connect-card > p:not(.section-tag) { margin: 0; color: #9ba795; font-size: 13px; line-height: 1.75; }
+.connect-card label { display: grid; gap: 9px; color: var(--accent); font-size: 8px; font-weight: 800; letter-spacing: .13em; }
+.connect-card input { width: 100%; min-width: 0; padding: 14px 15px; border: 1px solid var(--faint); outline: 0; color: var(--ink); background: var(--bg); font: 14px var(--font-mono), monospace; }
+.connect-card input:focus { border-color: var(--accent); }
+.handle-input { display: flex; align-items: center; border: 1px solid var(--faint); background: var(--bg); }
+.handle-input:focus-within { border-color: var(--accent); }
+.handle-input span { padding-left: 14px; color: var(--muted); font-size: 12px; font-weight: 400; letter-spacing: 0; white-space: nowrap; }
+.handle-input input { border: 0; padding-left: 0; }
+.connect-card > .primary-action { border: 0; cursor: pointer; }
+.connect-card > .primary-action:disabled { opacity: .5; cursor: wait; }
+.connect-card > small { color: var(--muted); font-size: 7px; letter-spacing: .12em; text-align: center; }
+.connect-error { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--urgent) 70%, transparent); color: var(--urgent); background: color-mix(in srgb, var(--urgent) 7%, transparent); font-size: 9px; }
+.connect-success h1 { color: var(--accent); }
+.recovery-code { padding: 18px; border: 1px solid var(--accent); color: var(--ink); background: var(--bg); font-size: clamp(12px, 2vw, 16px); line-height: 1.7; overflow-wrap: anywhere; user-select: all; }
+.connect-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.connect-actions button, .connect-actions a { padding: 14px; border: 1px solid var(--faint); color: var(--muted); background: transparent; font-size: 8px; font-weight: 800; letter-spacing: .1em; text-align: center; cursor: pointer; }
+.connect-actions button { border-color: var(--ink); color: var(--bg); background: var(--ink); }
+.connect-actions button:hover, .connect-actions a:hover { border-color: var(--accent); color: var(--bg); background: var(--accent); }
 
 .local-section { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(60px, 10vw, 160px); align-items: center; padding: clamp(100px, 13vw, 210px) clamp(24px, 8vw, 130px); background: var(--panel); }
 .local-section pre { margin: 0; padding: clamp(26px, 4vw, 48px); border: 1px solid var(--faint); color: var(--accent); background: var(--bg); font: 14px/1.9 var(--font-mono), monospace; overflow-x: auto; }

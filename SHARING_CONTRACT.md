@@ -5,7 +5,7 @@ the finished-result screen. The plugin must never upload in the background.
 
 ## Public result URL
 
-The first hosted sharing release uses one durable URL:
+Hosted sharing uses one durable URL:
 
 ```text
 https://typearchy.com/r/7K2M9Q
@@ -40,7 +40,7 @@ It must never send:
 - local history
 - machine identifiers or account identifiers on anonymous receipts
 
-When a signed-in player explicitly adds a run to a public profile, the receipt
+When a connected player explicitly adds a run to a public profile, the receipt
 may also store that Typearchy user ID. It never receives a GitHub token or email.
 
 Custom mode cannot create a public rematch unless the user separately chooses
@@ -48,12 +48,14 @@ to publish the passage. That is outside the first release.
 
 ## Result-screen behavior
 
-When the service exists, the deliberate result actions become:
+The deliberate result actions include:
 
 1. `RETRY`
-2. `COPY LINK`
-3. `SAVE CARD`
-4. `HISTORY`
+2. `PUBLISH` or `COPY LINK`
+3. `PIN` or `UNPIN`
+4. `REMOVE`
+5. `SAVE CARD`
+6. `HISTORY`
 
 `COPY LINK` creates the hosted receipt only when pressed. Offline failure keeps
 the local PNG and text sharing flow available. The first successful share
