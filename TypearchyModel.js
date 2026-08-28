@@ -443,8 +443,6 @@ function renderedPrompt(prompt, typed, colors) {
     if (expected === "\n") shown = "↵<br/>"
     else if (expected === "\t") shown = "&nbsp;&nbsp;&nbsp;&nbsp;"
     if (i < entered.length && entered.charAt(i) !== expected && expected === " ") shown = "_"
-    if (i === entered.length && expected === " ") shown = "&nbsp;"
-
     var style
     if (i < entered.length) style = entered.charAt(i) === expected
       ? "color:" + normal

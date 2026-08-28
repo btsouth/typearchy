@@ -32,6 +32,7 @@ Item {
   property string prompt: ""
   property string typedText: ""
   property real promptLineY: 0
+  property real promptRowHeight: 0
   property string phase: "ready"
   property bool statsOpen: false
   property string historyFilter: "all"
@@ -167,6 +168,7 @@ Item {
     root.prompt = root.challenge.prompt
     root.typedText = ""
     root.promptLineY = 0
+    root.promptRowHeight = 0
     root.phase = "ready"
     root.startedAt = 0
     root.elapsedMs = 0
@@ -444,8 +446,10 @@ Item {
       var cursorRect = promptText.positionToRectangle(Math.min(root.typedText.length, root.prompt.length))
       var nextLineY = Math.max(0, cursorRect.y)
       if (Math.abs(nextLineY - root.promptLineY) < 1) return
+      root.promptRowHeight = Math.abs(nextLineY - root.promptLineY)
       root.promptLineY = nextLineY
-      promptFlick.contentY = Math.max(0, Math.min(promptFlick.contentHeight - promptFlick.height, nextLineY))
+      var nextContentY = Math.max(0, nextLineY - root.promptRowHeight)
+      promptFlick.contentY = Math.min(promptFlick.contentHeight - promptFlick.height, nextContentY)
     })
   }
 
@@ -817,7 +821,7 @@ Item {
               id: promptFlick
               width: parent.width
               height: Math.min(promptText.contentHeight,
-                promptText.font.pixelSize * (root.mode === "code" || root.mode === "shell" ? 2.76 : 2.96)
+                promptText.font.pixelSize * (root.mode === "code" || root.mode === "shell" ? 4.14 : 4.44)
                   + Style.space(2))
               contentWidth: width
               contentHeight: promptText.contentHeight

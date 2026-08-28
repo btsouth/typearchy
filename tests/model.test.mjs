@@ -117,6 +117,11 @@ assert.equal(model.accuracy(100, 3), 97)
 assert.equal(model.consistency([60, 60, 60]), 100)
 assert.equal(model.eraseWordIndex("one two"), 4)
 assert.equal(model.eraseWordIndex("one two   "), 4)
+const spaceCursor = model.renderedPrompt("one two", "one", {
+  normal: "#ffffff", dim: "#777777", error: "#ff0000", cursor: "#ffffff", background: "#000000"
+})
+assert.doesNotMatch(spaceCursor, /&nbsp;/)
+assert.match(spaceCursor, /background-color:#ffffff/)
 assert.equal(model.resultAction("r", true, 1200, false), "retry")
 assert.equal(model.resultAction("s", true, 1200, false), "share")
 assert.equal(model.resultAction("c", true, 1200, false), "copy")
