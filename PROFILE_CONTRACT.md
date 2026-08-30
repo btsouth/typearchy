@@ -29,8 +29,14 @@ or another identity provider.
 
 The connection expires after 15 minutes. The raw device token stays in a
 user-only local file and is never included in a command-line argument. A
-one-time recovery code is shown after claiming the handle. Recovery rotates
-that code, revokes previous device access, and connects the new device.
+one-time recovery code is shown after claiming the handle. Recovery works like
+connecting: the app requests a short-lived recovery session, opens
+typearchy.com/recover with it, and the player confirms with their handle and
+recovery code. Recovery rotates the code, revokes previous device access, and
+connects the new device. No token material ever appears in a URL.
+
+Profiles can be made private from the app. A private profile and its runs stop
+appearing publicly immediately, and publishing to it stays available locally.
 
 Disconnecting in the app revokes that device. It does not remove other devices,
 the profile, or published runs.

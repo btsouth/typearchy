@@ -597,3 +597,4 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
   footer { grid-template-columns: 1fr auto; } footer p { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { html, .live-prompt { scroll-behavior: auto; } .live-prompt .current, .mode-sample > p i { animation: none; } .primary-action, .game-stage, .mode-bars i { transition: none; } }
+.missing-card { align-items: flex-start; }

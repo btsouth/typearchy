@@ -19,6 +19,7 @@ export const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS connections (
     code TEXT PRIMARY KEY,
     token_hash TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'connect',
     label TEXT NOT NULL,
     profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL,

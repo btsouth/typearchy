@@ -1,0 +1,1 @@
+ALTER TABLE connections ADD COLUMN kind TEXT NOT NULL DEFAULT 'connect';

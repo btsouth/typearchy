@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { ClientError } from './clientError';
 
 export type ProfileRow = {
   id: string;
@@ -64,14 +65,16 @@ export function json(data: unknown, status = 200, headers?: HeadersInit) {
   });
 }
 
-export function errorResponse(error: unknown, fallback = 'Request failed', status = 400) {
-  const message = error instanceof Error ? error.message : fallback;
-  return json({ error: message || fallback }, status);
+export function errorResponse(error: unknown, fallback = 'Request failed', status = 500) {
+  if (error instanceof ClientError) return json({ error: error.message || fallback }, error.status);
+  if (error instanceof RateLimitError) return rateLimitResponse(error);
+  console.error(error);
+  return json({ error: fallback }, status);
 }
 
 export async function readJson(request: Request) {
   const length = Number(request.headers.get('content-length') || 0);
-  if (length > 32_000) throw new Error('Request is too large');
+  if (!length || length > 32_000) throw new ClientError('Request is too large');
   return request.json() as Promise<unknown>;
 }
 
@@ -91,6 +94,11 @@ export async function enforceRateLimit(key: string, maximum: number, windowSecon
     .bind(key, resetAt, now, now, resetAt).run();
   const row = await database.prepare('SELECT count, reset_at FROM rate_limits WHERE key = ?')
     .bind(key).first<{ count: number; reset_at: number }>();
+  // Sampled sweep so expired counters do not accumulate forever. No cron
+  // trigger exists on the vinext-generated worker, so 1% of requests tidy up.
+  if (Math.random() < 0.01) {
+    await database.prepare('DELETE FROM rate_limits WHERE reset_at < ?').bind(now).run();
+  }
   if (row && row.count > maximum) {
     const wait = Math.max(1, row.reset_at - now);
     throw new RateLimitError(wait);

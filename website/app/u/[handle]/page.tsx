@@ -30,13 +30,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (handle === 'demo') {
     const title = 'Typearchy public profile example';
     const description = 'A working example of selected public runs and a replayable pinned ghost.';
-    return { title, description, robots: { index: false, follow: true }, openGraph: { title, description, images: [] }, twitter: { card: 'summary', title, description, images: [] } };
+    return { title, description, robots: { index: false, follow: true }, openGraph: { title, description, images: ['/og.png'] }, twitter: { card: 'summary', title, description, images: ['/og.png'] } };
   }
   const profile = await publicProfile(handle);
   if (!profile) return {};
   const title = `@${profile.handle} on Typearchy`;
   const description = `Selected typing runs and personal bests from @${profile.handle}.`;
-  return { title, description, openGraph: { title, description, url: `https://typearchy.com/u/${profile.handle}`, images: [] }, twitter: { card: 'summary', title, description, images: [] } };
+  const card = `https://typearchy.com/og/u/${profile.handle}`;
+  const images = [{ url: card, width: 1200, height: 630, alt: title }];
+  return { title, description, openGraph: { title, description, url: `https://typearchy.com/u/${profile.handle}`, images }, twitter: { card: 'summary_large_image', title, description, images: [card] } };
 }
 
 export default async function ProfilePage({ params }: PageProps) {

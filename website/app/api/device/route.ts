@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const identity = await authenticateDevice(request);
   if (!identity) return json({ error: 'Device is not connected' }, 401);
-  return json({ status: 'connected', handle: identity.handle, profileUrl: `https://typearchy.com/u/${identity.handle}` });
+  return json({ status: 'connected', handle: identity.handle, profileUrl: `https://typearchy.com/u/${identity.handle}`, visibility: identity.visibility });
 }
 
 export async function DELETE(request: Request) {

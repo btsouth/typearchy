@@ -1,4 +1,7 @@
+import { ClientError } from './clientError.ts';
+
 export const PUBLIC_MODES = ['sprint', 'daily', 'quote', 'shell', 'code', 'drill'] as const;
+
 
 const RESERVED_HANDLES = new Set([
   'admin', 'api', 'connect', 'demo', 'help', 'moderator', 'recover', 'root',
@@ -24,21 +27,21 @@ export type PublishedRunInput = {
 function finiteNumber(value: unknown, minimum: number, maximum: number, name: string) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < minimum || number > maximum)
-    throw new Error(`Invalid ${name}`);
+    throw new ClientError(`Invalid ${name}`);
   return Math.round(number * 10) / 10;
 }
 
 function boundedString(value: unknown, maximum: number, name: string) {
   const text = String(value ?? '').trim();
-  if (!text || text.length > maximum) throw new Error(`Invalid ${name}`);
+  if (!text || text.length > maximum) throw new ClientError(`Invalid ${name}`);
   return text;
 }
 
 export function validateHandle(input: unknown) {
   const handle = String(input ?? '').trim().toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9_-]{1,18}[a-z0-9])$/.test(handle))
-    throw new Error('Use 3 to 20 letters, numbers, underscores, or hyphens');
-  if (RESERVED_HANDLES.has(handle)) throw new Error('That handle is reserved');
+    throw new ClientError('Use 3 to 20 letters, numbers, underscores, or hyphens');
+  if (RESERVED_HANDLES.has(handle)) throw new ClientError('That handle is reserved');
   return handle;
 }
 
@@ -49,27 +52,27 @@ export function validateDeviceLabel(input: unknown) {
 
 export function validateToken(input: unknown) {
   const token = String(input ?? '');
-  if (!/^tpy_[a-f0-9]{64}$/.test(token)) throw new Error('Invalid device token');
+  if (!/^tpy_[a-f0-9]{64}$/.test(token)) throw new ClientError('Invalid device token');
   return token;
 }
 
 export function validateConnectionCode(input: unknown) {
   const code = String(input ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) throw new Error('Invalid or expired connection code');
+  if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) throw new ClientError('Invalid or expired connection code');
   return code;
 }
 
 export function parsePublishedRun(input: unknown): PublishedRunInput {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid run');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ClientError('Invalid run');
   const value = input as Record<string, unknown>;
   const mode = String(value.mode ?? '') as PublishedRunInput['mode'];
-  if (!PUBLIC_MODES.includes(mode)) throw new Error('This mode cannot be published');
+  if (!PUBLIC_MODES.includes(mode)) throw new ClientError('This mode cannot be published');
   const pace = Array.isArray(value.pace)
     ? value.pace.slice(0, 180).map((sample) => finiteNumber(sample, 0, 500, 'pace sample'))
     : [];
-  if (!pace.length) throw new Error('A pace series is required');
+  if (!pace.length) throw new ClientError('A pace series is required');
   const timestamp = boundedString(value.timestamp, 40, 'timestamp');
-  if (!Number.isFinite(Date.parse(timestamp))) throw new Error('Invalid timestamp');
+  if (!Number.isFinite(Date.parse(timestamp))) throw new ClientError('Invalid timestamp');
   return {
     schemaVersion: 1,
     contentVersion: boundedString(value.contentVersion || 'unknown', 40, 'content version'),

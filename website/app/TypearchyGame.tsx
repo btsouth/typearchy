@@ -226,7 +226,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const renderedRuns = useMemo(() => promptRuns(prompt, typed), [prompt, typed]);
 
   const timed = mode === 'sprint' || mode === 'shell' || mode === 'code';
-  const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? `${duration} SEC` : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'code' ? language.toUpperCase() : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
+  const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? (mode === 'code' ? `${language.toUpperCase()} / ${duration} SEC` : `${duration} SEC`) : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
   const correct = countCorrectCharacters(prompt, typed);
