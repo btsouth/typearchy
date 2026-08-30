@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
 import "Content.js" as Content
@@ -14,11 +15,25 @@ Item {
   property var shell: null
   property var manifest: null
 
+  // Monitor that had keyboard focus when the overlay was summoned. Test and
+  // history windows follow it so multi-monitor setups open where the user is.
+  readonly property var focusedScreen: {
+    var monitor = Hyprland.focusedMonitor
+    if (!monitor) return null
+    var name = String(monitor.name || "")
+    var screens = Quickshell.screens
+    for (var index = 0; index < screens.length; index++)
+      if (String(screens[index].name || "") === name) return screens[index]
+    return null
+  }
+  property var openScreen: null
+
   readonly property string pluginId: (manifest && manifest.id) || "dev.typearchy.game"
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateDir: home + "/.local/state/typearchy"
   readonly property string shareDir: home + "/Pictures/Typearchy"
   readonly property string statePath: stateDir + "/stats.json"
+  readonly property string quarantinePath: stateDir + "/stats.json.bad"
   readonly property string customDir: home + "/.local/share/typearchy"
   readonly property string customPath: customDir + "/passages.txt"
   readonly property string publishPath: stateDir + "/publish.json"
@@ -52,13 +67,16 @@ Item {
   property var currentResult: null
   property var ghostRun: null
   property string shareStatus: ""
+  property string lastSharePath: ""
   property string profileStatus: "disconnected"
   property string profileHandle: ""
   property string profileCode: ""
+  property string profileVisibility: "public"
   property string profileMessage: ""
   property bool profileDeleteArmed: false
   property string cloudAction: ""
   property string cloudTargetTimestamp: ""
+  property string cloudTargetKey: ""
   property double resultsShownAt: 0
   property bool exportingCard: false
   property int runNonce: 0
@@ -102,6 +120,7 @@ Item {
   function open(payloadJson) {
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (error) {}
+    root.openScreen = root.focusedScreen
     root.windowedStats = payload.view === "stats"
     root.opened = true
     if (!root.statsLoaded) {
@@ -118,6 +137,14 @@ Item {
 
   function prepareOpen(payload) {
     root.windowedStats = payload.view === "stats"
+    if (root.phase === "running") {
+      // A test is in progress: re-summoning refocuses it instead of silently
+      // discarding the run. Escape still abandons it deliberately.
+      root.statsOpen = false
+      root.checkProfileStatus()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+      return
+    }
     root.mode = Content.validMode(payload.mode || root.stats.settings.defaultMode)
     var requestedDuration = Number(payload.duration || root.stats.settings.duration)
     root.duration = [15, 30, 60].indexOf(requestedDuration) >= 0 ? requestedDuration : 30
@@ -143,6 +170,7 @@ Item {
   }
 
   function dismiss() {
+    if (root.phase === "running") root.resetTest()
     if (root.shell && typeof root.shell.hide === "function") root.shell.hide(root.pluginId)
     else root.close()
   }
@@ -231,7 +259,7 @@ Item {
   }
 
   function setHistoryFilter(filter) {
-    root.historyFilter = filter === "all" ? "all" : Content.validMode(filter)
+    root.historyFilter = filter === "all" || filter === "words" ? filter : Content.validMode(filter)
     historyFlick.contentY = 0
   }
 
@@ -331,7 +359,7 @@ Item {
     if (root.phase === "results") return
     ticker.stop()
     sampleTimer.stop()
-    root.elapsedMs = Math.max(1000, root.startedAt > 0 ? Date.now() - root.startedAt : 1000)
+    root.elapsedMs = Math.max(250, root.startedAt > 0 ? Date.now() - root.startedAt : 250)
 
     var finalWpm = Model.wordsPerMinute(root.correctChars, root.elapsedMs)
     var finalPace = root.paceSamples.slice()
@@ -380,6 +408,7 @@ Item {
     root.exportingCard = true
     var stamp = root.currentResult.timestamp.replace(/[:.]/g, "-")
     var path = root.shareDir + "/typearchy-" + stamp + ".png"
+    root.lastSharePath = path
     Qt.callLater(function() {
       resultCard.grabToImage(function(result) {
         root.exportingCard = false
@@ -390,8 +419,7 @@ Item {
         }
         copyImageProc.command = ["bash", "-c", "wl-copy --type image/png < \"$1\"", "--", path]
         copyImageProc.running = true
-        root.shareStatus = "Card copied  /  " + path
-      }, Qt.size(1440, 752))
+      }, Qt.size(Math.round(resultCard.width * 1.6), Math.round(resultCard.height * 1.6)))
     })
   }
 
@@ -399,11 +427,10 @@ Item {
     if (!root.currentResult) return
     copyTextProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", Model.shareText(root.currentResult)]
     copyTextProc.running = true
-    root.shareStatus = "Result text copied"
   }
 
   function applyPublishedRun(timestamp, slug, pinned) {
-    root.stats = Model.updateRunPublication(root.stats, timestamp, slug, pinned)
+    root.stats = Model.updateRunPublication(root.stats, timestamp, slug, pinned, root.cloudTargetKey)
     statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
     if (root.currentResult && root.currentResult.timestamp === timestamp) {
       root.currentResult = Model.normalizeRun(root.stats.runs.find(function(run) { return run.timestamp === timestamp }) || root.currentResult)
@@ -441,6 +468,12 @@ Item {
     root.startCloudAction("disconnect", ["disconnect"])
   }
 
+  function toggleProfileVisibility() {
+    if (root.profileStatus !== "connected") return
+    root.profileMessage = root.profileVisibility === "private" ? "Publishing profile..." : "Hiding profile..."
+    root.startCloudAction("visibility", ["visibility", root.profileVisibility === "private" ? "public" : "private"])
+  }
+
   function deleteProfile() {
     if (root.profileStatus !== "connected") return
     if (!root.profileDeleteArmed) {
@@ -471,12 +504,12 @@ Item {
       return
     }
     if (run.publicSlug) {
-      copyTextProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", "https://typearchy.com/r/" + run.publicSlug]
-      copyTextProc.running = true
-      root.profileMessage = "Public link copied"
+      copyLinkProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", "https://typearchy.com/r/" + run.publicSlug]
+      copyLinkProc.running = true
       return
     }
     root.cloudTargetTimestamp = run.timestamp
+    root.cloudTargetKey = run.challengeKey || ""
     var payload = {
       timestamp: run.timestamp,
       contentVersion: run.contentVersion || "unknown",
@@ -499,6 +532,7 @@ Item {
   function toggleRunPin(run) {
     if (!run || !run.publicSlug || root.profileStatus !== "connected") return
     root.cloudTargetTimestamp = run.timestamp
+    root.cloudTargetKey = run.challengeKey || ""
     root.profileMessage = run.publicPinned ? "Removing profile pin..." : "Pinning run to profile..."
     root.startCloudAction("pin", ["pin", run.publicSlug, run.publicPinned ? "false" : "true"])
   }
@@ -506,6 +540,7 @@ Item {
   function deletePublishedRun(run) {
     if (!run || !run.publicSlug || root.profileStatus !== "connected") return
     root.cloudTargetTimestamp = run.timestamp
+    root.cloudTargetKey = run.challengeKey || ""
     root.profileMessage = "Removing public run..."
     root.startCloudAction("delete", ["delete", run.publicSlug])
   }
@@ -551,11 +586,20 @@ Item {
       profilePoll.stop()
       return
     }
+    if (root.cloudAction === "visibility") {
+      root.profileVisibility = response.visibility === "private" ? "private" : "public"
+      root.profileMessage = root.profileVisibility === "private"
+        ? "Profile hidden from typearchy.com"
+        : "Profile is public at typearchy.com/u/" + root.profileHandle
+      return
+    }
     root.profileStatus = String(response.status || "disconnected")
     root.profileHandle = String(response.handle || "")
     root.profileCode = String(response.code || "")
+    root.profileVisibility = response.visibility === "private" ? "private" : "public"
     if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle
     else if (root.profileStatus === "pending") root.profileMessage = root.profileCode ? "Finish in browser  /  " + root.profileCode : "Finish recovery in browser"
+    else if (root.profileStatus === "unreachable") root.profileMessage = "Profile service unreachable"
     else root.profileMessage = ""
     if (root.profileStatus === "pending") profilePoll.start()
     else profilePoll.stop()
@@ -607,6 +651,7 @@ Item {
   }
 
   function loadStats(raw) {
+    if (Model.stateNeedsQuarantine(raw)) quarantineFile.setText(String(raw))
     root.stats = Model.parseState(raw)
     root.statsLoaded = true
     if (root.opened && root.pendingOpenPayload) {
@@ -652,8 +697,25 @@ Item {
     }
   }
 
-  Process { id: copyImageProc }
-  Process { id: copyTextProc }
+  Process {
+    id: copyImageProc
+    onExited: function(exitCode) {
+      root.shareStatus = exitCode === 0 ? "Card copied  /  " + root.lastSharePath
+        : "Copy failed  /  card saved at " + root.lastSharePath
+    }
+  }
+  Process {
+    id: copyTextProc
+    onExited: function(exitCode) {
+      root.shareStatus = exitCode === 0 ? "Result text copied" : "Copy failed. Is wl-copy installed?"
+    }
+  }
+  Process {
+    id: copyLinkProc
+    onExited: function(exitCode) {
+      root.profileMessage = exitCode === 0 ? "Public link copied" : "Copy failed. Is wl-copy installed?"
+    }
+  }
   Process { id: openCustomProc }
 
   Process {
@@ -670,6 +732,13 @@ Item {
     printErrors: false
     onLoaded: root.loadStats(text())
     onLoadFailed: root.loadStats("")
+  }
+
+  FileView {
+    id: quarantineFile
+    path: root.quarantinePath
+    atomicWrites: true
+    printErrors: false
   }
 
   FileView {
@@ -732,6 +801,7 @@ Item {
   PanelWindow {
     id: window
     visible: root.opened && !root.windowedStats
+    screen: root.openScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -832,9 +902,10 @@ Item {
             event.accepted = true
             return
           }
-          if (event.text === "1") { root.chooseNumber(0); event.accepted = true; return }
-          if (event.text === "2") { root.chooseNumber(1); event.accepted = true; return }
-          if (event.text === "3") { root.chooseNumber(2); event.accepted = true; return }
+          var durationMode = root.mode === "sprint" || root.mode === "shell" || root.mode === "code"
+          if (durationMode && event.text === "1") { root.chooseNumber(0); event.accepted = true; return }
+          if (durationMode && event.text === "2") { root.chooseNumber(1); event.accepted = true; return }
+          if (durationMode && event.text === "3") { root.chooseNumber(2); event.accepted = true; return }
           if (event.key === Qt.Key_Tab) {
             root.cycleMode(event.modifiers & Qt.ShiftModifier ? -1 : 1)
             event.accepted = true
@@ -863,7 +934,9 @@ Item {
           return
         }
 
-        var plainModifier = event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier
+        var typingModifiers = event.modifiers & ~Qt.KeypadModifier
+        var altGr = (typingModifiers & Qt.ControlModifier) && (typingModifiers & Qt.AltModifier)
+        var plainModifier = typingModifiers === Qt.NoModifier || typingModifiers === Qt.ShiftModifier || altGr
         if (plainModifier && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32) {
           root.addCharacter(event.text)
           event.accepted = true
@@ -1138,6 +1211,7 @@ Item {
             }
 
             Column {
+              clip: true
               anchors.fill: parent
               anchors.margins: Style.space(34)
               spacing: Style.space(12)
@@ -1336,6 +1410,7 @@ Item {
 
             Column {
               id: statsContent
+              clip: true
               anchors.fill: parent
               anchors.margins: Style.space(28)
               spacing: Style.space(10)
@@ -1351,7 +1426,7 @@ Item {
                 }
                 HistoryMetric { label: "ALL TIME"; value: Math.round(root.stats.bestWpm || 0) + " WPM" }
                 HistoryMetric { label: "STREAK"; value: (root.stats.streak || 0) + " DAYS" }
-                HistoryMetric { label: "AVG ACC"; value: Model.recentAverage(root.stats, "accuracy", 10) + "%" }
+                HistoryMetric { label: "AVG ACC"; value: Math.round(Model.recentAverage(root.stats, "accuracy", 10)) + "%" }
               }
 
               Rectangle { width: parent.width; height: 1; color: root.muted; opacity: 0.22 }
@@ -1398,7 +1473,7 @@ Item {
 
                     Rectangle {
                       required property var modelData
-                      width: Math.max(3, (parent.width - parent.spacing * 19) / 20)
+                      width: Math.max(3, (parent.width - parent.spacing * Math.max(0, root.trendRuns.length - 1)) / Math.max(1, root.trendRuns.length))
                       height: Math.max(2, parent.height * modelData.wpm / root.trendMaximum(root.trendRuns))
                       anchors.bottom: parent.bottom
                       radius: Math.min(width / 2, Style.space(2))
@@ -1532,6 +1607,22 @@ Item {
                       height: Style.space(34)
                       radius: Math.max(2, Style.cornerRadius / 2)
                       color: index % 2 ? "transparent" : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.035)
+                      activeFocusOnTab: true
+                      Keys.onReturnPressed: root.openRunResult(modelData)
+                      Keys.onSpacePressed: root.openRunResult(modelData)
+                      Accessible.role: Accessible.ListItem
+                      Accessible.name: Content.modeLabel(modelData.mode) + ", " + (modelData.target || modelData.duration + " seconds")
+                        + ", " + Math.round(modelData.wpm) + " words per minute, " + Math.round(modelData.accuracy) + " percent, " + modelData.date
+                      Accessible.onPressAction: root.openRunResult(modelData)
+
+                      Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: root.accent
+                        visible: parent.activeFocus
+                      }
 
                       MouseArea {
                         anchors.fill: parent
@@ -1602,6 +1693,7 @@ Item {
   FloatingWindow {
     id: statsWindow
     visible: root.opened && root.windowedStats
+    screen: root.openScreen
     title: "Typearchy · History"
     color: root.background
     implicitWidth: Style.space(980)
@@ -1706,7 +1798,7 @@ Item {
           }
           HistoryMetric { label: "ALL TIME"; value: Math.round(root.stats.bestWpm || 0) + " WPM" }
           HistoryMetric { label: "STREAK"; value: (root.stats.streak || 0) + " DAYS" }
-          HistoryMetric { label: "AVG ACC"; value: Model.recentAverage(root.stats, "accuracy", 10) + "%" }
+          HistoryMetric { label: "AVG ACC"; value: Math.round(Model.recentAverage(root.stats, "accuracy", 10)) + "%" }
         }
 
         Row {
@@ -1749,7 +1841,7 @@ Item {
               model: root.trendRuns
               Rectangle {
                 required property var modelData
-                width: Math.max(3, (parent.width - parent.spacing * 19) / 20)
+                width: Math.max(3, (parent.width - parent.spacing * Math.max(0, root.trendRuns.length - 1)) / Math.max(1, root.trendRuns.length))
                 height: Math.max(2, parent.height * modelData.wpm / root.trendMaximum(root.trendRuns))
                 anchors.bottom: parent.bottom
                 radius: Math.min(width / 2, Style.space(2))
@@ -1830,6 +1922,23 @@ Item {
                 height: Style.space(38)
                 radius: Math.max(2, Style.cornerRadius / 2)
                 color: index % 2 ? "transparent" : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.035)
+                activeFocusOnTab: true
+                Keys.onReturnPressed: root.openRunResult(modelData)
+                Keys.onSpacePressed: root.openRunResult(modelData)
+                Accessible.role: Accessible.ListItem
+                Accessible.name: Content.modeLabel(modelData.mode) + ", " + (modelData.target || modelData.duration + " seconds")
+                  + ", " + Math.round(modelData.wpm) + " words per minute, " + Math.round(modelData.accuracy) + " percent, " + modelData.date
+                Accessible.onPressAction: root.openRunResult(modelData)
+
+                Rectangle {
+                  anchors.fill: parent
+                  radius: parent.radius
+                  color: "transparent"
+                  border.width: 1
+                  border.color: root.accent
+                  visible: parent.activeFocus
+                }
+
                 MouseArea {
                   anchors.fill: parent
                   cursorShape: Qt.PointingHandCursor
@@ -1913,6 +2022,9 @@ Item {
     fontSize: Style.font.bodySmall
     horizontalPadding: Style.space(10)
     verticalPadding: Style.space(6)
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.onPressAction: clicked()
   }
 
   component ResultAction: Button {
@@ -1922,6 +2034,9 @@ Item {
     fontSize: Style.font.caption
     horizontalPadding: Style.space(8)
     verticalPadding: Style.space(6)
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.onPressAction: clicked()
   }
 
   component ProfileSettings: Rectangle {
@@ -1964,6 +2079,12 @@ Item {
           selected: root.profileStatus === "connected"
           onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
             : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())
+        }
+        HistoryChoice {
+          visible: root.profileStatus === "connected"
+          text: root.profileVisibility === "private" ? "MAKE PUBLIC" : "MAKE PRIVATE"
+          selected: false
+          onClicked: root.toggleProfileVisibility()
         }
         HistoryChoice {
           visible: root.profileStatus === "connected"
@@ -2102,6 +2223,9 @@ Item {
     fontSize: Style.font.caption
     horizontalPadding: Style.space(8)
     verticalPadding: Style.space(5)
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.onPressAction: clicked()
   }
 
   component ResultMetric: Column {

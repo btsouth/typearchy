@@ -232,6 +232,11 @@ state = model.updateRunPublication(state, model.latestRun(state).timestamp, "ABC
 assert.equal(model.latestRun(state).publicSlug, "ABCDEFGH")
 assert.equal(model.latestRun(state).publicPinned, true)
 assert.match(model.shareText(model.latestRun(state)), /TYPEARCHY\.COM\/R\/ABCDEFGH/)
+state = model.updateRunPublication(state, model.latestRun(state).timestamp, "", false, model.latestRun(state).challengeKey)
+assert.equal(model.latestRun(state).publicSlug, "")
+assert.equal(model.latestRun(state).publicPinned, false)
+const unmatchedState = model.updateRunPublication(state, "2099-01-01T00:00:00Z", "ZZZZZZZZ", true, "sprint:15")
+assert.equal(model.latestRun(unmatchedState).publicSlug, "")
 state = model.clearRunPublications(state)
 assert.equal(state.runs.length, 2)
 assert.equal(model.latestRun(state).publicSlug, "")
@@ -265,6 +270,71 @@ state = model.recordRun(state, {
 })
 assert.equal(state.streak, 1)
 assert.equal(model.parseState("not json").totalTests, 0)
+
+const invalidDateState = model.recordRun(model.emptyState(), {
+  timestamp: "2026-09-04T12:00:00Z",
+  date: "",
+  mode: "sprint",
+  duration: 15,
+  challengeKey: "sprint:15",
+  wpm: 60,
+  accuracy: 97
+})
+assert.equal(invalidDateState.streak, 0)
+assert.equal(invalidDateState.lastPlayedDate, "")
+assert.equal(invalidDateState.runs.length, 1)
+
+const manyBigrams = {}
+for (let index = 0; index < 200; index += 1) manyBigrams[`q→${index}`] = 200 - index
+const cappedState = model.recordRun(model.emptyState(), {
+  timestamp: "2026-09-05T12:00:00Z",
+  date: "2026-09-05",
+  mode: "sprint",
+  duration: 15,
+  challengeKey: "sprint:15",
+  wpm: 50,
+  accuracy: 90,
+  bigramMistakes: manyBigrams
+})
+assert.equal(Object.keys(cappedState.bigramMistakes).length, 128)
+assert.equal(cappedState.bigramMistakes["q→0"], 200)
+assert.equal(cappedState.bigramMistakes["q→199"], undefined)
+
+const legacyRunState = model.parseState(JSON.stringify({
+  version: 6,
+  runs: [
+    { timestamp: "2026-08-01T10:00:00Z", date: "2026-08-01", mode: "words", sprintStyle: "words", wpm: 70, accuracy: 96 },
+    { timestamp: "2026-08-02T10:00:00Z", date: "2026-08-02", mode: "focus", wpm: 55, accuracy: 94 },
+  ]
+}))
+assert.equal(legacyRunState.runs[0].mode, "sprint")
+assert.equal(legacyRunState.runs[0].sprintStyle, "words")
+assert.equal(legacyRunState.runs[1].mode, "drill")
+assert.equal(model.filteredRuns(legacyRunState, "words", 10).length, 1)
+assert.equal(model.filteredRuns(legacyRunState, "words", 10)[0].wpm, 70)
+assert.equal(model.filteredRuns(legacyRunState, "sprint", 10).length, 1)
+assert.equal(model.filteredRuns(legacyRunState, "drill", 10).length, 1)
+
+state = model.recordRun(state, {
+  timestamp: "2026-09-04T12:00:00Z",
+  date: "2026-09-04",
+  mode: "sprint",
+  sprintStyle: "words",
+  duration: 30,
+  challengeKey: "sprint:words:30",
+  wpm: 66,
+  accuracy: 96
+})
+assert.equal(model.filteredRuns(state, "words", 10).length, 1)
+assert.equal(model.recentTrend(state, "words", 20).length, 1)
+
+assert.equal(model.stateNeedsQuarantine(""), false)
+assert.equal(model.stateNeedsQuarantine("   \n"), false)
+assert.equal(model.stateNeedsQuarantine("not json"), true)
+assert.equal(model.stateNeedsQuarantine("[]"), true)
+assert.equal(model.stateNeedsQuarantine("null"), true)
+assert.equal(model.stateNeedsQuarantine(JSON.stringify({ version: 6, runs: [] })), false)
+assert.equal(model.stateNeedsQuarantine(JSON.stringify({ version: 7, runs: [{ wpm: 120 }] })), true)
 
 const drillProfile = model.drillProfile(state, 12)
 assert.equal(drillProfile.keys[0], "x")
@@ -320,5 +390,14 @@ for (let index = 0; index < 505; index++) {
   })
 }
 assert.equal(state.runs.length, 500)
+
+const builtRelay = content.buildQuoteRelay(content.QUOTE_RELAYS[0])
+assert.equal(builtRelay.segments[0].index, 1)
+assert.equal(builtRelay.prompt.charAt(builtRelay.segments[0].end + 1), "\n")
+
+const astralPassages = content.parseCustomPassages("Typing practice \u{1F512} keeps focus sharp")
+assert.equal(astralPassages.length, 1)
+assert.ok(astralPassages[0].includes("keeps focus sharp"))
+assert.ok(astralPassages[0].indexOf("\uD83D") === -1, "astral characters are filtered from custom passages")
 
 console.log("Typearchy model and content tests passed")

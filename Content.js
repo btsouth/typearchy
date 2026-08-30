@@ -711,6 +711,7 @@ function generatedDrill(seed, keys, bigrams) {
 function parseCustomPassages(raw) {
   return String(raw || "").split(/\n\s*\n/).map(function(passage) {
     return passage.trim().replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n")
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, "")
   }).filter(function(passage) {
     return passage.length >= 10 && passage.length <= 4000
   }).slice(0, 200)
@@ -725,7 +726,7 @@ function buildQuoteRelay(relay) {
     passages.push(quote.text)
     segments.push({
       start: cursor,
-      end: cursor + quote.text.length,
+      end: cursor + quote.text.length - 1,
       author: quote.author,
       shortAuthor: quote.shortAuthor,
       index: i + 1,

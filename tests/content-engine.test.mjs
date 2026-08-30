@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 const testDirectory = fileURLToPath(new URL('.', import.meta.url));
 const desktopPath = join(testDirectory, '..', 'ContentEngine.js');
-const webPath = join(testDirectory, '..', '..', 'typearchy-site', 'app', 'contentEngine.js');
+const webPath = join(testDirectory, '..', 'website', 'app', 'contentEngine.js');
 const contentPath = join(testDirectory, '..', 'Content.js');
-const webPackPath = join(testDirectory, '..', '..', 'typearchy-site', 'app', 'contentPack.json');
+const webPackPath = join(testDirectory, '..', 'website', 'app', 'contentPack.json');
 const desktopSource = readFileSync(desktopPath, 'utf8');
 const desktopBody = desktopSource.replace(/^\.pragma library\s*/, '').trim();
 if (existsSync(webPath)) {
@@ -118,6 +118,11 @@ try {
   assert.equal(engine.generateQuoteRelay(quotes, relay.key, 4).prompt, relay.prompt, 'quote key must reproduce its relay');
   assert.equal(new Set(relay.segments.map((segment) => segment.author)).size, 4);
   assert.ok(relay.prompt.includes('\n\n'));
+  assert.equal(relay.segments[0].index, 1, 'relay segment indices are one-based');
+  assert.equal(relay.segments[3].index, 4);
+  const firstText = relay.prompt.slice(relay.segments[0].start, relay.segments[0].end + 1);
+  assert.ok(quotes.some((quote) => quote.text === firstText), 'segment end is the inclusive last character');
+  assert.equal(relay.segments[1].start, relay.segments[0].end + 3, 'segments are separated by a blank line');
 
   console.log(`content engine ${engine.VERSION}: compiled 48 programs and validated 20 shell workflows`);
 } finally {

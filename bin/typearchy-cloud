@@ -15,16 +15,27 @@ json_error() {
   exit 1
 }
 
+temp_files=()
+cleanup_temps() {
+  local file
+  for file in "${temp_files[@]}"; do rm -f "$file" 2>/dev/null || true; done
+}
+trap cleanup_temps EXIT
+
 token_from_file() {
   jq -er '.token' "$1" 2>/dev/null || json_error "Profile connection is missing or damaged"
 }
 
+last_http_code_path="$state_dir/last-http-code"
+
 request() {
   local method="$1" path="$2" token="${3:-}" body="${4:-}"
-  local config_path body_path=""
+  local config_path body_path="" output status
   config_path="$(mktemp "$state_dir/request.XXXXXX")"
+  temp_files=("$config_path")
   if [[ -n "$body" ]]; then
     body_path="$(mktemp "$state_dir/body.XXXXXX")"
+    temp_files=("$config_path" "$body_path")
     printf '%s' "$body" > "$body_path"
   fi
   {
@@ -34,16 +45,30 @@ request() {
     printf 'header = "Accept: application/json"\n'
     if [[ -n "$token" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$token"; fi
     if [[ -n "$body" ]]; then printf 'header = "Content-Type: application/json"\ndata-binary = "@%s"\n' "$body_path"; fi
+    printf 'write-out = "%%{http_code}"\n'
   } > "$config_path"
-  local output status
   set +e
   output="$(curl --config "$config_path")"
   status=$?
   set -e
   rm -f "$config_path"
   if [[ -n "$body_path" ]]; then rm -f "$body_path"; fi
+  rm -f "$last_http_code_path"
+  local code=""
+  if [[ "$status" -eq 0 || "$status" -eq 22 ]]; then
+    code="${output: -3}"
+    output="${output:0:${#output}-3}"
+  fi
+  if [[ -n "$code" ]]; then printf '%s' "$code" > "$last_http_code_path"; fi
   printf '%s' "$output"
   return "$status"
+}
+
+credentials_rejected() {
+  [[ -f "$last_http_code_path" ]] || return 1
+  local code
+  code="$(cat "$last_http_code_path")"
+  [[ "$code" == "401" || "$code" == "403" ]]
 }
 
 new_token() {
@@ -66,9 +91,11 @@ status() {
     if response="$(request GET /api/device "$token" 2>/dev/null)"; then
       save_connected "$token" "$response"
       printf '%s\n' "$response"
-    else
+    elif credentials_rejected; then
       rm -f "$credentials_path"
       jq -cn '{status:"disconnected"}'
+    else
+      jq -cn '{status:"unreachable"}'
     fi
     return
   fi
@@ -76,21 +103,14 @@ status() {
     local token kind response
     token="$(token_from_file "$pending_path")"
     kind="$(jq -r '.kind // "connect"' "$pending_path")"
-    if [[ "$kind" == "recover" ]]; then
-      if response="$(request GET /api/device "$token" 2>/dev/null)"; then
-        save_connected "$token" "$response"
-        printf '%s\n' "$response"
-      else
-        jq -cn '{status:"pending",kind:"recover"}'
-      fi
-      return
-    fi
     if response="$(request GET /api/connect/status "$token" 2>/dev/null)"; then
       if [[ "$(jq -r '.status' <<<"$response")" == "connected" ]]; then save_connected "$token" "$response"; fi
       printf '%s\n' "$response"
-    else
+    elif credentials_rejected; then
       rm -f "$pending_path"
       jq -cn '{status:"disconnected"}'
+    else
+      jq -cn --arg kind "$kind" '{status:"pending",kind:$kind}'
     fi
     return
   fi
@@ -113,15 +133,18 @@ connect_profile() {
 }
 
 recover_profile() {
-  local token token_hash label url
+  local token payload response
   token="$(new_token)"
-  token_hash="$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)"
-  label="Typearchy on $(hostnamectl hostname 2>/dev/null || hostname)"
-  url="$api_url/recover?token_hash=$token_hash&label=$(jq -rn --arg value "$label" '$value|@uri')"
-  jq -cn --arg token "$token" --arg url "$url" '{version:1,kind:"recover",token:$token,url:$url}' > "$pending_path"
+  payload="$(jq -cn --arg token "$token" \
+    --arg label "Typearchy on $(hostnamectl hostname 2>/dev/null || hostname)" \
+    '{token:$token,label:$label,kind:"recover"}')"
+  response="$(request POST /api/connect/start '' "$payload")"
+  jq -cn --arg token "$token" --arg code "$(jq -r '.code' <<<"$response")" \
+    --arg url "$(jq -r '.verificationUrl' <<<"$response")" \
+    '{version:1,kind:"recover",token:$token,code:$code,url:$url}' > "$pending_path"
   chmod 600 "$pending_path"
-  if [[ "${TYPEARCHY_NO_BROWSER:-0}" != "1" ]]; then xdg-open "$url" >/dev/null 2>&1 & fi
-  jq -cn --arg url "$url" '{status:"pending",kind:"recover",verificationUrl:$url}'
+  if [[ "${TYPEARCHY_NO_BROWSER:-0}" != "1" ]]; then xdg-open "$(jq -r '.verificationUrl' <<<"$response")" >/dev/null 2>&1 & fi
+  printf '%s\n' "$response"
 }
 
 disconnect_profile() {
@@ -141,6 +164,15 @@ delete_profile() {
   response="$(request DELETE /api/profile "$token")"
   rm -f "$credentials_path" "$pending_path"
   printf '%s\n' "$response"
+}
+
+visibility_profile() {
+  [[ -f "$credentials_path" ]] || json_error "Connect a public profile first"
+  local visibility="${1:-}" token body
+  [[ "$visibility" == "public" || "$visibility" == "private" ]] || json_error "Visibility must be public or private"
+  token="$(token_from_file "$credentials_path")"
+  body="$(jq -cn --arg visibility "$visibility" '{visibility:$visibility}')"
+  request PATCH /api/profile "$token" "$body"
 }
 
 publish_run() {
@@ -181,6 +213,7 @@ case "${1:-status}" in
   recover) recover_profile ;;
   disconnect) disconnect_profile ;;
   delete-profile) delete_profile ;;
+  visibility) visibility_profile "${2:-}" ;;
   publish) publish_run "${2:-}" ;;
   pin) pin_run "${2:-}" "${3:-true}" ;;
   delete) delete_run "${2:-}" ;;

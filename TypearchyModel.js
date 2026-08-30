@@ -1,7 +1,7 @@
 .pragma library
 
 var STATE_VERSION = 6
-var MODES = ["sprint", "words", "daily", "quote", "shell", "code", "focus", "drill", "custom"]
+var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
 var MISSING_CHARACTER = "\u0000"
 var ASSISTED_CHARACTER = "\u0001"
 
@@ -139,8 +139,20 @@ function normalizeCounts(value) {
   return out
 }
 
+function capCounts(value, limit) {
+  var counts = normalizeCounts(value)
+  var keys = Object.keys(counts)
+  if (keys.length <= limit) return counts
+  keys.sort(function(left, right) { return counts[right] - counts[left] })
+  var capped = {}
+  for (var index = 0; index < limit; index++) capped[keys[index]] = counts[keys[index]]
+  return capped
+}
+
 function normalizedMode(mode) {
   var value = String(mode || "sprint")
+  if (value === "words") return "sprint"
+  if (value === "focus") return "drill"
   return MODES.indexOf(value) >= 0 ? value : "sprint"
 }
 
@@ -150,10 +162,6 @@ function fallbackChallengeKey(value) {
   if (mode === "sprint") {
     var sprintStyle = String(value.sprintStyle || "")
     return "sprint:" + (sprintStyle ? sprintStyle + ":" : "") + Math.max(0, Math.round(Number(value.duration) || 0))
-  }
-  if (mode === "words") {
-    var wordTarget = String(value.target || "").match(/\d+/)
-    return "words:" + (wordTarget ? wordTarget[0] : String(value.target || ""))
   }
   if (mode === "code") return "code:" + String(value.language || "") + ":" + String(value.target || "")
   return mode + ":" + String(value.target || "")
@@ -195,6 +203,15 @@ function normalizeRun(run) {
   }
   if (!normalized.challengeKey) normalized.challengeKey = fallbackChallengeKey(normalized)
   return normalized
+}
+
+function stateNeedsQuarantine(raw) {
+  var text = String(raw || "")
+  if (!text.trim()) return false
+  var parsed = null
+  try { parsed = JSON.parse(text) } catch (error) { return true }
+  if (!parsed || typeof parsed !== "object") return true
+  return [1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0
 }
 
 function parseState(raw) {
@@ -245,16 +262,21 @@ function recordRun(state, run) {
     next.keyMistakes[key] = (Number(next.keyMistakes[key]) || 0) + normalized.keyMistakes[key]
   for (var pair in normalized.bigramMistakes)
     next.bigramMistakes[pair] = (Number(next.bigramMistakes[pair]) || 0) + normalized.bigramMistakes[pair]
+  next.keyMistakes = capCounts(next.keyMistakes, 128)
+  next.bigramMistakes = capCounts(next.bigramMistakes, 128)
 
-  var gap = daysBetween(next.lastPlayedDate, normalized.date)
-  if (next.lastPlayedDate === normalized.date) {
-    // A personal calendar day counts once, no matter how many tests are played.
-  } else if (gap === 1) {
-    next.streak += 1
-  } else {
-    next.streak = 1
+  var validDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized.date)
+  if (validDate) {
+    var gap = daysBetween(next.lastPlayedDate, normalized.date)
+    if (next.lastPlayedDate === normalized.date) {
+      // A personal calendar day counts once, no matter how many tests are played.
+    } else if (gap === 1) {
+      next.streak += 1
+    } else {
+      next.streak = 1
+    }
+    next.lastPlayedDate = normalized.date
   }
-  next.lastPlayedDate = normalized.date
   return next
 }
 
@@ -358,15 +380,20 @@ function latestRun(state) {
   return state && state.runs && state.runs.length > 0 ? normalizeRun(state.runs[0]) : null
 }
 
-function updateRunPublication(state, timestamp, slug, pinned) {
+function updateRunPublication(state, timestamp, slug, pinned, challengeKey) {
   var next = parseState(JSON.stringify(state || emptyState()))
   var wanted = String(timestamp || "")
+  var wantedKey = String(challengeKey || "")
+  var target = -1
   for (var index = 0; index < next.runs.length; index++) {
     if (next.runs[index].timestamp !== wanted) continue
-    if (slug !== undefined) next.runs[index].publicSlug = String(slug || "")
-    if (pinned !== undefined) next.runs[index].publicPinned = pinned === true
-    return next
+    if (wantedKey && next.runs[index].challengeKey !== wantedKey) continue
+    target = index
+    break
   }
+  if (target < 0) return next
+  if (slug !== undefined) next.runs[target].publicSlug = String(slug || "")
+  if (pinned !== undefined) next.runs[target].publicPinned = pinned === true
   return next
 }
 
@@ -403,7 +430,9 @@ function filteredRuns(state, mode, limit) {
   var source = state && state.runs ? state.runs : []
   var rows = []
   for (var i = 0; i < source.length; i++) {
-    if (wanted === "all" || source[i].mode === wanted) rows.push(normalizeRun(source[i]))
+    var run = normalizeRun(source[i])
+    if (wanted === "all" || run.mode === wanted
+        || (wanted === "words" && run.mode === "sprint" && run.sprintStyle === "words")) rows.push(run)
     if (rows.length >= (Number(limit) || source.length)) break
   }
   return rows

@@ -49,13 +49,12 @@ Panel {
   function copyLatest() {
     if (!root.latest) {
       root.actionStatus = "Finish a test first"
+      statusTimer.restart()
       return
     }
     var summary = Model.shareText(root.latest)
     copyProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", summary]
     copyProc.running = true
-    root.actionStatus = "Result copied"
-    statusTimer.restart()
   }
 
   Component.onCompleted: initProc.running = true
@@ -66,7 +65,13 @@ Panel {
     onExited: statsFile.reload()
   }
 
-  Process { id: copyProc }
+  Process {
+    id: copyProc
+    onExited: function(exitCode) {
+      root.actionStatus = exitCode === 0 ? "Result copied" : "Copy failed. Is wl-copy installed?"
+      statusTimer.restart()
+    }
+  }
 
   Timer {
     id: statusTimer

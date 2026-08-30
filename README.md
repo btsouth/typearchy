@@ -15,7 +15,7 @@ insights stay on the local machine unless you explicitly publish one.
 
 - Timed Sprint tests with generated Words or grammatical Prose
 - One full-paragraph deterministic UTC daily challenge for every user
-- A large, two-line rolling prompt that advances without blocking input
+- A large, rolling prompt that advances without blocking input
 - Curated Quote Relay, Shell, Code, adaptive Drill, and local Custom modes
 - Bash, Python, JavaScript, and Rust code practice
 - A seeded content engine for balanced words, shell workflows, prose, quote relays, and complete code programs
@@ -66,14 +66,16 @@ Production builds target Cloudflare Workers through Vinext.
 - Press `Backspace` to correct, or `Escape` to close.
 - Press `Ctrl+Backspace` to erase the current word.
 - Press `Ctrl+R` to restart immediately.
-- Type `Enter` at visible return markers in Quote Relay, Shell, and Code modes.
+- Type `Enter` at visible return markers in Shell and Code modes.
 - Quote Relay advances through four attributed excerpts under one timer.
 - Press `H` before or after a test to open history and preferences.
 - On results, use the visible actions or press `Ctrl+R` to retry, `Ctrl+S` to
   save a card, `Ctrl+C` to copy text, or `Ctrl+H` to open history. Ordinary
   typing is ignored so a finished result cannot disappear accidentally.
 - In History, connect a public profile with one browser step. Publishing,
-  pinning, unpinning, and removing a public run are always explicit.
+  pinning, unpinning, and removing a public run are always explicit. A
+  connected profile can also be hidden from the website at any time without
+  disconnecting.
 
 Before a test starts:
 

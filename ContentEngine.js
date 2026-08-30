@@ -316,7 +316,7 @@ function generateQuoteRelay(quotes, seed, count) {
   var cursor = 0
   selected.forEach(function(quote, index) {
     promptParts.push(quote.text)
-    segments.push({ index: index, start: cursor, end: cursor + quote.text.length - 1, author: quote.author, shortAuthor: quote.shortAuthor, total: selected.length })
+    segments.push({ index: index + 1, start: cursor, end: cursor + quote.text.length - 1, author: quote.author, shortAuthor: quote.shortAuthor, total: selected.length })
     cursor += quote.text.length + 2
   })
   return { prompt: promptParts.join("\n\n"), segments: segments, key: "generated:quote:" + canonical, version: VERSION }
