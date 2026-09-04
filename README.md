@@ -33,7 +33,7 @@ insights stay on the local machine unless you explicitly publish one.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/tsouth89/typearchy.git --enable
+omarchy plugin add https://github.com/btsouth/typearchy.git --enable
 ```
 
 For local development, run these commands from the repository's parent directory:
