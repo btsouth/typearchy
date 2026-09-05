@@ -535,7 +535,9 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
   .site-nav { height: 68px; } .nav-meta span:not(.status-dot) { display: none; } .hero { min-height: auto; padding-top: 58px; gap: 52px; }
   h1 { font-size: clamp(46px, 15vw, 70px); } .hero-actions { align-items: flex-start; flex-direction: column; } .game-stage { min-height: 680px; padding: 17px 14px 15px; }
   .demo-control-bar { align-items: stretch; flex-direction: column; gap: 9px; padding-bottom: 12px; }
-  .demo-test-controls { width: 100%; flex-wrap: wrap; } .demo-mode-tabs { flex: 1; } .demo-mode-tabs button { flex: 1; padding: 8px 4px; font-size: 6px; }
+  .demo-test-controls { width: 100%; flex-wrap: wrap; } .demo-test-controls .demo-mode-tabs { flex: 1; } .demo-mode-tabs button { flex: 1; padding: 8px 4px; font-size: 6px; }
+  /* Inside the column layout the mode tabs must not grow; wrap them into rows instead of scrolling off screen. */
+  .web-game-modes { flex: none; flex-wrap: wrap; overflow: visible; } .web-game-modes button { flex: 1 1 25%; min-width: 0; padding: 9px 4px; border-bottom: 1px solid color-mix(in srgb, var(--demo-muted) 38%, transparent); } .web-game-modes button:last-child { border-right: 1px solid color-mix(in srgb, var(--demo-muted) 38%, transparent); }
   .demo-theme-tabs { justify-content: flex-end; } .demo-theme-tabs button { padding: 5px 6px; } .demo-theme-tabs button span { display: none; }
   .web-game { gap: 9px; } .web-game-topline { flex-wrap: wrap; } .web-game-topline .demo-theme-tabs { margin-left: auto; } .web-game-expand { order: 3; width: 100%; text-align: center; }
   .web-game-modes button { min-width: 60px; } .web-game-settings { flex-wrap: wrap; } .web-game-settings > span { width: 100%; margin-left: 0; }
