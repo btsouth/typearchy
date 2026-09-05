@@ -16,6 +16,23 @@ try {
   await page.goto(origin + '/play');
   await page.getByRole('link', { name: 'Typearchy home', exact: true }).click();
   await expect(page).toHaveURL(origin + '/');
+  // The embedded homepage game must fit its labels as well as accept clicks.
+  for (const width of [390, 800, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const seconds of [15, 30, 60]) {
+      const button = page.getByRole('button', { name: `${seconds}s`, exact: true });
+      await button.click();
+      await expect(button).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('.metrics > span').last()).toContainText(String(seconds));
+      assert.ok(await button.evaluate(element => {
+        const range = document.createRange(); range.selectNodeContents(element);
+        const text = range.getBoundingClientRect(), box = element.getBoundingClientRect();
+        return box.width >= 44 && text.left >= box.left + 6 && text.right <= box.right - 6;
+      }), `Duration label fits its button at ${width}px`);
+    }
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Homepage fits at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('link', { name: 'PLAY', exact: true }).click();
   await expect(page).toHaveURL(origin + '/play');
   const input = page.locator('.demo-input');

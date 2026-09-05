@@ -770,7 +770,7 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 .web-game .web-game-settings { gap: 12px; flex-wrap: wrap; margin-top: -10px; font-size: 11px; letter-spacing: 0; }
 .web-game-settings > span { flex-basis: 100%; margin-left: 0; line-height: 1.5; }
 .web-game .demo-duration-tabs, .web-game-language { gap: 3px; padding: 3px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--demo-ink) 5%, transparent); }
-.web-game .demo-duration-tabs button, .web-game-language button, .web-game-edit { min-height: 38px; padding: 10px 13px; border: 0; border-radius: 4px; font-size: 11px; letter-spacing: .02em; }
+.web-game .demo-duration-tabs button, .web-game-language button, .web-game-edit { width: auto; min-width: 44px; flex-shrink: 0; min-height: 38px; padding: 10px 13px; border: 0; border-radius: 4px; font-size: 11px; letter-spacing: .02em; }
 .web-game .web-game-language.sprint-style { margin-left: 0; }
 .web-game .sprint-style::before { display: none; }
 .web-game .game-head { align-items: center; margin-top: 12px; }
