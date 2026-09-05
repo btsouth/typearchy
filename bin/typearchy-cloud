@@ -109,7 +109,8 @@ save_connected() {
   local token="$1" response="$2"
   jq -cn --arg token "$token" --arg handle "$(jq -r '.handle' <<<"$response")" \
     --arg profileUrl "$(jq -r '.profileUrl' <<<"$response")" \
-    '{version:1,token:$token,handle:$handle,profileUrl:$profileUrl}' > "$credentials_path"
+    --arg visibility "$(jq -r '.visibility // "public"' <<<"$response")" \
+    '{version:1,token:$token,handle:$handle,profileUrl:$profileUrl,visibility:$visibility}' > "$credentials_path"
   chmod 600 "$credentials_path"
   rm -f "$pending_path"
 }
@@ -125,7 +126,7 @@ status() {
       rm -f "$credentials_path"
       jq -cn '{status:"disconnected"}'
     else
-      jq -cn '{status:"unreachable"}'
+      jq -c '{status:"unreachable",handle:(.handle // ""),visibility:(.visibility // "public")}' "$credentials_path"
     fi
     return
   fi

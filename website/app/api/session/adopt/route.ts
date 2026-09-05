@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const connection = await database.prepare(`SELECT c.profile_id, p.handle FROM connections c JOIN profiles p ON p.id = c.profile_id
       WHERE c.code = ? AND c.kind = 'browser' AND c.claimed_at IS NULL AND c.expires_at > ?`)
       .bind(code, now).first<{ profile_id: string; handle: string }>();
-    if (!connection) throw new ClientError('This connection code expired. Start again from the app.', 404);
+    if (!connection) throw new ClientError('This connection code expired. Get a new code from a connected browser or the app.', 404);
     const current = await authenticateDevice(request);
     if (current && current.profileId !== connection.profile_id) throw new ClientError('This browser is signed in to another profile. Sign out first.', 409);
     const token = `tpy_${randomHex(32)}`;
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       database.prepare('UPDATE connections SET claimed_at = ? WHERE code = ? AND claimed_at IS NULL AND expires_at > ?').bind(now, code, now),
     ]);
     const device = await database.prepare('SELECT id FROM devices WHERE token_hash = ?').bind(await sha256(token)).first();
-    if (!device) throw new ClientError('This connection code was already used. Start again from the app.', 409);
+    if (!device) throw new ClientError('This connection code was already used. Get a new code from a connected browser or the app.', 409);
     return json({ status: 'connected', handle: connection.handle, profileUrl: `https://typearchy.com/u/${connection.handle}` }, 200, { 'Set-Cookie': sessionCookie(request, token) });
   } catch (error) { return errorResponse(error); }
 }

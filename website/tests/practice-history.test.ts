@@ -20,3 +20,18 @@ test('personal bests never mix languages, durations, content versions, or custom
   assert.notEqual(practiceGroup(custom),practiceGroup({...custom,challengeKey:'different passage'}));
   assert.equal(normalizePracticeHistory(Array.from({length:600},(_,index)=>({...run,id:String(index)}))).length,500);
 });
+
+test('desktop backups preserve paused runs, public links, and browser IDs across a round trip', () => {
+  const desktop = {version:6,runs:[{id:run.id,timestamp:run.timestamp,mode:run.mode,target:run.target,
+    challengeKey:run.challengeKey,contentVersion:run.engineVersion,duration:30,wpm:70,rawWpm:74,
+    accuracy:97,consistency:90,errors:2,pace:[60,70],interrupted:true,publicSlug:'ABCDEFGH'}]};
+  const imported = parsePracticeBackup(JSON.stringify(desktop));
+  assert.equal(imported[0].id, run.id);
+  assert.equal(imported[0].interrupted, true);
+  assert.equal(imported[0].durationMs, 30000);
+  assert.equal(imported[0].publicSlug, 'ABCDEFGH');
+  assert.equal(mergePracticeHistory([run], imported).length, 1);
+  assert.equal(mergePracticeHistory([run], [{...imported[0],id:'different-client-id'}]).length, 1);
+  assert.throws(() => parsePracticeBackup(JSON.stringify({...desktop,runs:[null]})), /Nothing was imported/);
+  assert.throws(() => parsePracticeBackup(JSON.stringify({...desktop,runs:[{...desktop.runs[0],wpm:-1}]})), /Nothing was imported/);
+});

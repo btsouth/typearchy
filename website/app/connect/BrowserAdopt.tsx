@@ -28,7 +28,7 @@ export default function BrowserAdopt({ code }: { code: string }) {
   }
   if (handle === undefined) return <section className="connect-card"><p role="status">Checking this connection…</p></section>;
   if (done) return <section className="connect-card connect-success"><p className="section-tag">BROWSER CONNECTED</p><h1>@{handle}</h1><p>This browser now shares your profile. Your recovery code is unchanged and every other device stays connected.</p><div className="connect-actions"><a href="/account">OPEN YOUR ACCOUNT</a><a href="/challenges">FIND A CHALLENGE</a></div></section>;
-  if (!handle) return <section className="connect-card"><p className="section-tag">CONNECT THIS BROWSER</p><h1>CODE EXPIRED.</h1><p>{error || 'This connection code is no longer valid.'} Codes last ten minutes. Open Typearchy on your device and choose Browser again.</p></section>;
+  if (!handle) return <section className="connect-card"><p className="section-tag">CONNECT THIS BROWSER</p><h1>CODE EXPIRED.</h1><p>{error || 'This connection code is no longer valid.'} Codes last ten minutes. Open Typearchy on your device and choose Account in browser again.</p></section>;
   return <section className="connect-card"><p className="section-tag">CONNECT THIS BROWSER</p><h1>@{handle}</h1><p>Connect this browser to your profile? Only continue if you started this from Typearchy on your own device. Nothing uploads automatically, and no other device is signed out.</p>
     {error && <div className="connect-error" role="alert">{error}</div>}
     <button className="primary-action" type="button" onClick={adopt} disabled={busy}>{busy ? 'CONNECTING…' : 'CONNECT THIS BROWSER'}</button><small>NO RECOVERY CODE NEEDED / OTHER DEVICES STAY CONNECTED</small></section>;

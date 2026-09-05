@@ -1,5 +1,13 @@
 # Typearchy roadmap
 
+## Shipped in 1.4.1
+
+- Connect the app and browser together, or add another browser with a short code
+- Set up a profile while sharing without losing your result or custom passage
+- Move practice history between the app and browser with compatible backups
+- Pause browser practice when switching away, with the same rules as the app
+- Clearer sharing feedback, simpler profile controls, and a working home link
+
 ## Shipped in 1.4
 
 - Custom challenges work by link as soon as they are saved; review gates the

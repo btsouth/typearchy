@@ -1,9 +1,11 @@
 'use client';
 
+import BrowserAccount from '../../account/BrowserAccount';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CHALLENGE_LANGUAGES } from '../../lib/challengeContract';
-import { curatedPassages, isCuratedPassage } from '../../lib/curatedPassages';
+import { curatedPassages } from '../../lib/curatedPassages';
 
 const RUBY = 'def tally_words(text)\n  text.downcase.scan(/[a-z]+/).tally\nend\n\ncounts = tally_words("Practice makes progress")\ncounts.sort.each do |word, count|\n  puts "#{word}: #{count}"\nend';
 const starter = curatedPassages[0];
@@ -60,7 +62,7 @@ export default function ChallengeCreator() {
       router.push(`/c/${result.slug}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not publish'); } finally { setBusy(false); }
   }
-  return <form className="challenge-creator" onSubmit={submit}>
+  return <><form className="challenge-creator" onSubmit={submit}>
     <div className="challenge-editor"><label htmlFor="rails-example">Start with a reviewed passage</label><select id="rails-example" value="" onChange={event => {
       const snippet = curatedPassages.find(item => item.id === event.target.value);
       if (snippet) { setTitle(snippet.title); setPassage(snippet.passage); setLanguage(snippet.language); setAutoIndent(snippet.language !== 'prose'); setAttribution(snippet.attribution); }
@@ -77,9 +79,9 @@ export default function ChallengeCreator() {
       <label className="competition-check"><input type="checkbox" checked={autoIndent} onChange={event => setAutoIndent(event.target.checked)} /><span>Automatic indentation<small>Leading spaces after Enter are filled in and excluded from WPM.</small></span></label>
       <label>Who can find it?<select value={visibility} onChange={event => setVisibility(event.target.value)}><option value="public">Everyone, in the library after review</option><option value="unlisted">Anyone with the link</option></select></label>
       <p>The passage and rules are fixed when saved. Only submit text you have permission to share. Your link works right away; a moderator reviews custom passages before they appear in the public library. Keep links out of the title.</p>
-      {error && <p className="competition-error" role="alert">{error}</p>}
-      {needsProfile && <p><a href="/account" target="_blank" rel="noopener">Connect your profile in a new tab</a>, then publish here. Your passage stays in this tab.</p>}
-      <button className="competition-button primary" disabled={busy || !draftReady} type="submit">{busy ? 'Saving…' : isCuratedPassage({ title, language, passage, attribution }) ? 'Publish challenge' : 'Save and get the link'}</button>
+      {error && !needsProfile && <p className="competition-error" role="alert">{error}</p>}
+      {needsProfile && <p>Your passage is saved. Connect your profile below, then get your link.</p>}
+      <button className="competition-button primary" disabled={busy || !draftReady || needsProfile} type="submit">{busy ? 'Saving…' : 'Save and get the link'}</button>
     </aside>
-  </form>;
+  </form>{needsProfile && <BrowserAccount readyLabel="Back to my challenge" onReady={() => { setNeedsProfile(false); setError(''); }} />}</>;
 }

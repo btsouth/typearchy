@@ -46,7 +46,7 @@ export default function AccountSettings() {
       <h3>Connected devices</h3><p>Every device that can publish as @{account.handle}. Disconnecting a device signs it out; it can reconnect from the app.</p>
       {account.devices.map(device => <div className="account-device" key={device.id}><span>{device.label}{device.id === account.currentDevice ? ' (this browser)' : ''}<small>Connected {when(device.created_at)} · last used {when(device.last_used_at)}</small></span>
         <button className="competition-button" disabled={busy} onClick={() => void change('/api/account', 'PATCH', { revokeDevice: device.id })}>{device.id === account.currentDevice ? 'Sign out' : 'Disconnect'}</button></div>)}
-      <p className="competition-note">To add a device: open Typearchy on Omarchy, choose Create / Connect in History, and confirm here while signed in. To add a browser from the app, choose Browser in History.</p>
+      <p className="competition-note">To add a device: open the desktop app, choose Connect profile in History, and confirm here while signed in. To add a browser from the app, choose Account in browser in History.</p>
       <h3>Recovery code</h3>
       <p>{account.recovery_rotated_at ? `Replaced ${when(account.recovery_rotated_at)}.` : 'Created with your profile.'} The recovery code restores access when every device is lost. Replacing it keeps all current devices connected and stops the old code from working.</p>
       {newRecovery ? <div className="competition-recovery"><h2>Your new recovery code.</h2><p>Shown once. Save it somewhere safe now.</p><code>{newRecovery}</code>

@@ -23,12 +23,12 @@ export default function MyAttempts() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update result'); }
     finally { setBusy(''); }
   }
-  return <section className="my-challenges"><h2>Your challenge results</h2><p>Completed while connected to this profile. Publishing is always your choice.</p>
+  return <section className="my-challenges"><h2>Your challenge results</h2><p>Completed while connected to this profile. Only shared results appear in the standings.</p>
     {error && <p className="competition-error" role="alert">{error}</p>}
     {attempts?.map(attempt => <article className="moderation-entry" key={attempt.id}><h3>{attempt.title}</h3>
       <p>{(attempt.duration_ms / 1000).toFixed(2)}s · {attempt.wpm} WPM · {attempt.accuracy}% accuracy</p>
       <div className="competition-actions"><a className="competition-button" href={`/c/${attempt.challenge_slug}`}>Race again</a>
-        <button className="competition-button" disabled={busy === attempt.id || (!attempt.published && (attempt.moderation === 'rejected' || attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public'))} onClick={() => void publish(attempt)}>{attempt.published ? 'Unpublish' : 'Publish result'}</button>
+        <button className="competition-button" disabled={busy === attempt.id || (!attempt.published && (attempt.moderation === 'rejected' || attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public'))} onClick={() => void publish(attempt)}>{attempt.published ? 'Stop sharing' : 'Share result'}</button>
         {!!attempt.published && <a className="competition-button" href={`/a/${attempt.slug}`}>View shared result ↗</a>}
       </div>{attempt.moderation === 'rejected' ? <p className="competition-note">This passage was not approved. Your result stays here but cannot be shared.</p>
         : attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public' ? <p className="competition-note">The creator has hidden this passage, so results on it cannot be shared right now.</p>

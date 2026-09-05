@@ -1,6 +1,6 @@
 {
   "name": "typearchy",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -11,8 +11,8 @@
     "start": "vinext start",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "deploy": "npm run build && wrangler deploy --config dist/server/wrangler.json --name typearchy",
-    "deploy:production": "npm run build && wrangler deploy --config dist/server/wrangler.json --name typearchy --domain typearchy.com --domain www.typearchy.com"
+    "deploy": "npm run build && wrangler deploy --keep-vars --config dist/server/wrangler.json --name typearchy",
+    "deploy:production": "npm run build && wrangler deploy --keep-vars --config dist/server/wrangler.json --name typearchy --domain typearchy.com --domain www.typearchy.com"
   },
   "dependencies": {
     "next": "16.3.3",

@@ -1,5 +1,7 @@
 'use client';
 
+import BrowserAccount from '../../account/BrowserAccount';
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { competitionState, competitionStep, competitionResult, competitionPosition, MAX_DURATION_MS } from '../../competitionEngine';
 import { selectedResultTheme } from '../../lib/resultTheme';
@@ -138,7 +140,7 @@ export default function ChallengeRace({ challenge, ghost, guest = false }: { cha
       if (!response.ok) throw new Error(data.error || 'Could not publish your result');
       setPublished(data.url);
       if (draft.current) persistDraft({ ...draft.current, published: data.url });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not publish'); } finally { setSaving(false); }
+    } catch (cause) { setError(cause instanceof TypeError ? 'Could not reach Typearchy. Your result is saved in this tab. Check your connection and try again.' : cause instanceof Error ? cause.message : 'Could not share your result'); } finally { setSaving(false); }
   }
 
   const ghostAt = ghost ? competitionPosition(ghost.progress, elapsed) : 0;
@@ -174,7 +176,7 @@ export default function ChallengeRace({ challenge, ghost, guest = false }: { cha
       <div className="competition-result-details"><span><b>{score.wpm}</b> WPM</span><span><b>{score.errors}</b> {score.errors === 1 ? 'mistake' : 'mistakes'} corrected</span><span><b>{score.characters}</b> characters typed</span></div>
       <div className="competition-actions"><button className="competition-button primary" disabled={saving} onClick={prepare}>Race again</button>
         {published ? <><button className="competition-button" onClick={async () => { try { await navigator.clipboard.writeText(published); setCopied(true); } catch { setError('Copy the result link below.'); } }}>{copied ? 'Link copied' : 'Copy result link'}</button><a className="competition-button" href={published.replace('https://typearchy.com', '')}>View result ↗</a></>
-          : saved ? <button className="competition-button" disabled={saving} onClick={publish}>{saving ? 'Publishing…' : 'Publish my result'}</button>
+          : saved ? <button className="competition-button" disabled={saving || needsProfile} onClick={publish}>{saving ? 'Sharing…' : 'Share result'}</button>
             : <button className="competition-button" disabled={saving} onClick={() => session && save(session, recording.current)}>{saving ? 'Saving result…' : 'Retry saving'}</button>}
       </div>{published && <a className="competition-result-link" href={published.replace('https://typearchy.com', '')}>{published}</a>}
       {!published && <p className="competition-note">{saved ? guest ? 'Validated. Connect a profile and publish within seven days to keep this run; unclaimed guest results are removed.' : 'Validated. Publish to join the standings and share your run.' : 'Your result is kept in this tab while we save it. You can reload and retry.'}</p>}
@@ -203,7 +205,8 @@ export default function ChallengeRace({ challenge, ghost, guest = false }: { cha
       <p className="competition-note">↵ means Enter, including blank lines. Tab stays in the test. Escape releases typing focus.</p>
 
     </>}
-    {error && <div className="competition-error" role="alert">{error}{needsProfile && <p><a href="/account" target="_blank" rel="noopener">Connect your profile in a new tab</a>, then publish here. Your result will stay in this tab.</p>}</div>}
+    {error && !needsProfile && <div className="competition-error" role="alert">{error}</div>}
+    {needsProfile && <section aria-label="Connect to share"><p>Your result is saved in this tab. Connect once, then share it.</p><BrowserAccount onReady={() => { setNeedsProfile(false); setError(''); }} /></section>}
     {challenge.description && <details className="code-context"><summary>About this code</summary><p>{challenge.description}</p><p>Type the passage as written. Understanding it is optional; the explanation is here if you are curious.</p></details>}
     {challenge.attribution && <p className="competition-attribution">{challenge.sourceUrl ? <><span>{challenge.author} · Rails · MIT</span> · <a href={challenge.sourceUrl} target="_blank" rel="noopener noreferrer">Read the original source ↗</a></> : challenge.attribution}</p>}
   </section>;

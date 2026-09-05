@@ -460,9 +460,27 @@ assert.equal(merged.state.totalTests, 2)
 assertShape(merged.state.keyMistakes, { e: 7, x: 1 })
 assert.equal(model.mergeHistory(merged.state, JSON.stringify(remote)).added, 0, "re-importing the same backup adds nothing")
 assert.match(model.mergeHistory(local, "not json").error, /not a Typearchy history backup/)
-assert.match(model.mergeHistory(local, JSON.stringify({ format: "typearchy-practice", version: 1, runs: [] })).error, /browser practice backup/)
+assert.equal(model.mergeHistory(local, JSON.stringify({ format: "typearchy-practice", version: 1, runs: [] })).error, "")
 assert.match(model.mergeHistory(local, JSON.stringify({ version: 99, runs: [] })).error, /not a Typearchy history backup/)
 assert.equal(model.compareVersions("1.3.0", "1.4.0"), -1)
 assert.equal(model.compareVersions("1.4.0", "1.4.0"), 0)
 assert.equal(model.compareVersions("1.10.0", "1.4.0"), 1)
 console.log("Result state, next action, history merge, and version tests passed")
+
+const browserBackup = {format:"typearchy-practice",version:1,runs:[{
+  id:"browser-fixture",timestamp:"2026-09-05T12:00:00.000Z",mode:"code",target:"RUBY / 30 SEC",
+  challengeKey:"code:ruby:fixture",engineVersion:"2026.08.2",durationMs:30000,
+  wpm:70,raw:74,accuracy:97,consistency:90,errors:2,pace:[60,70],interrupted:true
+}]}
+const fromBrowser = model.mergeHistory(model.emptyState(), JSON.stringify(browserBackup))
+assert.equal(fromBrowser.error, "")
+assert.equal(fromBrowser.added, 1)
+assert.equal(fromBrowser.state.runs[0].id, "browser-fixture")
+assert.equal(fromBrowser.state.runs[0].rawWpm, 74)
+assert.equal(fromBrowser.state.runs[0].duration, 30)
+assert.equal(fromBrowser.state.runs[0].interrupted, true)
+assert.equal(fromBrowser.state.bestWpm, 0, "imported paused runs never become bests")
+assert.equal(model.mergeHistory(fromBrowser.state, JSON.stringify(browserBackup)).added, 0)
+assert.ok(model.mergeHistory(local, JSON.stringify({...browserBackup,runs:[...browserBackup.runs,{}]})).error)
+assert.ok(model.mergeHistory(local, JSON.stringify({...browserBackup,runs:[browserBackup.runs[0],browserBackup.runs[0]]})).error)
+console.log("Browser history imports preserve scores, interruption state, and identity")

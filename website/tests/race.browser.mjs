@@ -60,7 +60,7 @@ try {
   await expect(page.getByText('PASSAGE COMPLETE', {exact:true})).toHaveCount(0);
   await page.keyboard.type(playable.slice(-1));
   await expect(page.getByText('PASSAGE COMPLETE', {exact:true})).toBeVisible();
-  await expect(page.getByRole('button', {name:'Publish my result'})).toBeVisible();
+  await expect(page.getByRole('button', {name:'Share result'})).toBeVisible();
   const timer = page.locator('.competition-scoreboard strong').first();
   const finished = await timer.textContent();
   await page.waitForTimeout(250);

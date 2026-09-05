@@ -166,6 +166,7 @@ function fallbackChallengeKey(value) {
 function normalizeRun(run) {
   var value = run || {}
   var normalized = {
+    id: String(value.id || ""),
     timestamp: String(value.timestamp || ""),
     date: String(value.date || ""),
     mode: normalizedMode(value.mode),
@@ -532,11 +533,41 @@ function nextAction(run, options) {
 
 // Merge a stats.json backup from another machine. Runs are matched by timestamp
 // and challenge key; the existing copy wins but picks up a public link it lacks.
+function validBackupNumber(value, max) {
+  return typeof value === "number" && isFinite(value) && value >= 0 && value <= max
+}
+
 function mergeHistory(state, raw) {
   var parsed = null
   try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { state: state, added: 0, error: "That file is not a Typearchy history backup." } }
   if (!parsed || typeof parsed !== "object") return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
-  if (parsed.format === "typearchy-practice") return { state: state, added: 0, error: "That is a browser practice backup. Import it from History in the browser." }
+  if (parsed.format === "typearchy-practice") {
+    if (parsed.version !== 1 || !Array.isArray(parsed.runs) || parsed.runs.length > 500)
+      return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+    var browserRuns = []
+    var ids = {}
+    for (var b = 0; b < parsed.runs.length; b++) {
+      var item = parsed.runs[b]
+      if (!item || typeof item.id !== "string" || !item.id || ids[item.id]
+          || !isFinite(Date.parse(item.timestamp)) || MODES.concat(["words", "focus"]).indexOf(item.mode) < 0
+          || typeof item.challengeKey !== "string" || typeof item.target !== "string"
+          || typeof item.engineVersion !== "string"
+          || !validBackupNumber(item.wpm, 1000) || !validBackupNumber(item.raw, 2000)
+          || !validBackupNumber(item.accuracy, 100) || !validBackupNumber(item.consistency, 100)
+          || !validBackupNumber(item.errors, 100000))
+        return { state: state, added: 0, error: "This backup contains invalid or duplicate runs. Nothing was imported." }
+      ids[item.id] = true
+      browserRuns.push({ id: item.id, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
+        mode: item.mode, target: item.target, challengeKey: item.challengeKey, contentVersion: item.engineVersion,
+        duration: validBackupNumber(item.durationMs, 3600000) ? item.durationMs / 1000 : 0,
+        interrupted: item.interrupted === true, completed: item.completed !== false,
+        wpm: item.wpm, rawWpm: item.raw, accuracy: item.accuracy, consistency: item.consistency,
+        errors: item.errors, pace: item.pace, learning: item.learning, sprintStyle: item.sprintStyle,
+        drillKeys: item.drillKeys, drillBigrams: item.drillBigrams, targetErrors: item.targetErrors,
+        publicSlug: item.publicSlug, publicPinned: item.publicPinned })
+    }
+    parsed = { version: STATE_VERSION, runs: browserRuns }
+  }
   if ([1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0 || !Array.isArray(parsed.runs))
     return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
   var incoming = parseState(JSON.stringify(parsed))

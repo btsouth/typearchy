@@ -12,7 +12,7 @@ check or a written script run on a clean machine against the deployed worker.
    then a manual run with networking disabled.
 3. Connect the browser and link a second device: `challenges.integration.mjs`
    covers connect, browser linking, and recovery replacement; confirm once by
-   hand from History with the Browser button.
+   hand from History with the Account in browser button.
 4. Create a custom challenge, share the link, and have a friend race it before
    review: `challenges.integration.mjs` and `moderation.integration.mjs`.
 5. Race a friend's shared run and publish the result: `race.browser.mjs` and
@@ -41,3 +41,14 @@ check or a written script run on a clean machine against the deployed worker.
 Native UI tests require Quickshell. Desktop installation checks use a private
 home and do not change the user's desktop registrations. Hosted challenge tests
 must use the local test service, never publish synthetic scores as a real player.
+
+## Automated usability sweep
+
+`website/tests/practice.browser.mjs` checks every mode, code language, sprint
+style and duration, pause/resume, saved results, inline profile setup, sharing,
+and app-first setup connecting both clients. It runs against the disposable
+local worker in CI. History unit tests cover imports in both directions,
+deduplication, malformed backups, and excluding paused imports from bests.
+
+Human review is for typing feel and visual judgment. Routine mode coverage,
+connection behavior, and data preservation belong in the automated checks.

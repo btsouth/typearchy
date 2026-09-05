@@ -1,4 +1,4 @@
-import { clientKey, db, enforceRateLimit, errorResponse, json, randomHex, rateLimitResponse, RateLimitError, readJson, sha256 } from '../../../lib/db';
+import { authenticateDevice, clientKey, db, enforceRateLimit, errorResponse, json, randomHex, rateLimitResponse, RateLimitError, readJson, sha256 } from '../../../lib/db';
 import { validateConnectionCode, validateHandle } from '../../../lib/profileContract';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,10 @@ export async function POST(request: Request) {
       .bind(handle).first();
     if (existing) return json({ error: 'That handle is already claimed' }, 409);
 
+    // The setup page connects both clients in one step. Only a same-origin
+    // browser request may receive a cookie; existing sessions are left alone.
+    const connectBrowser = request.headers.get('origin') === new URL(request.url).origin && !await authenticateDevice(request);
+    const browserToken = connectBrowser ? `tpy_${randomHex(32)}` : '';
     const profileId = crypto.randomUUID();
     const deviceId = crypto.randomUUID();
     const recoveryCode = `tpy_recovery_${randomHex(18)}`;
@@ -37,6 +41,9 @@ export async function POST(request: Request) {
         database.prepare(`INSERT INTO devices
           (id, profile_id, token_hash, label, created_at, last_used_at)
           VALUES (?, ?, ?, ?, ?, ?)`).bind(deviceId, profileId, connection.token_hash, connection.label, now, now),
+        ...(browserToken ? [database.prepare(`INSERT INTO devices
+          (id, profile_id, token_hash, label, created_at, last_used_at)
+          VALUES (?, ?, ?, 'Web browser', ?, ?)`).bind(crypto.randomUUID(), profileId, await sha256(browserToken), now, now)] : []),
         database.prepare(`UPDATE connections SET profile_id = ?, claimed_at = ? WHERE code = ?`)
           .bind(profileId, now, code),
       ]);
@@ -44,7 +51,7 @@ export async function POST(request: Request) {
       if (isHandleCollision(error)) return json({ error: 'That handle is already claimed' }, 409);
       throw error;
     }
-    return json({ status: 'connected', handle, recoveryCode, profileUrl: `https://typearchy.com/u/${handle}`, visibility: 'public' }, 201);
+    return json({ status: 'connected', handle, recoveryCode, profileUrl: `https://typearchy.com/u/${handle}`, visibility: 'public', browserConnected: !!browserToken }, 201, browserToken ? { 'Set-Cookie': `typearchy_session=${browserToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=7776000${new URL(request.url).protocol === 'https:' ? '; Secure' : ''}` } : undefined);
   } catch (error) {
     if (error instanceof RateLimitError) return rateLimitResponse(error);
     return errorResponse(error);

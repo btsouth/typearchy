@@ -12,6 +12,8 @@ Item {
   required property string helper
   required property string stateDir
   signal exitRequested()
+  signal connectRequested()
+  property bool profileConnected: false
   property var challenge: null
   property var ghost: null
   property var standings: []
@@ -179,14 +181,19 @@ Item {
         root.events = []; root.entered = ""; root.elapsedMs = 0; root.result = null; root.saved = false; root.publicUrl = ""
         root.phase = "armed"; Qt.callLater(function() { catcher.forceActiveFocus() })
       } else if (root.action === "attempt-submit") {
-        root.saved = true; root.message = root.challenge && root.challenge.connected === false ? "Validated. Connect a profile in History and publish within seven days to keep this run." : "Validated. Publish your result to join the standings."
+        root.saved = true; root.message = root.challenge && root.challenge.connected === false ? "Run saved. Connect to share it and keep it beyond seven days." : "Run saved. Share it to join the standings and get a link."
       } else if (root.action === "attempt-publish") {
         root.publicUrl = response.url; root.message = "Published. Your result is ready to share."
       }
     }
   }
   Process { id: opener }
-  Process { id: copier }
+  Process {
+    id: copier
+    onExited: function(exitCode) {
+      root.message = exitCode === 0 ? "Link copied. Send it to a friend." : "Copy failed. Choose View result and copy the URL from your browser."
+    }
+  }
 
   Rectangle { anchors.fill: parent; color: Color.background }
   Controls.ScrollView {
@@ -266,10 +273,10 @@ Item {
         visible: root.phase === "finished"; width: parent.width; spacing: 18
         Text { text: !root.result ? "" : root.ghost ? root.result.durationMs < root.ghost.durationMs ? "You beat @" + root.ghost.handle + "." : ((root.result.durationMs - root.ghost.durationMs) / 1000).toFixed(2) + " seconds to catch @" + root.ghost.handle : "Time set."; textFormat: Text.PlainText; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }
         Text { text: root.result ? root.result.wpm + " WPM / " + root.result.accuracy + "% accuracy / " + root.result.errors + " mistakes corrected" : ""; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 20 }
-        Row { spacing: 16
+        Flow { width: parent.width; spacing: 16
           Action { text: "Race again"; enabled: !root.busy; onClicked: root.start() }
           Action { visible: !root.saved; text: "Retry saving"; enabled: !root.busy; onClicked: recordingFile.setText(JSON.stringify({ challenge: root.challenge, session: root.session, theme: root.resultTheme, events: root.events }) + "\n") }
-          Action { visible: root.saved && !root.publicUrl; text: "Publish my result"; enabled: !root.busy; onClicked: root.call("attempt-publish", [root.session.id]) }
+          Action { visible: root.saved && !root.publicUrl; text: root.profileConnected ? "Share result" : "Connect to share"; enabled: !root.busy; onClicked: { if (root.profileConnected) root.call("attempt-publish", [root.session.id]); else { root.message = "Connect in your browser, then return here and choose Share result. Your run is saved."; root.connectRequested() } } }
           Action { visible: !!root.publicUrl; text: "Copy result link"; onClicked: { copier.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", root.publicUrl]; copier.running = true } }
           Action { visible: !!root.publicUrl; text: "View result"; onClicked: { opener.command = ["xdg-open", root.publicUrl]; opener.running = true } }
         }

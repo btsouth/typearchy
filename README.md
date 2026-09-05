@@ -99,14 +99,18 @@ Production builds target Cloudflare Workers through Vinext.
 - Every result and history row shows its state: local only, public, pinned to
   your profile, or paused practice. The comparison line says what it compares
   against, and the footer suggests a next step.
-- Once connected, press **Browser** in History to sign the same profile in to
+- Once connected, press **Account in browser** in History to sign the same profile in to
   your web browser. No recovery code is needed and no other device is signed
   out. Devices and the recovery code are managed under Account on the website,
-  where a lost recovery code can be replaced.
+  where a lost recovery code can be replaced. From a connected browser, use
+  **Connect another browser** on your profile and enter its one-time code under
+  **Use an existing profile** in the other browser.
 - Press `E` in History to export your history to `~/Documents/Typearchy`, or
-  `I` to import a backup from another machine. Imports merge without duplicates.
-- Browser practice does not pause when you switch tabs. Only the desktop app
-  pauses local practice on focus loss.
+  `I` to import a backup from another machine. Imports merge without duplicates. Browser and desktop backups work in either
+  client. Connecting a profile does not automatically sync practice history.
+- Both browser and desktop practice pause when you switch away. Resume where
+  you left off, or restart for a run that counts toward personal bests. Online
+  races keep their clock running.
 
 Before a test starts:
 

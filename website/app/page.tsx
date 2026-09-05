@@ -17,7 +17,7 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow">THE TYPING GAME FOR PEOPLE WHO WRITE CODE</p>
           <h1>KEEP YOUR<br />FINGERS SHARP.</h1>
-          <p className="lede">Everything you expect from a polished typing game, then the parts nobody else has: real Ruby, Bash, Python, JavaScript, and Rust with honest rules, and challenges you can send to anyone with a link.</p>
+          <p className="lede">Practice words and code, race real Rails excerpts, and send a friend your time to beat. Play here or install the Linux app.</p>
           <div className="hero-actions">
             <a className="primary-action" href="#typing-demo">PLAY NOW</a>
             <a className="secondary-action" href="#install">GET THE LINUX APP</a>
@@ -36,8 +36,8 @@ export default function Home() {
       <section className="app" id="install">
         <div className="app-copy">
           <p className="section-tag">THE LINUX APP</p>
-          <h2>Same game, in a window that matches your desktop.</h2>
-          <p>Colors from your Omarchy theme, a personal-best ghost pacing you live, drills built from your own misses, and history that says exactly what each result is. Challenge links open straight into the app.</p>
+          <h2>Practice on your desktop.</h2>
+          <p>Practice offline with your Omarchy colors. Use the same profile and race the same challenges in the app or browser. Practice history stays on each device; export and import it when you want to move it.</p>
           <div className="install-command"><span>$</span><code>git clone {GITHUB}.git &amp;&amp; ./typearchy/bin/typearchy-install</code></div>
           <p className="app-note">Omarchy or any Linux desktop with Quickshell. To update, pull and run the installer again. <a href={`${GITHUB}#install`} target="_blank" rel="noopener noreferrer">Install notes and source on GitHub ↗</a></p>
         </div>

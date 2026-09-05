@@ -615,6 +615,7 @@ Item {
     if (run && run.interrupted) { root.profileMessage = "Paused practice stays local. Complete an uninterrupted run to share a comparable time."; root.shareStatus = root.profileMessage; return }
     if (!run || root.publishPending || cloudProc.running) return
     if (root.profileStatus !== "connected") {
+      root.shareStatus = "Connect your profile in the browser, then return here and choose Share result. Your run is saved."
       root.connectProfile()
       return
     }
@@ -672,7 +673,8 @@ Item {
     var response = {}
     try { response = JSON.parse(raw || errorText || "{}") || {} } catch (error) {}
     if (exitCode !== 0 || response.error) {
-      root.profileMessage = String(response.error || "typearchy.com unavailable  /  local practice still works")
+      root.profileMessage = String(response.error || "Could not reach typearchy.com. Your result is saved; try again when connected.")
+      if (root.cloudAction === "publish" || root.cloudAction === "connect") root.shareStatus = root.profileMessage
       if (root.cloudAction === "status" || root.cloudAction === "connect" || root.cloudAction === "recover") {
         root.profileStatus = "disconnected"
         profilePoll.stop()
@@ -681,7 +683,10 @@ Item {
     }
     if (root.cloudAction === "publish") {
       root.applyPublishedRun(root.cloudTargetTimestamp, response.slug, false)
-      root.profileMessage = "Published  /  typearchy.com/r/" + response.slug
+      root.profileMessage = "Result shared. Copy its link or open it below."
+      root.shareStatus = root.profileMessage
+      copyLinkProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", "https://typearchy.com/r/" + response.slug]
+      copyLinkProc.running = true
       return
     }
     if (root.cloudAction === "pin") {
@@ -721,13 +726,14 @@ Item {
         : "Profile is public at typearchy.com/u/" + root.profileHandle
       return
     }
-    root.profileStatus = String(response.status || "disconnected")
+    root.profileStatus = response.status === "unreachable" && response.handle ? "connected" : String(response.status || "disconnected")
     root.profileHandle = String(response.handle || "")
     root.profileCode = String(response.code || "")
     root.profileVisibility = response.visibility === "private" ? "private" : "public"
     if (response.latestClient && response.clientVersion && Model.compareVersions(response.clientVersion, response.latestClient) < 0)
       root.updateAvailable = String(response.latestClient)
-    if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle + (root.updateAvailable ? "  /  update " + root.updateAvailable + " available" : "")
+    if (response.status === "unreachable" && root.profileHandle) root.profileMessage = "Offline. Profile saved as @" + root.profileHandle + ". Try sharing again when connected."
+    else if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle + (root.updateAvailable ? "  /  update " + root.updateAvailable + " available" : "")
     else if (root.profileStatus === "pending") root.profileMessage = root.profileCode ? "Finish in browser  /  " + root.profileCode : "Finish recovery in browser"
     else if (root.profileStatus === "unreachable") root.profileMessage = "typearchy.com unreachable  /  still connected, local practice works"
     else root.profileMessage = ""
@@ -864,7 +870,8 @@ Item {
   Process {
     id: copyLinkProc
     onExited: function(exitCode) {
-      root.profileMessage = exitCode === 0 ? "Public link copied" : "Copy failed. Is wl-copy installed?"
+      root.profileMessage = exitCode === 0 ? "Link copied. Send it to a friend." : "Your result is shared, but copying failed. Open the result to copy its URL."
+      root.shareStatus = root.profileMessage
     }
   }
   Process { id: openCustomProc }
@@ -920,7 +927,7 @@ Item {
   FileView {
     id: publishFile
     onSaved: { if (root.publishPending) { root.publishPending = false; root.startCloudAction("publish", ["publish", root.publishPath]) } }
-    onSaveFailed: { root.publishPending = false; root.profileMessage = "Could not save this result for sharing. Try again." }
+    onSaveFailed: { root.publishPending = false; root.profileMessage = "Could not save this result for sharing. Try again."; root.shareStatus = root.profileMessage }
     path: root.publishPath
     atomicWrites: true
     printErrors: false
@@ -1046,6 +1053,8 @@ Item {
 
     NativeChallenge {
       id: nativeChallenge
+    profileConnected: root.profileStatus === "connected"
+    onConnectRequested: root.connectProfile()
       anchors.fill: parent
       anchors.topMargin: root.standalone ? 52 : 0
       z: 20
@@ -2327,6 +2336,8 @@ Item {
   }
 
   component ProfileSettings: Rectangle {
+    id: profileSettings
+    property bool expanded: false
     implicitHeight: profileLayout.implicitHeight + Style.space(16)
     height: implicitHeight
     radius: Math.max(2, Style.cornerRadius / 2)
@@ -2345,13 +2356,13 @@ Item {
 
       Text {
         width: parent.width
-        text: "PUBLIC PROFILE  /  " + (root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "CREATE A HANDLE TO SHARE RESULTS"))
+        text: root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "Profile optional. Connect once to share results.")
         color: root.profileStatus === "connected" ? root.accent : root.muted
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
         font.letterSpacing: 1
-        elide: Text.ElideRight
+        wrapMode: Text.Wrap
       }
 
       Flow {
@@ -2360,38 +2371,51 @@ Item {
         spacing: Style.space(4)
         HistoryChoice {
           visible: root.profileStatus === "connected"
-          text: "OPEN"
+          text: "VIEW PROFILE"
           selected: false
           onClicked: root.openProfile()
         }
         HistoryChoice {
-          text: root.profileStatus === "connected" ? "DISCONNECT" : (root.profileStatus === "pending" ? "CHECK" : "CREATE / CONNECT")
+          visible: root.profileStatus !== "connected"
+          text: root.profileStatus === "pending" ? "CHECK CONNECTION" : "CONNECT PROFILE"
           selected: root.profileStatus === "connected"
           onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
             : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())
         }
         HistoryChoice {
           visible: root.profileStatus === "connected"
-          text: "BROWSER"
+          text: "ACCOUNT IN BROWSER"
           selected: false
           Accessible.description: "Connect this profile in your web browser without a recovery code"
           onClicked: root.connectBrowser()
         }
         HistoryChoice {
-          visible: root.profileStatus === "connected"
+          visible: profileSettings.expanded && root.profileStatus === "connected"
           text: root.profileVisibility === "private" ? "MAKE PUBLIC" : "MAKE PRIVATE"
           selected: false
           onClicked: root.toggleProfileVisibility()
         }
         HistoryChoice {
-          visible: root.profileStatus === "connected"
+          visible: profileSettings.expanded && root.profileStatus === "connected"
           text: root.profileDeleteArmed ? "CONFIRM" : "DELETE"
           selected: root.profileDeleteArmed
           onClicked: root.deleteProfile()
         }
         HistoryChoice {
+          visible: root.profileStatus === "connected"
+          text: profileSettings.expanded ? "LESS" : "MORE"
+          selected: profileSettings.expanded
+          onClicked: profileSettings.expanded = !profileSettings.expanded
+        }
+        HistoryChoice {
+          visible: profileSettings.expanded && root.profileStatus === "connected"
+          text: "SIGN OUT OF APP"
+          selected: false
+          onClicked: root.disconnectProfile()
+        }
+        HistoryChoice {
           visible: root.profileStatus !== "connected"
-          text: "RECOVER"
+          text: "LOST ACCESS?"
           selected: false
           onClicked: root.recoverProfile()
         }

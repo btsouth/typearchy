@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const row = await db().prepare(`SELECT p.handle FROM connections c JOIN profiles p ON p.id = c.profile_id
       WHERE c.code = ? AND c.kind = 'browser' AND c.claimed_at IS NULL AND c.expires_at > ?`)
       .bind(code, Math.floor(Date.now() / 1000)).first<{ handle: string }>();
-    if (!row) return json({ error: 'This connection code expired. Start again from the app.' }, 404);
+    if (!row) return json({ error: 'This connection code expired. Get a new code from a connected browser or the app.' }, 404);
     return json({ handle: row.handle });
   } catch (error) { return errorResponse(error); }
 }

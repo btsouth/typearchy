@@ -25,7 +25,9 @@ or another identity provider.
 2. The app opens `typearchy.com/connect` with that short-lived code.
 3. The player claims an available handle.
 4. The website stores only a hash of the device token.
-5. The app detects the completed connection automatically.
+5. The app detects the completed connection automatically. A same-origin claim
+   from the setup page also signs in that browser with its own device token; an
+   existing browser session is left unchanged.
 
 The connection expires after 15 minutes. The raw device token stays in a
 user-only local file and is never included in a command-line argument. A
@@ -37,7 +39,7 @@ connects the new device. No token material ever appears in a URL.
 
 A second device connects without the recovery code. When a browser is already
 signed in, it can approve an app's connection code on typearchy.com/connect. When
-the app is connected, choosing Browser in History asks the service for a one-time
+the app is connected, choosing Account in browser in History asks the service for a one-time
 code that lasts ten minutes and opens typearchy.com/connect?browser=CODE; the
 player confirms there and the browser receives its own device token. Neither path
 revokes other devices or changes the recovery code.

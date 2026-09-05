@@ -5,7 +5,7 @@ export type PracticeRun = {
   target: string; wpm: number; raw: number; accuracy: number; consistency: number; errors: number;
   pace: number[]; weakKeys: string[]; weakPairs?: string[]; drillKeys?: string[];
   drillBigrams?: string[]; targetErrors?: number; challengeKey: string; engineVersion: string;
-  durationMs?: number; publicSlug?: string;
+  durationMs?: number; publicSlug?: string; interrupted?: boolean; completed?: boolean; publicPinned?: boolean;
   learning?: { version: number; keys: Record<string, { attempts: number; errors: number }>; pairs: Record<string, { attempts: number; errors: number }> };
   sprintStyle?: 'words' | 'prose';
 };
@@ -25,6 +25,7 @@ export function normalizePracticeHistory(input: unknown): PracticeRun[] {
       || !number(item.consistency,100) || !number(item.errors,100000)) continue;
     seen.add(item.id);
     results.push({ id:item.id,timestamp:new Date(item.timestamp).toISOString(),mode:item.mode,
+      interrupted:item.interrupted === true, completed:item.completed !== false, publicPinned:item.publicPinned === true,
       learning:learningNormalize(item.learning),
       durationMs:number(item.durationMs,3600000) ? item.durationMs : undefined,
       publicSlug:typeof item.publicSlug === 'string' && /^[A-HJ-NP-Z2-9]{6,8}$/.test(item.publicSlug) ? item.publicSlug : undefined,
@@ -37,13 +38,26 @@ export function normalizePracticeHistory(input: unknown): PracticeRun[] {
   return results.sort((left,right)=>Date.parse(right.timestamp)-Date.parse(left.timestamp)).slice(0,HISTORY_LIMIT);
 }
 export function mergePracticeHistory(current: PracticeRun[], incoming: unknown) {
-  return normalizePracticeHistory([...current,...normalizePracticeHistory(incoming)]);
+  const seen = new Set<string>();
+  return normalizePracticeHistory([...current,...normalizePracticeHistory(incoming)].filter(run => {
+    const key = `${new Date(run.timestamp).toISOString()}|${run.challengeKey}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }));
 }
 export function parsePracticeBackup(contents: string) {
   if (contents.length > 2_000_000) throw new Error('Choose a Typearchy backup under 2 MB');
   let backup: { format?: string; version?: number; runs?: unknown };
   try { backup = JSON.parse(contents); } catch { throw new Error('This file is not valid JSON'); }
-  if (backup?.format !== 'typearchy-practice' || backup.version !== 1 || !Array.isArray(backup.runs)) throw new Error('Choose a Typearchy practice backup');
+  if (backup && !backup.format && [1,2,3,4,5,6].includes(Number(backup.version)) && Array.isArray(backup.runs)) {
+    backup = { format:'typearchy-practice', version:1, runs:backup.runs.map((run: Record<string, unknown> | null) => run && ({
+      ...run, id:run.id || `desktop:${run.timestamp}:${run.mode}`,
+      raw:run.rawWpm, engineVersion:run.contentVersion || '',
+      durationMs:typeof run.duration === 'number' ? run.duration * 1000 : undefined,
+      weakKeys:[], weakPairs:[],
+    })) };
+  }
+  if (backup?.format !== 'typearchy-practice' || backup.version !== 1 || !Array.isArray(backup.runs)) throw new Error('Choose a Typearchy history backup from the app or browser');
   const runs = normalizePracticeHistory(backup.runs);
   if (runs.length !== backup.runs.length) throw new Error('This backup contains invalid or duplicate runs. Nothing was imported.');
   return runs;

@@ -740,3 +740,12 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
   .why article:last-child { border-bottom: 0; }
   .app { grid-template-columns: 1fr; }
 }
+
+/* Account setup stays readable inside a practice result in every game theme. */
+.web-game .competition-account { --bg: var(--demo-bg); --panel: var(--demo-panel); --ink: var(--demo-ink); --muted: var(--demo-muted); --accent: var(--demo-accent); --faint: var(--demo-muted); text-align: left; padding: 20px; border: 1px solid var(--demo-muted); }
+.web-game .competition-account h1 { font-size: 1.5rem; }
+.competition-account input:not([type=checkbox]) { box-sizing: border-box; width: 100%; min-width: 0; padding: 12px 14px; background: var(--panel); color: var(--ink); border: 1px solid var(--faint); font: inherit; }
+.competition-account .competition-check { display: flex; gap: 10px; align-items: center; }
+.web-game-history-list b small { display: block; color: var(--demo-muted); font-size: 9px; font-weight: normal; margin-top: 4px; }
+
+.web-game-modes[inert], .web-game-settings[inert] { opacity: .4; }
