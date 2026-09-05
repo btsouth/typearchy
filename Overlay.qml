@@ -1217,7 +1217,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             layoutDirection: Qt.RightToLeft
             spacing: Style.space(24)
-            visible: root.statsOpen || root.phase === "ready" || root.showLiveStats
+            visible: root.statsOpen || root.phase === "ready" || (root.showLiveStats && root.phase !== "results")
 
             Metric {
               label: root.statsOpen ? "TESTS" : (root.isTimed ? "LEFT" : "TIME")
@@ -1348,9 +1348,9 @@ Item {
             Flickable {
               id: promptFlick
               width: parent.width
+              // Show whole lines only. A half-visible fourth line reads as clipping.
               height: Math.min(promptText.contentHeight,
-                promptText.font.pixelSize * (root.mode === "code" || root.mode === "shell" ? 4.14 : 4.44)
-                  + Style.space(2))
+                Math.round(promptText.contentHeight / Math.max(1, promptText.lineCount)) * 3 + Style.space(2))
               contentWidth: width
               contentHeight: promptText.contentHeight
               clip: true
@@ -1552,7 +1552,7 @@ Item {
                 width: parent.width
 
                 Text {
-                  width: parent.width * 0.62
+                  width: parent.width - resultStatusText.width - Style.space(16)
                   text: root.practiceEvidence.keys.length
                     ? root.practiceEvidence.keys.slice(0, 3).map(function(row) { return row.key.toUpperCase() + "  " + row.errors + "/" + row.attempts + " MISSES" }).join("   ")
                     : "BUILD A STEADY RHYTHM. REPEATED TROUBLE SPOTS APPEAR HERE."
@@ -1560,16 +1560,19 @@ Item {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   font.letterSpacing: 1
+                  elide: Text.ElideRight
                 }
 
                 Text {
-                  width: parent.width * 0.38
+                  id: resultStatusText
+                  width: Math.min(parent.width * 0.6, implicitWidth) + Style.space(16)
                   text: root.currentResult ? Model.resultStatus(root.currentResult) : "LOCAL RESULT  /  TYPEARCHY.COM"
-                  color: root.muted
+                  color: root.currentResult && root.currentResult.publicSlug ? root.accent : root.muted
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   font.letterSpacing: 1
                   horizontalAlignment: Text.AlignRight
+                  elide: Text.ElideMiddle
                 }
               }
 
@@ -1898,7 +1901,7 @@ Item {
           Text {
             width: parent.width * 0.72
             anchors.verticalCenter: parent.verticalCenter
-            text: root.statsOpen ? (root.historyMessage || "0-8 filters  /  ↑↓ history  /  e export  /  i import  /  l live  /  g ghost  /  f type size  /  esc returns")
+            text: root.statsOpen ? (root.historyMessage || "0-8 filters  /  e export  /  i import  /  l g f preferences  /  esc returns")
               : root.phase === "results"
               ? (root.shareStatus || Model.nextAction(root.currentResult, { connected: root.profileStatus === "connected", drillReady: Model.drillProfile(root.stats, 12).personalized }))
               : "AI can take the dictation. Keep your fingers sharp.  /  h shows stats"
@@ -2210,7 +2213,7 @@ Item {
           width: parent.width
           Text {
             width: parent.width * 0.75
-            text: root.historyMessage || "0-8 filters  /  ↑↓ history  /  e export  /  i import  /  l live  /  g ghost  /  f type size  /  esc closes"
+            text: root.historyMessage || "0-8 filters  /  e export  /  i import  /  l g f preferences  /  esc closes"
             color: root.historyMessage ? root.accent : root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

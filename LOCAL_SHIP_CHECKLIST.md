@@ -1,5 +1,31 @@
 # Release checks
 
+## Release gate
+
+A new user can do each of these without help. Each journey has an automated
+check or a written script run on a clean machine against the deployed worker.
+
+1. Install to first test in under a minute: `python3 tests/desktop-install.py`,
+   then a manual launch from the application launcher on a machine that never
+   had Typearchy.
+2. Practice offline and see the result in history: `node tests/standalone-smoke.mjs`,
+   then a manual run with networking disabled.
+3. Connect the browser and link a second device: `challenges.integration.mjs`
+   covers connect, browser linking, and recovery replacement; confirm once by
+   hand from History with the Browser button.
+4. Create a custom challenge, share the link, and have a friend race it before
+   review: `challenges.integration.mjs` and `moderation.integration.mjs`.
+5. Race a friend's shared run and publish the result: `race.browser.mjs` and
+   `native-challenge-smoke.mjs`, then one real race from a shared `/a/` link.
+6. Revisit results and tell local, unpublished, link-only, and public apart:
+   `tests/model.test.mjs` covers the labels; check the result card and history
+   rows by eye at the minimum window size.
+7. Update the app from the previous tag with no lost data: install the previous
+   tag in a private home, run `bin/typearchy-install` from the new checkout,
+   and confirm history, account, and the launcher survive.
+
+## Checks
+
 - Run model and content tests.
 - Run native practice, challenge, and standalone UI tests with isolated state.
 - Test installation in a private home: migration, launcher, links, and updates.

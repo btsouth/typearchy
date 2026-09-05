@@ -153,7 +153,7 @@ try {
     // Replacing a lost recovery code from a connected session keeps every device connected.
     const before = await request('/api/account', { cookie: browserCookie });
     assert.equal(before.data.recovery_rotated_at, null);
-    assert.ok(before.data.devices.some(device => device.label === 'Web browser'));
+    assert.ok(before.data.devices.some(device => device.label === 'Linked browser'));
     const rotated = await request('/api/account/recovery-code', { method: 'POST', cookie: browserCookie });
     assert.equal(rotated.response.status, 200, JSON.stringify(rotated.data));
     assert.match(rotated.data.recoveryCode, /^tpy_recovery_[a-f0-9]{36}$/);

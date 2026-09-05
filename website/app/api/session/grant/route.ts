@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       try {
         // The browser's token is minted when it adopts the code; this hash only satisfies the unique column.
         await database.prepare(`INSERT INTO connections (code, token_hash, kind, label, profile_id, created_at, expires_at)
-          VALUES (?, ?, 'browser', 'Web browser', ?, ?, ?)`)
+          VALUES (?, ?, 'browser', 'Linked browser', ?, ?, ?)`)
           .bind(code, await sha256(`grant:${randomHex(32)}`), identity.profileId, now, now + 600).run();
         break;
       } catch (error) { if (attempt === 3) throw error; }

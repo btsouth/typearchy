@@ -499,7 +499,7 @@ function runBadge(run) {
 function resultStatus(run) {
   var value = run || {}
   if (value.interrupted) return "PAUSED PRACTICE  /  LOCAL ONLY"
-  if (value.publicPinned && value.publicSlug) return "PINNED TO PROFILE  /  TYPEARCHY.COM/R/" + value.publicSlug
+  if (value.publicPinned && value.publicSlug) return "PINNED  /  TYPEARCHY.COM/R/" + value.publicSlug
   if (value.publicSlug) return "PUBLIC  /  TYPEARCHY.COM/R/" + value.publicSlug
   if (normalizedMode(value.mode) === "custom") return "CUSTOM PASSAGE  /  STAYS LOCAL"
   return "LOCAL RESULT  /  TYPEARCHY.COM"

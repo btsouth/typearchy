@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "typearchy-worker",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/local-integration-worker.mjs"],
+      "cwd": "website",
+      "port": 5178
+    }
+  ]
+}

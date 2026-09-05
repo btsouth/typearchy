@@ -78,7 +78,8 @@ Credentials are private files and are never exposed to QML or shared links.
 Attempt sessions expire after 20 minutes. A bounded, opportunistic cleanup removes
 old unfinished sessions and guest results unclaimed for over seven days. The
 service does not promise an exact deletion deadline during periods of inactivity.
-See [WEBSITE_OPERATIONS.md](WEBSITE_OPERATIONS.md) for deployment and retention.
+The Worker deploys with `npm run deploy:production` from `website/`; D1 migrations
+run with `wrangler d1 migrations apply` before each deploy.
 
 ## Hosted components
 

@@ -96,6 +96,17 @@ Production builds target Cloudflare Workers through Vinext.
   pinning, unpinning, and removing a public run are always explicit. A
   connected profile can also be hidden from the website at any time without
   disconnecting.
+- Every result and history row shows its state: local only, public, pinned to
+  your profile, or paused practice. The comparison line says what it compares
+  against, and the footer suggests a next step.
+- Once connected, press **Browser** in History to sign the same profile in to
+  your web browser. No recovery code is needed and no other device is signed
+  out. Devices and the recovery code are managed under Account on the website,
+  where a lost recovery code can be replaced.
+- Press `E` in History to export your history to `~/Documents/Typearchy`, or
+  `I` to import a backup from another machine. Imports merge without duplicates.
+- Browser practice does not pause when you switch tabs. Only the desktop app
+  pauses local practice on focus loss.
 
 Before a test starts:
 
@@ -106,7 +117,8 @@ Before a test starts:
 - In Custom, press `O` to open the local passage file.
 
 In history, press `0` through `8` to filter by mode. Press `L` to toggle live
-stats, `G` to toggle the pace ghost, or `F` to cycle the prompt size.
+stats, `G` to toggle the pace ghost, `F` to cycle the prompt size, `E` to export,
+or `I` to import.
 
 ## Shared challenges
 
