@@ -80,7 +80,7 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
   useEffect(() => {
     if (phase !== 'armed') return;
     input.current?.focus({ preventScroll: true });
-    prompt.current?.closest('.competition-race')?.querySelector('.competition-scoreboard')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    prompt.current?.closest('.competition-race')?.querySelector('.competition-start')?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }, [phase]);
   useEffect(() => {
     if (phase !== 'running') return;

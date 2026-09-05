@@ -29,10 +29,13 @@ try {
   await page.keyboard.press('Escape'); await expect(input).not.toBeFocused();
   await page.locator('.competition-prompt').click(); await expect(input).toBeFocused();
   // A wrong space at the beginning must not look like a finished race at the end.
-  await page.keyboard.type(playable.slice(0, 3) + '_' + playable.slice(4), {delay: 7});
+  await page.keyboard.type(playable.slice(0, 3), {delay: 7});
+  await page.keyboard.press('Tab'); await expect(input).toBeFocused();
+  await page.keyboard.type('_' + playable.slice(4), {delay: 7});
   await expect(page.locator('.competition-scoreboard')).toContainText('99');
   await expect(page.getByText('PASSAGE COMPLETE', {exact:true})).toHaveCount(0);
   await expect(page.locator('.competition-prompt .incorrect')).toContainText('·');
+  await expect(page.getByRole('button', {name:'Erase back to first mistake'})).toBeInViewport();
   await page.getByRole('button', {name:'Erase back to first mistake'}).click();
   await expect(input).toBeFocused();
   await page.keyboard.type(playable.slice(3, -1), {delay: 7});
