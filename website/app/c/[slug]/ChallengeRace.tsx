@@ -6,6 +6,7 @@ import { selectedResultTheme } from '../../lib/resultTheme';
 import type { PublicChallenge } from '../../lib/challenges';
 import { tabStorage, readAttemptDraft, writeAttemptDraft, type AttemptDraft } from '../../lib/attemptDraft';
 import type { AttemptEvent } from '../../lib/challengeContract';
+import { firstMistake, raceProgress, tabIndent } from '../../lib/raceInput';
 
 type Ghost = { slug: string; handle: string; durationMs: number; progress: number[][] };
 type Session = { id: string; token: string; expiresAt: number; contentHash: string };
@@ -26,6 +27,7 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
   const [published, setPublished] = useState<string | null>(null); const [error, setError] = useState('');
   const [needsProfile, setNeedsProfile] = useState(false); const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [inputHint, setInputHint] = useState('');
   const chars = useMemo(() => Array.from(challenge.passage), [challenge.passage]);
 
   function persistDraft(value: AttemptDraft) {
@@ -61,6 +63,8 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
 
   async function prepare() {
     if (phase === 'preparing' || saving) return;
+    if (score && !saved && !window.confirm('This result has not been saved. Discard it and start another race?')) return;
+    setInputHint('');
     setPhase('preparing'); setError('');
     try {
       const response = await fetch(`/api/challenges/${challenge.slug}/attempts`, { method: 'POST' });
@@ -76,12 +80,12 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
   useEffect(() => {
     if (phase !== 'armed') return;
     input.current?.focus({ preventScroll: true });
-    prompt.current?.closest('.competition-race')?.querySelector('.competition-scoreboard')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    prompt.current?.closest('.competition-race')?.querySelector('.competition-start')?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }, [phase]);
   useEffect(() => {
     if (phase !== 'running') return;
     const timer = window.setInterval(() => {
-      if (origin.current === null) return;
+      if (origin.current === null || finishing.current) return;
       const time = Math.round(performance.now() - origin.current);
       setElapsed(Math.min(time, MAX_DURATION_MS));
       if (time > MAX_DURATION_MS) { finishing.current = true; setPhase('stopped'); setError('This attempt reached the 15 minute limit. Start a fresh race when you are ready.'); }
@@ -117,6 +121,14 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
     } catch (cause) { finishing.current = true; setPhase('stopped'); setError(cause instanceof Error ? cause.message : 'Could not process input'); }
   }
 
+  function correctMistake() {
+    const index = firstMistake(chars, engine.current.typed);
+    if (index < 0) return;
+    // Record the same corrections as Backspace; never rewrite a scored recording.
+    while (engine.current.typed.length > index && !finishing.current) apply('backspace');
+    input.current?.focus({ preventScroll: true });
+  }
+
   async function publish() {
     if (!session || !saved) return;
     setSaving(true); setError(''); setNeedsProfile(false);
@@ -131,13 +143,16 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
 
   const ghostAt = ghost ? competitionPosition(ghost.progress, elapsed) : 0;
   const youAt = view.typed.reduce((sum, char, index) => sum + Number(char === chars[index]), 0);
+  const mistake = firstMistake(chars, view.typed);
+  const mistakeLine = mistake < 0 ? 0 : chars.slice(0, mistake).filter(char => char === '\n').length + 1;
+  const nextIsReturn = chars[view.typed.length] === '\n';
   const delta = score && ghost ? score.durationMs - ghost.durationMs : null;
   const runs = useMemo(() => {
     const result: { text: string; state: string; start: number }[] = [];
     chars.forEach((char, index) => {
       const state = index < view.typed.length ? view.typed[index] === char ? 'correct' : 'incorrect' : index === view.typed.length ? 'caret' : 'pending';
       const previous = result[result.length - 1];
-      if (previous && previous.state === state && state !== 'caret') previous.text += char;
+      if (previous && previous.state === state && state !== 'caret' && char !== '\n' && !previous.text.endsWith('\n')) previous.text += char;
       else result.push({ text: char, state, start: index });
     });
     return result;
@@ -145,17 +160,18 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
 
   return <section className={`competition-race ${phase === 'running' ? 'is-running' : ''}`} aria-label="Challenge race">
     {!score && <div className="competition-start">{phase === 'ready' || phase === 'preparing' || phase === 'stopped' ? <><button className="competition-button primary" onClick={prepare} disabled={phase === 'preparing'}>{phase === 'preparing' ? 'Preparing your race…' : ghost ? 'Race this run' : 'Start challenge'}</button><p>Online attempts send test input and timing for score validation. Only passage progress is kept for replay.</p></>
-        : <p role="status">{view.wrong ? 'Correct the highlighted mistakes to finish.' : focused ? phase === 'armed' ? 'Start typing when you are ready. The first key starts the clock.' : 'Keep your rhythm.' : 'Click the passage to continue. The clock keeps running.'}</p>}</div>}
+        : <><p role="status">{!focused ? phase === 'armed' ? 'Click the passage to begin. The clock has not started.' : 'Click the passage to continue. The clock keeps running.' : view.wrong ? `${view.wrong} uncorrected ${view.wrong === 1 ? 'character' : 'characters'}. First mistake on line ${mistakeLine}.` : nextIsReturn ? 'Press Enter at ↵, including blank lines. The next line indents automatically when enabled.' : inputHint || (phase === 'armed' ? 'Start typing when you are ready. The first key starts the clock.' : 'Keep your rhythm.')}</p>
+        {view.wrong > 0 && <button className="competition-button" onClick={correctMistake}>Erase back to first mistake</button>}</>}</div>}
 
     <div className="competition-rulebar"><span>Complete passage</span><span>Correct every mistake</span><span>{challenge.rules.autoIndent ? 'Auto-indent on' : 'Type every space'}</span></div>
     <div className="competition-scoreboard"><div><small>YOUR TIME</small><strong>{(elapsed / 1000).toFixed(2)}<span>s</span></strong></div>
       <div><small>{ghost ? `BEAT @${ghost.handle}` : 'SET THE FIRST TIME'}</small><strong>{ghost ? (ghost.durationMs / 1000).toFixed(2) : '-'}<span>{ghost ? 's' : ''}</span></strong></div>
-      <div><small>{score ? 'ACCURACY' : 'PROGRESS'}</small><strong>{score ? score.accuracy : Math.round(youAt / chars.length * 100)}<span>%</span></strong></div>
+      <div><small>{score ? 'ACCURACY' : 'PROGRESS'}</small><strong>{score ? score.accuracy : raceProgress(youAt, chars.length, false)}<span>%</span></strong></div>
     </div>
     <div className="competition-track" aria-label="Race progress"><div><span>You</span><progress max={chars.length} value={youAt} /></div>{ghost && <div className="ghost"><span>@{ghost.handle}</span><progress max={chars.length} value={ghostAt} /></div>}</div>
     {score ? <div className="competition-finish" aria-live="polite"><p className="challenge-kicker">PASSAGE COMPLETE</p><h2>{delta === null ? 'Time set.' : delta < 0 ? `You beat @${ghost!.handle}.` : delta === 0 ? 'An exact tie.' : `${(delta / 1000).toFixed(2)}s to catch @${ghost!.handle}.`}</h2>
       {delta !== null && delta < 0 && <p>{(Math.abs(delta) / 1000).toFixed(2)} seconds ahead.</p>}
-      <div className="competition-result-details"><span><b>{score.wpm}</b> WPM</span><span><b>{score.errors}</b> mistakes corrected</span><span><b>{score.characters}</b> characters typed</span></div>
+      <div className="competition-result-details"><span><b>{score.wpm}</b> WPM</span><span><b>{score.errors}</b> {score.errors === 1 ? 'mistake' : 'mistakes'} corrected</span><span><b>{score.characters}</b> characters typed</span></div>
       <div className="competition-actions"><button className="competition-button primary" disabled={saving} onClick={prepare}>Race again</button>
         {published ? <><button className="competition-button" onClick={async () => { try { await navigator.clipboard.writeText(published); setCopied(true); } catch { setError('Copy the result link below.'); } }}>{copied ? 'Link copied' : 'Copy result link'}</button><a className="competition-button" href={published.replace('https://typearchy.com', '')}>View result ↗</a></>
           : saved ? <button className="competition-button" disabled={saving} onClick={publish}>{saving ? 'Publishing…' : 'Publish my result'}</button>
@@ -164,7 +180,7 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
       {!published && <p className="competition-note">{saved ? 'Validated. Publish to join the standings and share your run.' : 'Your result is kept in this tab while we save it. You can reload and retry.'}</p>}
     </div> : <>
       <div className="competition-prompt-wrap" onClick={() => { if (phase === 'armed' || phase === 'running') input.current?.focus({ preventScroll: true }); }}>
-        <div className="competition-prompt" ref={prompt} aria-label="Passage to type">{runs.map(run => <span key={`${run.start}-${run.state}`} className={run.state} data-caret={run.state === 'caret' ? '' : undefined}>{run.text}</span>)}</div>
+        <div className="competition-prompt" ref={prompt} aria-label="Passage to type">{runs.map(run => <span key={`${run.start}-${run.state}`} className={run.state} data-caret={run.state === 'caret' ? '' : undefined}>{run.text === '\n' ? <><span className="competition-return" aria-label="Enter">↵</span>{'\n'}</> : run.state === 'incorrect' ? run.text.replace(/ /g, '·') : run.text}</span>)}</div>
         <textarea ref={input} className="competition-input" aria-label="Type the challenge passage" disabled={!['armed', 'running'].includes(phase)} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           onPaste={event => event.preventDefault()} onDrop={event => event.preventDefault()}
@@ -173,10 +189,18 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
           onInput={event => { if (composing.current || (event.nativeEvent as InputEvent).isComposing) return; const text = event.currentTarget.value; event.currentTarget.value = ''; Array.from(text.normalize('NFC')).forEach(char => apply('input', char)); }}
           onKeyDown={event => {
             if (event.nativeEvent.isComposing) return;
+            setInputHint('');
             if (event.key === 'Backspace') { event.preventDefault(); apply(event.ctrlKey || event.altKey || event.metaKey ? 'word' : 'backspace'); }
             else if (event.key === 'Enter') { event.preventDefault(); apply('input', '\n'); }
+            else if (event.key === 'Tab') {
+              event.preventDefault();
+              const spaces = event.shiftKey ? '' : tabIndent(chars, engine.current.typed, challenge.rules.autoIndent);
+              Array.from(spaces).forEach(char => apply('input', char));
+              setInputHint(challenge.rules.autoIndent ? 'Indentation is automatic after Enter. Tab keeps your typing focus.' : 'Tab fills up to four leading spaces. Type other spaces normally.');
+            } else if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); }
           }} />
       </div>
+      <p className="competition-note">↵ means Enter, including blank lines. Tab stays in the test. Escape releases typing focus.</p>
 
     </>}
     {error && <div className="competition-error" role="alert">{error}{needsProfile && <p><a href="/account" target="_blank" rel="noopener">Connect your profile in a new tab</a>, then publish here. Your result will stay in this tab.</p>}</div>}

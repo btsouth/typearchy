@@ -95,6 +95,14 @@ Item {
 
   function stop() { if (phase === "running" || phase === "armed") phase = "ready" }
 
+  function correctMistake() {
+    if (!engine || phase !== "running") return
+    var index = engine.typed.findIndex(function(character, at) { return character !== root.engine.passage[at] })
+    if (index < 0) return
+    while (engine.typed.length > index && phase === "running") apply("backspace")
+    refocus()
+  }
+
   ElapsedTimer { id: clock }
   Timer { interval: 50; repeat: true; running: root.visible && root.phase === "running"; onTriggered: {
     root.elapsedMs = Math.min(Engine.MAX_DURATION_MS, Number(clock.elapsedMs()))
@@ -212,11 +220,16 @@ Item {
         Keys.onPressed: function(event) {
           if (event.key === Qt.Key_Backspace) { root.apply(event.modifiers & Qt.ControlModifier ? "word" : "backspace"); event.accepted = true }
           else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.apply("input", "\n"); event.accepted = true }
+          else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            event.accepted = true
+            root.message = root.challenge.rules.autoIndent ? "Indentation is automatic after Enter, including after blank lines." : "Type the leading spaces as shown. Tab keeps your typing focus."
+          }
           else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert)) event.accepted = true
           else if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert) event.accepted = true
         }
       }
       Text { visible: root.phase === "armed" || root.phase === "running"; width: parent.width; wrapMode: Text.Wrap; text: root.engine && root.engine.wrong ? "Correct the highlighted mistakes to finish." : root.phase === "armed" ? "Start typing. The first key starts the clock." : "Keep your rhythm."; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Action { visible: root.phase === "running" && !!root.engine && root.engine.wrong > 0; text: "Erase back to first mistake"; onClicked: root.correctMistake() }
       Column {
         visible: root.phase === "finished"; width: parent.width; spacing: 18
         Text { text: !root.result ? "" : root.ghost ? root.result.durationMs < root.ghost.durationMs ? "You beat @" + root.ghost.handle + "." : ((root.result.durationMs - root.ghost.durationMs) / 1000).toFixed(2) + " seconds to catch @" + root.ghost.handle : "Time set."; textFormat: Text.PlainText; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }

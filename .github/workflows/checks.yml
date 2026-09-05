@@ -39,6 +39,9 @@ jobs:
       - name: Build the production worker
         working-directory: website
         run: npm run build
+      - name: Install browser for keyboard regression checks
+        working-directory: website
+        run: npx playwright install --with-deps chromium
       - name: Exercise sharing and moderation against the built worker
         working-directory: website
         run: |
@@ -51,3 +54,4 @@ jobs:
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/moderation.integration.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/challenges.integration.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/library.integration.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/race.browser.mjs
