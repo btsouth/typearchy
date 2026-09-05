@@ -1,61 +1,32 @@
+// Generated from migrations by node scripts/schema.mjs. Do not edit.
 export const schemaStatements = [
-  `CREATE TABLE IF NOT EXISTS profiles (
-    id TEXT PRIMARY KEY,
-    handle TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    recovery_hash TEXT NOT NULL,
-    visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS devices (
-    id TEXT PRIMARY KEY,
-    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    token_hash TEXT NOT NULL UNIQUE,
-    label TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    last_used_at INTEGER NOT NULL,
-    revoked_at INTEGER
-  )`,
-  `CREATE TABLE IF NOT EXISTS connections (
-    code TEXT PRIMARY KEY,
-    token_hash TEXT NOT NULL UNIQUE,
-    kind TEXT NOT NULL DEFAULT 'connect',
-    label TEXT NOT NULL,
-    profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,
-    created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    claimed_at INTEGER
-  )`,
-  `CREATE TABLE IF NOT EXISTS runs (
-    id TEXT PRIMARY KEY,
-    slug TEXT NOT NULL UNIQUE,
-    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    schema_version INTEGER NOT NULL,
-    content_version TEXT NOT NULL,
-    mode TEXT NOT NULL,
-    challenge_key TEXT NOT NULL,
-    target TEXT NOT NULL,
-    duration INTEGER NOT NULL,
-    wpm REAL NOT NULL,
-    raw_wpm REAL NOT NULL,
-    accuracy REAL NOT NULL,
-    consistency REAL NOT NULL,
-    errors INTEGER NOT NULL,
-    pace_json TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    pinned_at INTEGER
-  )`,
-  `CREATE TABLE IF NOT EXISTS rate_limits (
-    key TEXT PRIMARY KEY,
-    count INTEGER NOT NULL,
-    reset_at INTEGER NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_devices_profile_active
-    ON devices(profile_id, revoked_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_connections_expires
-    ON connections(expires_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_runs_profile_created
-    ON runs(profile_id, created_at DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_runs_profile_pinned
-    ON runs(profile_id, pinned_at DESC) WHERE pinned_at IS NOT NULL`,
+  "CREATE TABLE IF NOT EXISTS profiles (\n  id TEXT PRIMARY KEY,\n  handle TEXT NOT NULL UNIQUE COLLATE NOCASE,\n  recovery_hash TEXT NOT NULL,\n  visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'private')),\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n, suspended INTEGER NOT NULL DEFAULT 0 CHECK (suspended IN (0, 1)), moderation_note TEXT NOT NULL DEFAULT '')",
+  "CREATE TABLE IF NOT EXISTS devices (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  token_hash TEXT NOT NULL UNIQUE,\n  label TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  last_used_at INTEGER NOT NULL,\n  revoked_at INTEGER\n)",
+  "CREATE TABLE IF NOT EXISTS connections (\n  code TEXT PRIMARY KEY,\n  token_hash TEXT NOT NULL UNIQUE,\n  label TEXT NOT NULL,\n  profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  claimed_at INTEGER\n, kind TEXT NOT NULL DEFAULT 'connect')",
+  "CREATE TABLE IF NOT EXISTS runs (\n  id TEXT PRIMARY KEY,\n  slug TEXT NOT NULL UNIQUE,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  schema_version INTEGER NOT NULL,\n  content_version TEXT NOT NULL,\n  mode TEXT NOT NULL,\n  challenge_key TEXT NOT NULL,\n  target TEXT NOT NULL,\n  duration INTEGER NOT NULL,\n  wpm REAL NOT NULL,\n  raw_wpm REAL NOT NULL,\n  accuracy REAL NOT NULL,\n  consistency REAL NOT NULL,\n  errors INTEGER NOT NULL,\n  pace_json TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  pinned_at INTEGER\n, theme_json TEXT NOT NULL DEFAULT '{}', client_id TEXT)",
+  "CREATE TABLE IF NOT EXISTS rate_limits (\n  key TEXT PRIMARY KEY,\n  count INTEGER NOT NULL,\n  reset_at INTEGER NOT NULL\n)",
+  "CREATE INDEX IF NOT EXISTS idx_devices_profile_active\n  ON devices(profile_id, revoked_at)",
+  "CREATE INDEX IF NOT EXISTS idx_connections_expires\n  ON connections(expires_at)",
+  "CREATE INDEX IF NOT EXISTS idx_runs_profile_created\n  ON runs(profile_id, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_runs_profile_pinned\n  ON runs(profile_id, pinned_at DESC) WHERE pinned_at IS NOT NULL",
+  "CREATE TABLE IF NOT EXISTS challenges (\n  id TEXT PRIMARY KEY,\n  slug TEXT NOT NULL UNIQUE,\n  creator_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  title TEXT NOT NULL,\n  passage TEXT NOT NULL,\n  language TEXT NOT NULL,\n  attribution TEXT NOT NULL DEFAULT '',\n  rules_json TEXT NOT NULL,\n  content_hash TEXT NOT NULL,\n  visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'unlisted', 'hidden')),\n  created_at INTEGER NOT NULL\n, moderation TEXT NOT NULL DEFAULT 'pending'\n  CHECK (moderation IN ('pending', 'approved', 'rejected')), review_note TEXT NOT NULL DEFAULT '')",
+  "CREATE TABLE IF NOT EXISTS attempt_sessions (\n  id TEXT PRIMARY KEY,\n  challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,\n  profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,\n  token_hash TEXT NOT NULL UNIQUE,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL,\n  completed_at INTEGER\n)",
+  "CREATE TABLE IF NOT EXISTS challenge_attempts (\n  id TEXT PRIMARY KEY REFERENCES attempt_sessions(id) ON DELETE CASCADE,\n  slug TEXT NOT NULL UNIQUE,\n  challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,\n  profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE,\n  duration_ms INTEGER NOT NULL CHECK (duration_ms >= 1000),\n  wpm REAL NOT NULL,\n  raw_wpm REAL NOT NULL,\n  accuracy REAL NOT NULL CHECK (accuracy >= 0 AND accuracy <= 100),\n  errors INTEGER NOT NULL,\n  characters INTEGER NOT NULL,\n  progress_json TEXT NOT NULL,\n  recording_hash TEXT NOT NULL,\n  published INTEGER NOT NULL DEFAULT 0 CHECK (published IN (0, 1)),\n  created_at INTEGER NOT NULL\n, theme_json TEXT NOT NULL DEFAULT '{}')",
+  "CREATE INDEX IF NOT EXISTS idx_challenges_visible_created ON challenges(visibility, created_at DESC, id)",
+  "CREATE INDEX IF NOT EXISTS idx_challenges_creator ON challenges(creator_id, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_attempt_sessions_expires ON attempt_sessions(expires_at) WHERE completed_at IS NULL",
+  "CREATE INDEX IF NOT EXISTS idx_challenge_attempts_standings ON challenge_attempts(challenge_id, duration_ms, errors, created_at, id) WHERE published = 1",
+  "CREATE INDEX IF NOT EXISTS idx_challenge_attempts_profile ON challenge_attempts(profile_id, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_challenges_review ON challenges(moderation, created_at)",
+  "CREATE TABLE IF NOT EXISTS content_reports (\n  id TEXT PRIMARY KEY,\n  challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,\n  reporter_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  reason TEXT NOT NULL,\n  detail TEXT NOT NULL DEFAULT '',\n  created_at INTEGER NOT NULL,\n  resolved_at INTEGER\n)",
+  "CREATE INDEX IF NOT EXISTS idx_reports_unresolved ON content_reports(created_at) WHERE resolved_at IS NULL",
+  "CREATE TABLE IF NOT EXISTS moderation_reviews (\n  id TEXT PRIMARY KEY,\n  challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,\n  reviewer_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  outcome TEXT NOT NULL CHECK (outcome IN ('approved', 'rejected')),\n  note TEXT NOT NULL,\n  created_at INTEGER NOT NULL\n)",
+  "CREATE INDEX IF NOT EXISTS idx_moderation_reviews_challenge ON moderation_reviews(challenge_id, created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS idx_unclaimed_attempts_created ON challenge_attempts(created_at) WHERE profile_id IS NULL",
+  "CREATE INDEX IF NOT EXISTS idx_challenges_library ON challenges(moderation, visibility, created_at DESC)",
+  "CREATE UNIQUE INDEX idx_runs_client_identity ON runs(profile_id, client_id) WHERE client_id IS NOT NULL",
+  "CREATE TABLE IF NOT EXISTS profile_reports (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  reporter_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  reason TEXT NOT NULL CHECK (reason IN ('vulgar', 'hateful', 'impersonation', 'spam', 'other')),\n  detail TEXT NOT NULL DEFAULT '',\n  created_at INTEGER NOT NULL,\n  resolved_at INTEGER\n)",
+  "CREATE INDEX IF NOT EXISTS idx_profile_reports_pending ON profile_reports(resolved_at, created_at)",
+  "CREATE TABLE IF NOT EXISTS profile_reviews (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  reviewer_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  outcome TEXT NOT NULL CHECK (outcome IN ('suspend', 'restore', 'dismiss')),\n  note TEXT NOT NULL,\n  created_at INTEGER NOT NULL\n)",
+  "CREATE INDEX IF NOT EXISTS idx_profile_reviews_profile ON profile_reviews(profile_id, created_at DESC)"
 ];

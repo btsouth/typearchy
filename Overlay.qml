@@ -8,6 +8,8 @@ import qs.Ui
 import "Content.js" as Content
 import "ContentEngine.js" as ContentEngine
 import "TypearchyModel.js" as Model
+import "LearningEngine.js" as Learning
+import "PracticePassages.js" as Practice
 
 Item {
   id: root
@@ -37,9 +39,10 @@ Item {
   readonly property string customDir: home + "/.local/share/typearchy"
   readonly property string customPath: customDir + "/passages.txt"
   readonly property string publishPath: stateDir + "/publish.json"
-  readonly property string cloudHelper: home + "/.config/omarchy/plugins/" + pluginId + "/bin/typearchy-cloud"
+  readonly property string cloudHelper: decodeURIComponent(Qt.resolvedUrl("bin/typearchy-cloud").toString().replace(/^file:\/\//, ""))
 
   property bool opened: false
+  property bool competitionOpen: false
   property bool windowedStats: false
   property string mode: "sprint"
   property int duration: 30
@@ -57,6 +60,8 @@ Item {
   property double elapsedMs: 0
   property int totalKeypresses: 0
   property int incorrectKeypresses: 0
+  property var learning: Learning.learningState()
+  readonly property var practiceEvidence: Learning.learningProfile(root.stats.runs || [])
   property var keyMistakes: ({})
   property var bigramMistakes: ({})
   property var paceSamples: []
@@ -66,6 +71,7 @@ Item {
   property var pendingOpenPayload: null
   property var currentResult: null
   property var ghostRun: null
+  property bool publishPending: false
   property string shareStatus: ""
   property string lastSharePath: ""
   property string profileStatus: "disconnected"
@@ -136,6 +142,18 @@ Item {
   }
 
   function prepareOpen(payload) {
+    if (root.competitionOpen && ["armed", "running", "finished"].indexOf(nativeChallenge.phase) >= 0) {
+      root.windowedStats = false
+      nativeChallenge.refocus()
+      return
+    }
+    if (payload.challenge && root.phase !== "running") {
+      root.competitionOpen = true
+      root.windowedStats = false
+      nativeChallenge.open(String(payload.challenge), String(payload.ghost || ""))
+      return
+    }
+    root.competitionOpen = false
     root.windowedStats = payload.view === "stats"
     if (root.phase === "running") {
       // A test is in progress: re-summoning refocuses it instead of silently
@@ -160,6 +178,7 @@ Item {
   }
 
   function close() {
+    nativeChallenge.stop()
     ticker.stop()
     sampleTimer.stop()
     profilePoll.stop()
@@ -202,6 +221,8 @@ Item {
       drillKeys: drillProfile.keys,
       drillBigrams: drillProfile.bigrams,
       drillCalibrating: drillProfile.calibrating,
+      drillPersonalized: drillProfile.personalized,
+      drillPassages: Practice.PASSAGES,
       customPassages: root.customPassages,
       generated: generated
     })
@@ -215,6 +236,7 @@ Item {
     root.elapsedMs = 0
     root.totalKeypresses = 0
     root.incorrectKeypresses = 0
+    root.learning = Learning.learningState()
     root.keyMistakes = {}
     root.bigramMistakes = {}
     root.paceSamples = []
@@ -319,16 +341,24 @@ Item {
     if (root.phase !== "ready") return
     root.phase = "running"
     root.startedAt = Date.now()
+    practiceClock.restartMs()
     root.elapsedMs = 0
     ticker.start()
     sampleTimer.start()
   }
 
+  function practiceExpired() {
+    if (root.phase === "running" && root.isTimed && Number(practiceClock.elapsedMs()) >= root.duration * 1000) { root.finishTest(true); return true }
+    return false
+  }
+
   function addCharacter(character) {
+    if (root.practiceExpired()) return
     if (root.challenge.available === false || root.phase === "results" || root.typedText.length >= root.prompt.length) return
     if (root.phase === "ready") root.beginTest()
     var index = root.typedText.length
     var aligned = Model.alignCharacter(root.prompt, root.typedText, character)
+    Learning.learningRecord(root.learning, aligned.expected, index > 0 ? root.prompt.charAt(index - 1) : "", aligned.correct)
     root.totalKeypresses++
     if (!aligned.correct) {
       root.incorrectKeypresses++
@@ -342,6 +372,7 @@ Item {
   }
 
   function eraseCharacter() {
+    if (root.practiceExpired()) return
     if (root.phase === "results" || root.typedText.length === 0) return
     var next = root.typedText
     while (next.charAt(next.length - 1) === Model.ASSISTED_CHARACTER) next = next.slice(0, -1)
@@ -349,6 +380,7 @@ Item {
   }
 
   function eraseWord() {
+    if (root.practiceExpired()) return
     if (root.phase === "results" || root.typedText.length === 0) return
     var next = root.typedText
     while (next.charAt(next.length - 1) === Model.ASSISTED_CHARACTER) next = next.slice(0, -1)
@@ -359,7 +391,8 @@ Item {
     if (root.phase === "results") return
     ticker.stop()
     sampleTimer.stop()
-    root.elapsedMs = Math.max(250, root.startedAt > 0 ? Date.now() - root.startedAt : 250)
+    root.elapsedMs = Math.max(250, root.startedAt > 0 ? Number(practiceClock.elapsedMs()) : 250)
+    if (root.isTimed) root.elapsedMs = Math.min(root.elapsedMs, root.duration * 1000)
 
     var finalWpm = Model.wordsPerMinute(root.correctChars, root.elapsedMs)
     var finalPace = root.paceSamples.slice()
@@ -383,13 +416,14 @@ Item {
       targetErrors: Model.drillTargetErrors(root.challenge, root.keyMistakes, root.bigramMistakes),
       characters: root.correctChars,
       wpm: finalWpm,
-      rawWpm: Model.rawWordsPerMinute(root.totalKeypresses, root.elapsedMs),
+      rawWpm: Model.wordsPerMinute(root.totalKeypresses, root.elapsedMs),
       accuracy: Model.accuracy(root.totalKeypresses, root.incorrectKeypresses),
       consistency: Model.consistency(root.paceSamples),
       errors: root.incorrectKeypresses,
       dailyId: root.challenge.challengeId || "",
       previousBestWpm: previousBest,
       personalBest: !!root.ghostRun && finalWpm > previousBest,
+      learning: root.learning,
       keyMistakes: root.keyMistakes,
       bigramMistakes: root.bigramMistakes,
       pace: finalPace
@@ -402,7 +436,7 @@ Item {
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
-  function shareResult() {
+  function exportResultImage() {
     if (!root.currentResult || root.phase !== "results" || root.exportingCard) return
     root.shareStatus = "Creating local card..."
     root.exportingCard = true
@@ -413,8 +447,7 @@ Item {
       resultCard.grabToImage(function(result) {
         root.exportingCard = false
         if (!result || !result.saveToFile(path)) {
-          root.copyResultText()
-          root.shareStatus = "Image failed. Result text copied."
+          root.shareStatus = "Image export failed. Your result is still available."
           return
         }
         copyImageProc.command = ["bash", "-c", "wl-copy --type image/png < \"$1\"", "--", path]
@@ -423,11 +456,9 @@ Item {
     })
   }
 
-  function copyResultText() {
-    if (!root.currentResult) return
-    copyTextProc.command = ["bash", "-c", "printf '%s' \"$1\" | wl-copy", "--", Model.shareText(root.currentResult)]
-    copyTextProc.running = true
-  }
+  function shareResult() { root.publishRun(root.currentResult) }
+
+  function copyResultText() { root.publishRun(root.currentResult) }
 
   function applyPublishedRun(timestamp, slug, pinned) {
     root.stats = Model.updateRunPublication(root.stats, timestamp, slug, pinned, root.cloudTargetKey)
@@ -494,7 +525,7 @@ Item {
   }
 
   function publishRun(run) {
-    if (!run) return
+    if (!run || root.publishPending || cloudProc.running) return
     if (root.profileStatus !== "connected") {
       root.connectProfile()
       return
@@ -512,6 +543,7 @@ Item {
     root.cloudTargetKey = run.challengeKey || ""
     var payload = {
       timestamp: run.timestamp,
+      clientRunId: "omarchy:" + run.timestamp + ":" + run.mode,
       contentVersion: run.contentVersion || "unknown",
       mode: run.mode,
       challengeKey: run.challengeKey,
@@ -522,11 +554,12 @@ Item {
       accuracy: run.accuracy,
       consistency: run.consistency,
       errors: run.errors,
-      pace: run.pace
+      pace: run.pace,
+      theme: { bg: root.background.toString(), panel: Qt.lighter(root.background, 1.12).toString(), ink: root.foreground.toString(), muted: root.muted.toString(), accent: root.accent.toString(), error: root.urgent.toString() }
     }
+    root.publishPending = true
     publishFile.setText(JSON.stringify(payload) + "\n")
     root.profileMessage = "Publishing score summary..."
-    Qt.callLater(function() { root.startCloudAction("publish", ["publish", root.publishPath]) })
   }
 
   function toggleRunPin(run) {
@@ -552,7 +585,10 @@ Item {
     try { response = JSON.parse(raw || errorText || "{}") || {} } catch (error) {}
     if (exitCode !== 0 || response.error) {
       root.profileMessage = String(response.error || "Profile service unavailable")
-      if (root.cloudAction === "status") root.profileStatus = "disconnected"
+      if (root.cloudAction === "status" || root.cloudAction === "connect" || root.cloudAction === "recover") {
+        root.profileStatus = "disconnected"
+        profilePoll.stop()
+      }
       return
     }
     if (root.cloudAction === "publish") {
@@ -685,7 +721,15 @@ Item {
     })
   }
 
-  Component.onCompleted: initProc.running = true
+  Component.onCompleted: {
+    initProc.running = true
+    // Register links only from the installed plugin, never from a QA worktree.
+    linkSetup.running = root.cloudHelper === root.home + "/.config/omarchy/plugins/" + root.pluginId + "/bin/typearchy-cloud"
+  }
+  Process {
+    id: linkSetup
+    command: [decodeURIComponent(Qt.resolvedUrl("bin/typearchy-setup-links").toString().replace(/^file:\/\//, ""))]
+  }
 
   Process {
     id: initProc
@@ -743,6 +787,8 @@ Item {
 
   FileView {
     id: publishFile
+    onSaved: { if (root.publishPending) { root.publishPending = false; root.startCloudAction("publish", ["publish", root.publishPath]) } }
+    onSaveFailed: { root.publishPending = false; root.profileMessage = "Could not save this result for sharing. Try again." }
     path: root.publishPath
     atomicWrites: true
     printErrors: false
@@ -777,12 +823,14 @@ Item {
     onFileChanged: reload()
   }
 
+  ElapsedTimer { id: practiceClock }
+
   Timer {
     id: ticker
     interval: 50
     repeat: true
     onTriggered: {
-      root.elapsedMs = Date.now() - root.startedAt
+      root.elapsedMs = Number(practiceClock.elapsedMs())
       if (root.isTimed && root.elapsedMs >= root.duration * 1000) root.finishTest(true)
     }
   }
@@ -809,6 +857,16 @@ Item {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+    NativeChallenge {
+      id: nativeChallenge
+      anchors.fill: parent
+      z: 20
+      visible: root.competitionOpen
+      helper: root.cloudHelper
+      stateDir: root.stateDir
+      onExitRequested: { root.competitionOpen = false; Qt.callLater(function() { keyCatcher.forceActiveFocus() }) }
+    }
+
     Rectangle {
       anchors.fill: parent
       color: root.background
@@ -822,6 +880,7 @@ Item {
 
     Item {
       id: keyCatcher
+      visible: !root.competitionOpen
       anchors.fill: parent
       focus: true
       Keys.priority: Keys.BeforeItem
@@ -1026,6 +1085,7 @@ Item {
               Choice { text: "SHELL"; selected: root.mode === "shell"; onClicked: root.setMode("shell") }
               Choice { text: "CODE"; selected: root.mode === "code"; onClicked: root.setMode("code") }
               Choice { text: "DRILL"; selected: root.mode === "drill"; onClicked: root.setMode("drill") }
+              Choice { text: "CHALLENGES"; selected: false; onClicked: { root.competitionOpen = true; nativeChallenge.open("", "") } }
               Choice { text: "CUSTOM"; selected: root.mode === "custom"; onClicked: root.setMode("custom") }
             }
 
@@ -1080,6 +1140,7 @@ Item {
               Choice { text: "PYTHON"; selected: root.codeLanguage === "python"; onClicked: root.setLanguage("python") }
               Choice { text: "JS"; selected: root.codeLanguage === "javascript"; onClicked: root.setLanguage("javascript") }
               Choice { text: "RUST"; selected: root.codeLanguage === "rust"; onClicked: root.setLanguage("rust") }
+              Choice { text: "RUBY"; selected: root.codeLanguage === "ruby"; onClicked: root.setLanguage("ruby") }
             }
 
             Row {
@@ -1181,7 +1242,7 @@ Item {
             id: resultCard
             visible: !root.statsOpen && root.phase === "results"
             width: Math.min(parent.width, Style.space(900))
-            height: Math.min(parent.height, Style.space(470))
+            height: Math.min(parent.height, Style.space(520))
             anchors.centerIn: parent
             radius: Style.cornerRadius
             color: Color.popups.background
@@ -1323,11 +1384,9 @@ Item {
 
                 Text {
                   width: parent.width * 0.62
-                  text: root.currentResult && root.currentResult.mode === "drill"
-                    ? "TARGET ERRORS  " + root.currentResult.targetErrors + "  /  " + String(root.currentResult.target).toUpperCase()
-                    : (Model.weakKeys(root.stats, 4).length
-                      ? "DRILL NEXT  " + Model.weakKeys(root.stats, 4).join("  ")
-                      : "CLEAN RUN. KEEP THE RHYTHM.")
+                  text: root.practiceEvidence.keys.length
+                    ? root.practiceEvidence.keys.slice(0, 3).map(function(row) { return row.key.toUpperCase() + "  " + row.errors + "/" + row.attempts + " MISSES" }).join("   ")
+                    : "BUILD A STEADY RHYTHM. REPEATED TROUBLE SPOTS APPEAR HERE."
                   color: root.muted
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -1345,14 +1404,15 @@ Item {
                 }
               }
 
-              Row {
+              Flow {
                 visible: !root.exportingCard
                 width: parent.width
                 spacing: Style.space(8)
 
+                ResultAction { text: "PRACTICE"; visible: Model.drillProfile(root.stats, 12).personalized; onClicked: root.setMode("drill") }
                 ResultAction { text: "RETRY  CTRL+R"; onClicked: root.resetTest() }
                 ResultAction {
-                  text: root.currentResult && root.currentResult.publicSlug ? "COPY LINK" : (root.profileStatus === "connected" ? "PUBLISH" : "CONNECT")
+                  text: root.currentResult && root.currentResult.publicSlug ? "COPY LINK" : (root.profileStatus === "connected" ? "SHARE RESULT  CTRL+S" : "CONNECT TO SHARE")
                   onClicked: root.publishRun(root.currentResult)
                 }
                 ResultAction {
@@ -1365,7 +1425,7 @@ Item {
                   enabled: root.currentResult && root.currentResult.publicSlug && root.profileStatus === "connected"
                   onClicked: root.deletePublishedRun(root.currentResult)
                 }
-                ResultAction { text: "SAVE CARD  CTRL+S"; onClicked: root.shareResult() }
+                ResultAction { text: "EXPORT IMAGE"; onClicked: root.exportResultImage() }
                 ResultAction { text: "HISTORY  CTRL+H"; onClicked: root.toggleStats() }
               }
 
@@ -1668,7 +1728,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.statsOpen ? "0-8 filters  /  ↑↓ history  /  l live stats  /  g ghost  /  f type size  /  esc returns"
               : root.phase === "results"
-              ? (root.shareStatus || "results locked  /  ctrl+r retry  /  ctrl+s card  /  ctrl+c copy  /  ctrl+h history  /  esc exit")
+              ? (root.shareStatus || "results locked  /  ctrl+r retry  /  ctrl+s share  /  ctrl+c link  /  ctrl+h history  /  esc exit")
               : "AI can take the dictation. Keep your fingers sharp.  /  h shows stats"
             color: root.shareStatus ? root.accent : root.muted
             font.family: root.fontFamily
@@ -2028,7 +2088,7 @@ Item {
   }
 
   component ResultAction: Button {
-    width: (parent.width - parent.spacing * 5) / 6
+    width: Math.max(Style.space(125), (parent.width - parent.spacing * 5) / 6)
     foreground: root.foreground
     bordered: true
     fontSize: Style.font.caption
@@ -2055,7 +2115,7 @@ Item {
       Text {
         width: Math.max(Style.space(210), parent.width - actionButtons.width - parent.spacing)
         anchors.verticalCenter: parent.verticalCenter
-        text: "PUBLIC PROFILE  /  " + (root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "NOT CONNECTED"))
+        text: "PUBLIC PROFILE  /  " + (root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "CREATE A HANDLE TO SHARE RESULTS"))
         color: root.profileStatus === "connected" ? root.accent : root.muted
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -2075,7 +2135,7 @@ Item {
           onClicked: root.openProfile()
         }
         HistoryChoice {
-          text: root.profileStatus === "connected" ? "DISCONNECT" : (root.profileStatus === "pending" ? "CHECK" : "CONNECT")
+          text: root.profileStatus === "connected" ? "DISCONNECT" : (root.profileStatus === "pending" ? "CHECK" : "CREATE / CONNECT")
           selected: root.profileStatus === "connected"
           onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
             : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())

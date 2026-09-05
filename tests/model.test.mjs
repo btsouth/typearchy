@@ -7,7 +7,11 @@ function loadLibrary(path) {
     .replace(/^\.pragma library\s*/, "")
   const library = { console, Date, Math, JSON, Array, String, Number, isFinite }
   vm.createContext(library)
-  vm.runInContext(source, library)
+  const executable = source.replace(/^\.import "([^"\n]+)" as (\w+)\s*$/gm, (_, file, name) => {
+    library[name] = loadLibrary(new URL(file, new URL(path, import.meta.url)).href)
+    return ""
+  })
+  vm.runInContext(executable, library)
   return library
 }
 
@@ -150,7 +154,7 @@ assert.match(model.renderedPrompt("one\ntwo", "one\u0001", {
   normal: "#ffffff", dim: "#777777", error: "#ff0000", cursor: "#ffffff", background: "#000000"
 }), /color:#ffffff/)
 assert.equal(model.wordsPerMinute(150, 30000), 60)
-assert.equal(model.rawWordsPerMinute(175, 30000), 70)
+assert.equal(model.wordsPerMinute(175, 30000), 70)
 assert.equal(model.accuracy(100, 3), 97)
 assert.equal(model.consistency([60, 60, 60]), 100)
 assert.equal(model.eraseWordIndex("one two"), 4)
@@ -336,7 +340,9 @@ assert.equal(model.stateNeedsQuarantine("null"), true)
 assert.equal(model.stateNeedsQuarantine(JSON.stringify({ version: 6, runs: [] })), false)
 assert.equal(model.stateNeedsQuarantine(JSON.stringify({ version: 7, runs: [{ wpm: 120 }] })), true)
 
-const drillProfile = model.drillProfile(state, 12)
+const measuredState = model.recordRun(state, { mode: "sprint", learning: { version: 1,
+  keys: { x: { attempts: 10, errors: 3 } }, pairs: { "e→x": { attempts: 8, errors: 2 } } } })
+const drillProfile = model.drillProfile(measuredState, 12)
 assert.equal(drillProfile.keys[0], "x")
 assert.equal(drillProfile.bigrams[0], "e→x")
 assert.equal(model.drillTargetErrors({ drillKeys: ["x"], drillBigrams: ["e→x"] }, { x: 2 }, { "e→x": 1 }), 3)

@@ -9,7 +9,7 @@ const modes = [
   { key: 'DAILY', label: '02', note: 'FULL PARAGRAPH / SAME UTC PROMPT', title: 'One prompt per day.', copy: 'A meaningful benchmark shared by every player.', sample: 'the same full paragraph meets every pair of hands today', signal: 'WPM + ACC', finish: 'PROMPT' },
   { key: 'QUOTE RELAY', label: '03', note: '4 EXCERPTS / 1 SCORE', title: 'Long-form quotes.', copy: 'Four computing excerpts in one continuous test.', sample: 'four voices move through one test without breaking flow', signal: 'WPM + ACC', finish: '4 EXCERPTS' },
   { key: 'SHELL', label: '04', note: '15 / 30 / 60 SEC', title: 'Timed terminal practice.', copy: 'Multiline command sets with real flags and pipes.', sample: 'git status --short\ngit diff --stat\nrg --files | sort', signal: 'WPM + ACC', finish: 'CLOCK' },
-  { key: 'CODE', label: '05', note: '15 / 30 / 60 SEC', title: 'Timed code practice.', copy: 'Multiline Bash, Python, JavaScript, and Rust.', sample: 'function clamp(value, low, high) {\n  return Math.max(low, Math.min(high, value))\n}', signal: 'WPM + ACC', finish: 'CLOCK' },
+  { key: 'CODE', label: '05', note: '15 / 30 / 60 SEC', title: 'Timed code practice.', copy: 'Ruby, Bash, Python, JavaScript, and Rust.', sample: 'function clamp(value, low, high) {\n  return Math.max(low, Math.min(high, value))\n}', signal: 'WPM + ACC', finish: 'CLOCK' },
   { key: 'DRILL', label: '06', note: 'RECENT MISTAKES / NATURAL TEXT', title: 'Adaptive practice.', copy: 'Readable passages weighted toward the keys and pairs you miss.', sample: 'steady practice turns difficult patterns into reliable motion', signal: 'TARGET ERRORS', finish: 'PASSAGE' },
   { key: 'CUSTOM', label: '07', note: 'YOUR OWN TEXT', title: 'Local passages.', copy: 'Type your own text. Nothing is uploaded.', sample: 'local text in local storage under your control', signal: 'YOUR METRICS', finish: 'PASSAGE' },
 ];
@@ -62,7 +62,7 @@ function ProfilePreview() {
       <div className="profile-preview-copy">
         <p className="section-tag">06 / PUBLIC PROFILES</p>
         <h2>Selected runs. Nothing automatic.</h2>
-        <p>Up to three pinned runs, one replayable pace ghost, and no feed. Local history remains on your machine.</p>
+        <p>Your shared challenges and selected results, with a recorded opponent for friends to race. Local practice stays on your device.</p>
         <div className="profile-preview-actions">
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/u/demo">VIEW PROFILE EXAMPLE</a>
@@ -81,7 +81,7 @@ function ProfilePreview() {
 }
 
 export default function Home() {
-  const [activeMode, setActiveMode] = useState(4);
+  const [activeMode, setActiveMode] = useState(0);
   const mode = useMemo(() => modes[activeMode], [activeMode]);
 
   return (
@@ -89,20 +89,20 @@ export default function Home() {
       <a className="skip-link" href="#modes">SKIP TO CONTENT</a>
       <nav className="site-nav" aria-label="Primary navigation">
         <a className="wordmark" href="#top" aria-label="Typearchy home"><span className="mark">T</span><span>TYPEARCHY</span></a>
-        <div className="nav-links"><a href="/play">PLAY</a><a href="#modes">MODES</a><a href="#progress">PROGRESS</a><a href="#profiles">PROFILES</a><a href="#install">INSTALL</a></div>
+        <div className="nav-links"><a href="/play">PLAY</a><a href="/challenges">CHALLENGES</a><a href="#progress">PROGRESS</a><a href="/account">PROFILE</a><a href="#install">INSTALL</a></div>
         <div className="nav-meta"><span>OMARCHY NATIVE</span><span className="status-dot" /><span>LOCAL FIRST</span></div>
       </nav>
       <section className="hero" id="top">
         <div className="hero-copy">
-          <p className="eyebrow">AI CAN TAKE THE DICTATION.</p>
+          <p className="eyebrow">A LITTLE PRACTICE. A BETTER RHYTHM.</p>
           <h1>KEEP YOUR<br />FINGERS SHARP.</h1>
-          <p className="lede">Local-first typing for Omarchy. Timed tests, code and shell practice, weak-key drills, history, ghosts, and local result cards.</p>
+          <p className="lede">Focused typing for Omarchy and the browser. Practice words, prose, and real code. Share a passage and give your friends a time to beat.</p>
           <div className="hero-actions"><a className="primary-action" href="#typing-demo" onClick={() => window.setTimeout(() => (document.querySelector('.demo-input') as HTMLTextAreaElement | null)?.focus(), 0)}>PLAY IN THE BROWSER</a><span className="release-note">07 MODES / 06 THEMES / LOCAL HISTORY</span></div>
         </div>
         <TypearchyGame compact />
       </section>
       <div className="signal-band" aria-label="Typearchy product facts">
-        <span><b>07</b> MODES</span><span><b>04</b> CODE LANGUAGES</span><span><b>500</b> LOCAL RUNS</span><span><b>00</b> REQUIRED ACCOUNTS</span><span><b>01</b> DAILY TEST</span>
+        <span><b>07</b> MODES</span><span><b>05</b> CODE LANGUAGES</span><span><b>500</b> LOCAL RUNS</span><span><b>00</b> REQUIRED ACCOUNTS</span><span><b>01</b> DAILY TEST</span>
       </div>
 
       <section className="modes-section" id="modes">
@@ -174,7 +174,7 @@ export default function Home() {
       <section className="install-section" id="install">
         <p className="section-tag">08 / INSTALL</p><h2>Install and type.</h2><p>The Omarchy plugin and browser client are live. Daily uses the same deterministic UTC prompt for every player.</p>
         <div className="launch-status" aria-label="Typearchy launch status"><span className="complete"><i />DOMAIN LIVE</span><span className="complete"><i />PLUGIN PUBLISHED</span><span className="complete"><i />WEB CLIENT LIVE</span></div>
-        <div className="install-command"><span>$</span><code>omarchy plugin add https://github.com/btsouth/typearchy.git --enable</code><b>GITHUB / TSOUTH89</b></div><a href="#top">PLAY THE DEMO AGAIN ↑</a>
+        <div className="install-command"><span>$</span><code>omarchy plugin add https://github.com/btsouth/typearchy.git --enable</code><b>GITHUB / BTSOUTH</b></div><a href="#top">PLAY THE DEMO AGAIN ↑</a>
       </section>
 
       <footer><a className="wordmark" href="#top"><span className="mark">T</span><span>TYPEARCHY</span></a><p>KEEP YOUR FINGERS SHARP.</p><span>TYPEARCHY.COM / 2026</span></footer>

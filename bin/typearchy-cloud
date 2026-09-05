@@ -29,7 +29,7 @@ token_from_file() {
 last_http_code_path="$state_dir/last-http-code"
 
 request() {
-  local method="$1" path="$2" token="${3:-}" body="${4:-}"
+  local method="$1" path="$2" token="${3:-}" body="${4:-}" attempt_token="${5:-}"
   local config_path body_path="" output status
   config_path="$(mktemp "$state_dir/request.XXXXXX")"
   temp_files=("$config_path")
@@ -40,10 +40,12 @@ request() {
   fi
   {
     printf 'silent\nshow-error\nfail-with-body\n'
+    printf 'connect-timeout = 10\nmax-time = 30\n'
     printf 'url = "%s%s"\n' "$api_url" "$path"
     printf 'request = "%s"\n' "$method"
     printf 'header = "Accept: application/json"\n'
     if [[ -n "$token" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$token"; fi
+    if [[ -n "$attempt_token" ]]; then printf 'header = "X-Attempt-Token: %s"\n' "$attempt_token"; fi
     if [[ -n "$body" ]]; then printf 'header = "Content-Type: application/json"\ndata-binary = "@%s"\n' "$body_path"; fi
     printf 'write-out = "%%{http_code}"\n'
   } > "$config_path"
@@ -207,6 +209,47 @@ delete_run() {
   request DELETE "/api/runs/$slug" "$token"
 }
 
+load_challenge() {
+  local slug="${1:-}" ghost="${2:-}" path token=""
+  [[ "$slug" =~ ^[a-z0-9]{12}$ ]] || json_error "Challenge link is invalid"
+  [[ -z "$ghost" || "$ghost" =~ ^[a-z0-9]{12}$ ]] || json_error "Opponent link is invalid"
+  path="/api/challenges/$slug"
+  if [[ -n "$ghost" ]]; then path="$path?race=$ghost"; fi
+  if [[ -f "$credentials_path" ]]; then token="$(token_from_file "$credentials_path")"; fi
+  request GET "$path" "$token"
+}
+
+start_attempt() {
+  local slug="${1:-}" token="" response id
+  [[ "$slug" =~ ^[a-z0-9]{12}$ ]] || json_error "Challenge link is invalid"
+  if [[ -f "$credentials_path" ]]; then token="$(token_from_file "$credentials_path")"; fi
+  response="$(request POST "/api/challenges/$slug/attempts" "$token")"
+  id="$(jq -er '.id' <<<"$response")"
+  [[ "$id" =~ ^[a-f0-9-]{36}$ ]] || json_error "Invalid attempt session"
+  jq -c '.' <<<"$response" > "$state_dir/attempt-$id.json"
+  jq -c 'del(.token)' <<<"$response"
+}
+
+submit_attempt() {
+  local id="${1:-}" input_path="${2:-}" token body
+  [[ "$id" =~ ^[a-f0-9-]{36}$ ]] || json_error "Invalid attempt session"
+  [[ "$input_path" == "$state_dir/attempt-recording.json" && -f "$input_path" ]] || json_error "Recording is unavailable"
+  token="$(token_from_file "$state_dir/attempt-$id.json")"
+  [[ "$token" =~ ^[a-f0-9]{64}$ ]] || json_error "Invalid attempt token"
+  body="$(jq -c '{events: .events, theme: .theme}' "$input_path")"
+  request POST "/api/attempts/$id" '' "$body" "$token"
+}
+
+publish_attempt() {
+  local id="${1:-}" token attempt_token
+  [[ "$id" =~ ^[a-f0-9-]{36}$ ]] || json_error "Invalid attempt session"
+  [[ -f "$credentials_path" ]] || json_error "Connect your profile in History, then publish this result"
+  token="$(token_from_file "$credentials_path")"
+  attempt_token="$(token_from_file "$state_dir/attempt-$id.json")"
+  [[ "$attempt_token" =~ ^[a-f0-9]{64}$ ]] || json_error "Invalid attempt token"
+  request POST "/api/attempts/$id/publish" "$token" '' "$attempt_token"
+}
+
 case "${1:-status}" in
   status) status ;;
   connect) connect_profile ;;
@@ -217,5 +260,9 @@ case "${1:-status}" in
   publish) publish_run "${2:-}" ;;
   pin) pin_run "${2:-}" "${3:-true}" ;;
   delete) delete_run "${2:-}" ;;
+  challenge) load_challenge "${2:-}" "${3:-}" ;;
+  attempt-start) start_attempt "${2:-}" ;;
+  attempt-submit) submit_attempt "${2:-}" "${3:-}" ;;
+  attempt-publish) publish_attempt "${2:-}" ;;
   *) json_error "Unknown profile action" ;;
 esac

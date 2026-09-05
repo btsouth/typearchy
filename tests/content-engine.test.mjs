@@ -36,7 +36,7 @@ function verify(command, args, source, extension) {
 }
 
 function execute(language, source) {
-  const extension = { bash: 'sh', python: 'py', javascript: 'mjs', rust: 'rs' }[language];
+  const extension = { bash: 'sh', python: 'py', javascript: 'mjs', rust: 'rs', ruby: 'rb' }[language];
   const path = join(scratch, `runtime-${language}.${extension}`);
   writeFileSync(path, source);
   let result;
@@ -46,7 +46,7 @@ function execute(language, source) {
     assert.equal(result.status, 0, `rustc rejected executable fixture:\n${result.stderr || result.stdout}`);
     result = spawnSync(binary, [], { encoding: 'utf8' });
   } else {
-    const command = { bash: 'bash', python: 'python', javascript: 'node' }[language];
+    const command = { bash: 'bash', python: 'python', javascript: 'node', ruby: 'ruby' }[language];
     result = spawnSync(command, [path], { encoding: 'utf8' });
   }
   assert.equal(result.status, 0, `${language} fixture failed at runtime:\n${result.stderr || result.stdout}`);
@@ -59,6 +59,7 @@ try {
     python: ['python', ['-m', 'py_compile'], 'py'],
     javascript: ['node', ['--check'], 'mjs'],
     rust: ['rustc', ['--emit', 'metadata', '-o', join(scratch, 'challenge.rmeta')], 'rs'],
+    ruby: ['ruby', ['-c'], 'rb'],
   };
 
   for (const [language, [command, args, extension]] of Object.entries(compilers)) {
@@ -124,7 +125,7 @@ try {
   assert.ok(quotes.some((quote) => quote.text === firstText), 'segment end is the inclusive last character');
   assert.equal(relay.segments[1].start, relay.segments[0].end + 3, 'segments are separated by a blank line');
 
-  console.log(`content engine ${engine.VERSION}: compiled 48 programs and validated 20 shell workflows`);
+  console.log(`content engine ${engine.VERSION}: compiled ${Object.keys(compilers).length * 12} programs and validated 20 shell workflows`);
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

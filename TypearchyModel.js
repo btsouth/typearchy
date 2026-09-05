@@ -1,4 +1,5 @@
 .pragma library
+.import "LearningEngine.js" as Learning
 
 var STATE_VERSION = 6
 var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
@@ -77,14 +78,9 @@ function advanceLineBreaks(mode, prompt, typed, character) {
   return next
 }
 
-function wordsPerMinute(correctChars, elapsedMs) {
+function wordsPerMinute(characters, elapsedMs) {
   if (!(elapsedMs > 0)) return 0
-  return round((correctChars / 5) / (elapsedMs / 60000), 1)
-}
-
-function rawWordsPerMinute(keypresses, elapsedMs) {
-  if (!(elapsedMs > 0)) return 0
-  return round((keypresses / 5) / (elapsedMs / 60000), 1)
+  return round((characters / 5) / (elapsedMs / 60000), 1)
 }
 
 function accuracy(keypresses, incorrectKeypresses) {
@@ -193,6 +189,7 @@ function normalizeRun(run) {
     dailyId: String(value.dailyId || ""),
     previousBestWpm: Math.max(0, Number(value.previousBestWpm) || 0),
     personalBest: value.personalBest === true,
+    learning: Learning.learningNormalize(value.learning),
     keyMistakes: normalizeCounts(value.keyMistakes),
     bigramMistakes: normalizeCounts(value.bigramMistakes),
     pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
@@ -233,7 +230,7 @@ function parseState(raw) {
     if ([15, 30, 60].indexOf(Number(parsed.settings.duration)) >= 0)
       state.settings.duration = Number(parsed.settings.duration)
     state.settings.sprintStyle = String(parsed.settings.sprintStyle || "prose") === "words" ? "words" : "prose"
-    if (["bash", "python", "javascript", "rust"].indexOf(String(parsed.settings.codeLanguage)) >= 0)
+    if (["bash", "python", "javascript", "rust", "ruby"].indexOf(String(parsed.settings.codeLanguage)) >= 0)
       state.settings.codeLanguage = String(parsed.settings.codeLanguage)
     state.settings.showLiveStats = parsed.settings.showLiveStats !== false
     state.settings.ghostEnabled = parsed.settings.ghostEnabled !== false
@@ -318,33 +315,11 @@ function weakKeys(state, limit) {
 }
 
 function drillProfile(state, limit) {
-  var runLimit = Math.max(3, Number(limit) || 12)
-  var runs = state && state.runs ? state.runs : []
-  var keyScores = {}
-  var pairScores = {}
-  var used = 0
-  for (var i = 0; i < runs.length && used < runLimit; i++) {
-    var run = normalizeRun(runs[i])
-    if (run.mode === "focus") continue
-    var weight = runLimit - used
-    for (var key in run.keyMistakes)
-      keyScores[key] = (keyScores[key] || 0) + run.keyMistakes[key] * weight
-    for (var pair in run.bigramMistakes)
-      pairScores[pair] = (pairScores[pair] || 0) + run.bigramMistakes[pair] * weight
-    used++
-  }
-
-  var keys = sortedCounts(keyScores, 100).filter(function(row) {
-    return row.key.length === 1 && /[a-z]/i.test(row.key)
-  }).slice(0, 2).map(function(row) { return row.key.toLowerCase() })
-  var bigrams = sortedCounts(pairScores, 100).filter(function(row) {
-    var parts = row.key.split("→")
-    return parts.length === 2 && /^[a-z]$/i.test(parts[0]) && /^[a-z]$/i.test(parts[1])
-  }).slice(0, 2).map(function(row) { return row.key.toLowerCase() })
-
-  if (keys.length === 0) keys = ["r", "t"]
-  if (bigrams.length === 0) bigrams = ["t→h", "e→r"]
-  return { keys: keys, bigrams: bigrams, sampleRuns: used, calibrating: used < 3 }
+  var profile = Learning.learningProfile(state && state.runs ? state.runs.slice(0, Math.max(3, Number(limit) || 12)) : [])
+  var keys = profile.keys.filter(function(row) { return /^[a-z]$/.test(row.key) }).slice(0, 2).map(function(row) { return row.key })
+  var bigrams = profile.pairs.filter(function(row) { return /^[a-z]→[a-z]$/.test(row.key) }).slice(0, 2).map(function(row) { return row.key })
+  return { keys: keys, bigrams: bigrams,
+    sampleRuns: profile.sampledRuns, calibrating: profile.calibrating, personalized: keys.length > 0 || bigrams.length > 0 }
 }
 
 function drillTargetErrors(challenge, keyMistakes, bigramMistakes) {

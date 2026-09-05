@@ -239,11 +239,47 @@ function rustProgram(ctx) {
   ].join("\n")
 }
 
+function rubyProgram(ctx) {
+  var median = variantEnabled(ctx, 1)
+  var distinct = variantEnabled(ctx, 2)
+  var extensions = variantEnabled(ctx, 4)
+  var batches = variantEnabled(ctx, 8)
+  var stats = (median ? "median_" : "moving_average_") + ctx.first + "_" + ctx.tag
+  var group = (distinct ? "unique_" : "grouped_") + ctx.second + "_" + ctx.tag
+  var files = (extensions ? "extension_counts_" : "manifest_") + ctx.tag
+  var jobs = (batches ? "batch_jobs_" : "retry_jobs_") + ctx.tag
+  var blocks = [
+    median
+      ? ["def " + stats + "(values)", "  return nil if values.empty?", "", "  ordered = values.sort", "  middle = ordered.length / 2", "  if ordered.length.odd?", "    ordered[middle]", "  else", "    (ordered[middle - 1] + ordered[middle]) / 2.0", "  end", "end"].join("\n")
+      : ["def " + stats + "(values, window:)", "  raise ArgumentError, \"window must be positive\" unless window.positive?", "", "  values.each_cons(window).map do |sample|", "    sample.sum.fdiv(sample.length)", "  end", "end"].join("\n"),
+    distinct
+      ? ["def " + group + "(records)", "  records.filter_map do |record|", "    state = record[:state]", "    state unless state.nil? || state.empty?", "  end.uniq.sort", "end"].join("\n")
+      : ["def " + group + "(records)", "  records.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |record, groups|", "    groups[record.fetch(:state)] << record.fetch(:name)", "  end", "end"].join("\n"),
+    extensions
+      ? ["def " + files + "(paths)", "  paths.each_with_object(Hash.new(0)) do |path, counts|", "    extension = File.extname(path).delete_prefix(\".\")", "    counts[extension.empty? ? \"none\" : extension] += 1", "  end", "end"].join("\n")
+      : ["def " + files + "(paths, extension:)", "  paths.select { |path| File.extname(path) == \".#{extension}\" }", "    .sort.each_with_index.map do |path, index|", "      { path: path, position: index + 1 }", "    end", "end"].join("\n"),
+    batches
+      ? ["def " + jobs + "(jobs, size:)", "  raise ArgumentError, \"size must be positive\" unless size.positive?", "", "  jobs.each_slice(size).with_index.map do |batch, index|", "    { number: index + 1, jobs: batch.freeze }", "  end", "end"].join("\n")
+      : ["def " + jobs + "(jobs, attempts:)", "  raise ArgumentError, \"attempts must be positive\" unless attempts.positive?", "", "  (1..attempts).flat_map do |attempt|", "    jobs.map { |job| { name: job, attempt: attempt } }", "  end", "end"].join("\n")
+  ]
+  return "# frozen_string_literal: true\n\n" + shuffled(blocks, ctx.random).join("\n\n") + "\n\n" + [
+    "values = [" + ctx.values.join(", ") + "]",
+    "records = [{ name: \"" + ctx.label + "-one\", state: \"ready\" },",
+    "           { name: \"" + ctx.label + "-two\", state: \"queued\" }]",
+    "paths = [\"app/main." + ctx.extension + "\", \"README.md\", \"lib/model." + ctx.extension + "\"]",
+    "statistics = " + stats + "(values" + (median ? "" : ", window: " + ctx.window) + ")",
+    "groups = " + group + "(records)",
+    "manifest = " + files + "(paths" + (extensions ? "" : ", extension: \"" + ctx.extension + "\"") + ")",
+    "schedule = " + jobs + "([\"index\", \"verify\", \"publish\"], " + (batches ? "size: " + ctx.window : "attempts: " + ctx.attempts) + ")",
+    "puts({ statistics: statistics, groups: groups, files: manifest, schedule: schedule }.inspect)"
+  ].join("\n")
+}
+
 function generateCode(language, seed, minimumCharacters) {
   var namespace = "code:" + language
   var canonical = canonicalSeed(namespace, seed)
   var ctx = context(namespace + ":" + canonical)
-  var renderers = { bash: bashProgram, python: pythonProgram, javascript: javascriptProgram, rust: rustProgram }
+  var renderers = { bash: bashProgram, python: pythonProgram, javascript: javascriptProgram, rust: rustProgram, ruby: rubyProgram }
   var prompt = (renderers[language] || renderers.bash)(ctx)
   return { prompt: prompt, key: "generated:" + namespace + ":" + canonical, family: familyName(ctx), version: VERSION, sufficient: prompt.length >= Math.max(360, Number(minimumCharacters) || 0) }
 }

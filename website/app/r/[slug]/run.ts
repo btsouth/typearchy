@@ -1,3 +1,4 @@
+import { decodeResultTheme, type ResultTheme } from '../../lib/resultTheme';
 import { runBySlug } from '../../lib/db';
 
 export const demoRuns: Record<string, Omit<LoadedRun, 'slug' | 'demo'>> = {
@@ -21,6 +22,7 @@ export type LoadedRun = {
   errors: number;
   pace: number[];
   handle: string;
+  theme?: ResultTheme;
 };
 
 export async function loadRun(slug: string): Promise<LoadedRun | null> {
@@ -30,5 +32,5 @@ export async function loadRun(slug: string): Promise<LoadedRun | null> {
   if (!row) return null;
   let pace: number[] = [];
   try { pace = JSON.parse(row.pace_json); } catch { pace = [row.wpm]; }
-  return { slug, demo: false, label: `${row.mode.toUpperCase()} / ${row.target.toUpperCase()}`, mode: row.mode, target: row.target, duration: row.duration, challengeKey: row.challenge_key, wpm: row.wpm, rawWpm: row.raw_wpm, accuracy: row.accuracy, consistency: row.consistency, errors: row.errors, pace, handle: row.handle || '' };
+  return { slug, demo: false, label: `${row.mode.toUpperCase()} / ${row.target.toUpperCase()}`, mode: row.mode, target: row.target, duration: row.duration, challengeKey: row.challenge_key, wpm: row.wpm, rawWpm: row.raw_wpm, accuracy: row.accuracy, consistency: row.consistency, errors: row.errors, pace, handle: row.handle || '', theme: decodeResultTheme(row.theme_json) };
 }

@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Register the installed plugin as the handler for Typearchy challenge links."""
+from pathlib import Path
+import os
+import subprocess
+
+plugin = Path(__file__).resolve().parent
+applications = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'applications'
+applications.mkdir(parents=True, exist_ok=True)
+launcher = str(plugin / 'typearchy-open').replace('%', '%%')
+for character in ('\\', '"', '`', '$'):
+    launcher = launcher.replace(character, '\\' + character)
+desktop = applications / 'typearchy-challenge.desktop'
+content = ('[Desktop Entry]\nType=Application\nName=Typearchy challenge\n'
+           f'Exec="{launcher}" %u\nTerminal=false\nNoDisplay=true\n'
+           'MimeType=x-scheme-handler/typearchy;\n')
+if not desktop.exists() or desktop.read_text() != content:
+    desktop.write_text(content)
+current = subprocess.run(['xdg-mime', 'query', 'default', 'x-scheme-handler/typearchy'], capture_output=True, text=True, check=True).stdout.strip()
+if not current or current == desktop.name:
+    subprocess.run(['xdg-mime', 'default', desktop.name, 'x-scheme-handler/typearchy'], check=True)

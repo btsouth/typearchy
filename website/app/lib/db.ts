@@ -36,6 +36,7 @@ export type RunRow = {
   created_at: number;
   pinned_at: number | null;
   handle?: string;
+  theme_json?: string;
 };
 
 export function db() {
@@ -119,8 +120,12 @@ export function rateLimitResponse(error: RateLimitError) {
 
 export async function authenticateDevice(request: Request): Promise<DeviceIdentity | null> {
   const authorization = request.headers.get('authorization') || '';
-  const match = authorization.match(/^Bearer (tpy_[a-f0-9]{64})$/);
+  const cookie = (request.headers.get('cookie') || '').match(/(?:^|;\s*)typearchy_session=(tpy_[a-f0-9]{64})(?:;|$)/);
+  const match = authorization ? authorization.match(/^Bearer (tpy_[a-f0-9]{64})$/) : cookie;
   if (!match) return null;
+  if (!authorization && !['GET', 'HEAD'].includes(request.method)
+      && request.headers.get('origin') !== new URL(request.url).origin)
+    throw new ClientError('Request origin does not match', 403);
   const tokenHash = await sha256(match[1]);
   const database = db();
   const row = await database.prepare(`SELECT devices.id AS device_id, profiles.id AS profile_id,
@@ -153,7 +158,7 @@ export async function runBySlug(slug: string) {
   return db().prepare(`SELECT runs.id, runs.slug, runs.profile_id, runs.schema_version,
       runs.content_version, runs.mode, runs.challenge_key, runs.target, runs.duration,
       runs.wpm, runs.raw_wpm, runs.accuracy, runs.consistency, runs.errors,
-      runs.pace_json, runs.created_at, runs.pinned_at, profiles.handle
+      runs.pace_json, runs.theme_json, runs.created_at, runs.pinned_at, profiles.handle
     FROM runs JOIN profiles ON profiles.id = runs.profile_id
     WHERE runs.slug = ? AND profiles.visibility = 'public'`)
     .bind(slug).first<RunRow>();

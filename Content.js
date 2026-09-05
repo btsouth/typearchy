@@ -290,6 +290,10 @@ var SHELL_CHALLENGES = [
 ]
 
 var CODE_CHALLENGES = {
+  ruby: [
+    ["def tally_words(text)", "  text.downcase.scan(/[a-z]+/).tally", "end", "", "counts = tally_words(\"Practice makes progress\")", "counts.sort.each do |word, count|", "  puts \"#{word}: #{count}\"", "end"].join("\n"),
+    ["records = [{ name: \"alpha\", ready: true }, { name: \"beta\", ready: false }]", "names = records.filter_map do |record|", "  record.fetch(:name) if record[:ready]", "end", "puts names.sort.join(\", \")"].join("\n")
+  ],
   bash: [
     [
       "for file in \"$@\"; do",
@@ -691,20 +695,21 @@ function countMatches(text, pattern) {
   return count
 }
 
-function generatedDrill(seed, keys, bigrams) {
+function generatedDrill(seed, keys, bigrams, passages) {
+  var bank = Array.isArray(passages) && passages.length ? passages : DAILY_PASSAGES
   var random = seededRandom(hashSeed(seed))
   var keyTargets = Array.isArray(keys) ? keys.slice(0, 2) : []
   var pairTargets = Array.isArray(bigrams) ? bigrams.slice(0, 2) : []
   var ranked = []
-  for (var i = 0; i < DAILY_PASSAGES.length; i++) {
+  for (var i = 0; i < bank.length; i++) {
     var score = random()
-    for (var k = 0; k < keyTargets.length; k++) score += countMatches(DAILY_PASSAGES[i], keyTargets[k])
+    for (var k = 0; k < keyTargets.length; k++) score += countMatches(bank[i], keyTargets[k])
     for (var p = 0; p < pairTargets.length; p++)
-      score += countMatches(DAILY_PASSAGES[i], String(pairTargets[p]).replace("→", "")) * 4
+      score += countMatches(bank[i], String(pairTargets[p]).replace("→", "")) * 4
     ranked.push({ index: i, score: score })
   }
   ranked.sort(function(a, b) { return b.score - a.score })
-  var selected = ranked.slice(0, 3).map(function(entry) { return DAILY_PASSAGES[entry.index] })
+  var selected = ranked.slice(0, 3).map(function(entry) { return bank[entry.index] })
   return { prompt: selected.join(" "), key: ranked.slice(0, 3).map(function(entry) { return entry.index }).join("-") }
 }
 
@@ -781,6 +786,7 @@ function buildChallenge(options) {
   var drillKeys = Array.isArray(settings.drillKeys) ? settings.drillKeys.slice(0, 2) : []
   var drillBigrams = Array.isArray(settings.drillBigrams) ? settings.drillBigrams.slice(0, 2) : []
   var drillCalibrating = settings.drillCalibrating === true
+  var drillPersonalized = settings.drillPersonalized !== false
   var prompt = ""
   var targetKind = "completion"
   var targetValue = 0
@@ -829,11 +835,11 @@ function buildChallenge(options) {
     detail = language + " / " + duration + " seconds"
     challengeKey = "code:" + language + ":" + duration + ":" + codeBundle.key
   } else if (mode === "drill") {
-    var drillBundle = generatedDrill("drill-" + nonce, drillKeys, drillBigrams)
+    var drillBundle = generatedDrill("drill-" + nonce, drillKeys, drillBigrams, settings.drillPassages)
     prompt = drillBundle.prompt
     var drillLabels = drillKeys.concat(drillBigrams.map(function(pair) { return String(pair).replace("→", "") }))
-    detail = (drillCalibrating ? "baseline " : "training ") + drillLabels.join(" / ")
-    challengeKey = "drill:" + drillLabels.join("-") + ":" + drillBundle.key
+    detail = (!drillPersonalized ? "general practice " : drillCalibrating ? "early practice " : "training ") + drillLabels.join(" / ")
+    challengeKey = (settings.drillPassages ? "drill:v3:" : "drill:") + drillLabels.join("-") + ":" + drillBundle.key
   } else {
     var customPassages = Array.isArray(settings.customPassages) ? settings.customPassages : []
     if (customPassages.length > 0) {
@@ -850,7 +856,7 @@ function buildChallenge(options) {
   }
 
   return {
-    version: VERSION,
+    version: mode === "drill" && settings.drillPassages ? "drill-v3" : VERSION,
     mode: mode,
     label: modeLabel(mode),
     detail: detail,

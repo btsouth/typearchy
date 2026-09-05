@@ -1,83 +1,82 @@
 # Typearchy sharing contract
 
-Typearchy remains complete offline. Sharing is an explicit, optional action on
-the finished-result screen. The plugin must never upload in the background.
+Practice remains usable offline. Sharing a practice result and publishing an
+online challenge result are explicit actions. URL sharing is primary; local image
+export is optional. Typearchy never captures input outside its active typing field.
 
-## Public result URL
+## Result URLs
 
-Hosted sharing uses one durable URL:
+- `/r/:slug` is a practice result with scores, pace, and a reproducible rematch.
+- `/c/:slug` is an immutable, approved passage with fixed rules and standings.
+- `/a/:slug` is a published attempt with progress playback and an invitation to
+  race that exact run on its original challenge.
+- `/u/:handle` contains the player's selected public results and challenges.
 
-```text
-https://typearchy.com/r/7K2M9Q
-```
+Result pages and Open Graph images use the saved theme palette. Only six hex
+colors are accepted; supplied names, markup, and CSS are ignored. Text colors are
+adjusted for readability when necessary. Preset names come from the known palette.
+Sharing the same practice run again returns its existing URL.
 
-The result page is an immutable score receipt and a rematch invitation. It
-shows the score, mode, challenge identity, accuracy, consistency, pace, and
-personal-best delta. Its primary action is `BEAT THIS RUN`, which starts the
-same reproducible challenge in the web demo and explains how to open it in the
-Omarchy plugin.
+## Practice uploads
 
-Public profiles use `typearchy.com/u/handle` and may reference selected result
-receipts. They never replace the immutable result URL or create a second
-challenge format. Typearchy does not add a feed.
+A deliberate practice share sends content version, mode, challenge key, target,
+duration, aggregate scores, a bounded pace series, client run ID, and theme colors.
+It does not upload the prompt, custom passage, typed text, individual keystrokes,
+or local history. A public profile is required to create a public result URL.
 
-## Explicit upload
+Custom practice stays local. Publishing a custom passage is a separate creator
+flow, with review before public access. Failed sharing preserves the local result.
+Copy Link copies a URL; Export Image remains available in the native client.
 
-Creating a link may send only:
+## Online challenge validation
 
-- schema and content version
-- mode and reproducible challenge key or seed
-- duration or word target
-- WPM, raw WPM, accuracy, consistency, and error count
-- a decimated WPM pace series
-- optional Omarchy theme identifier for card rendering
+Starting an online challenge creates a short-lived attempt session. The active
+race records input and relative timing locally. Completion sends the recording
+for server replay validation, even if the player has not chosen to publish it.
+This collection is explained before the race starts. The server calculates all
+competitive scores; client-supplied totals cannot set a ranked result.
 
-It must never send:
+The server stores aggregate scores, sanitized progress samples, and a recording
+hash. It discards raw input after validation. Public progress shows position within
+the approved passage, never the player's incorrect keystrokes. Recordings and
+session credentials must never appear in logs, result URLs, or public API fields.
 
-- the prompt or custom passage
-- typed text
-- individual keystrokes or correction timing
-- local history
-- machine identifiers or account identifiers on anonymous receipts
+A guest may complete a challenge, then connect a profile and claim the result.
+Only published results from public profiles appear in standings. Ordinary practice
+scores remain self-reported and never enter competitive standings. Replay
+validation does not establish human identity or make the game cheat-proof.
 
-When a connected player explicitly adds a run to a public profile, the receipt
-may also store that Typearchy user ID. It never receives a GitHub token or email.
+## Publication and removal
 
-Custom mode cannot create a public rematch unless the user separately chooses
-to publish the passage. That is outside the first release.
+Custom titles, passages, and attribution require approval. Exact reviewed catalog
+entries may publish immediately. Rejection hides challenge and result pages,
+public API content, and freshly requested social cards. A hidden creator profile
+also hides its challenges. A player can unpublish an attempt or hide their profile.
+Deleting an account removes its server-owned challenges and results. Public
+profiles can be reported for abusive handles or impersonation. Moderator
+restrictions hide the profile and its public content until explicitly restored.
 
-## Result-screen behavior
+These controls cannot erase previews already cached by another service. Typearchy
+serves dynamic social images without its own durable public image cache.
 
-The deliberate result actions include:
+## Retention and recovery
 
-1. `RETRY`
-2. `PUBLISH` or `COPY LINK`
-3. `PIN` or `UNPIN`
-4. `REMOVE`
-5. `SAVE CARD`
-6. `HISTORY`
+Completed browser attempts remain in the current tab's session storage for retry;
+raw events are removed after the server acknowledges the upload. Closing the tab
+clears this recovery data. Native retry data stays in the private state directory.
+Credentials are private files and are never exposed to QML or shared links.
 
-`COPY LINK` creates the hosted receipt only when pressed. Offline failure keeps
-the local PNG and text sharing flow available. The first successful share
-briefly states exactly which score fields are leaving the machine.
+Attempt sessions expire after 20 minutes. A bounded, opportunistic cleanup removes
+old unfinished sessions and guest results unclaimed for over seven days. The
+service does not promise an exact deletion deadline during periods of inactivity.
+See [WEBSITE_OPERATIONS.md](WEBSITE_OPERATIONS.md) for deployment and retention.
 
 ## Hosted components
 
-- Cloudflare Worker for result creation and lookup
-- D1 for immutable score receipts and daily aggregates
-- R2 only if rendered social cards need durable caching
-- rate limiting at the edge
-- dynamic Open Graph and X cards for every result URL
+The existing Cloudflare Worker issues sessions and validates completed recordings.
+D1 stores accounts, approved passages, aggregate results, and sanitized progress.
+There are no per-keystroke database writes. Open Graph rendering bundles its font
+with the Worker and makes no remote font request. R2 is not required.
 
-Public scores are self-reported. Typearchy should not claim cheat-proof global
-rankings. Daily comparisons can be labeled community results and filtered for
-obvious impossible values.
-
-## Core rule
-
-The optional sharing service cannot be required by the Omarchy plugin. A core
-review must be able to remove the hosted feature without weakening the typing
-game, local history, Focus practice, or personal-best ghost.
-
-Public profile behavior, desktop linking, privacy controls, and deletion are
-defined in `PROFILE_CONTRACT.md`.
+The optional service does not replace local practice, history, drills, or personal
+best tracking. Profile linking and recovery build on the existing account system.
