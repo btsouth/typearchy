@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register the installed plugin as the handler for Typearchy challenge links."""
+"""Maintain legacy link registration without replacing the standalone app."""
 from pathlib import Path
 import os
 import subprocess
@@ -7,6 +7,8 @@ import subprocess
 plugin = Path(__file__).resolve().parent
 applications = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'applications'
 applications.mkdir(parents=True, exist_ok=True)
+if (applications / 'dev.typearchy.App.desktop').exists():
+    raise SystemExit(0)
 launcher = str(plugin / 'typearchy-open').replace('%', '%%')
 for character in ('\\', '"', '`', '$'):
     launcher = launcher.replace(character, '\\' + character)

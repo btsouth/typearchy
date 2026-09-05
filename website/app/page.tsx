@@ -172,9 +172,9 @@ export default function Home() {
       </section>
 
       <section className="install-section" id="install">
-        <p className="section-tag">08 / INSTALL</p><h2>Install and type.</h2><p>The Omarchy plugin and browser client are live. Daily uses the same deterministic UTC prompt for every player.</p>
-        <div className="launch-status" aria-label="Typearchy launch status"><span className="complete"><i />DOMAIN LIVE</span><span className="complete"><i />PLUGIN PUBLISHED</span><span className="complete"><i />WEB CLIENT LIVE</span></div>
-        <div className="install-command"><span>$</span><code>omarchy plugin add https://github.com/btsouth/typearchy.git --enable</code><b>GITHUB / BTSOUTH</b></div><a href="#top">PLAY THE DEMO AGAIN ↑</a>
+        <p className="section-tag">08 / INSTALL</p><h2>Install and type.</h2><p>Launch Typearchy from your app launcher. Play in a normal window or switch to fullscreen. No bar plugin required.</p>
+        <div className="launch-status" aria-label="Typearchy launch status"><span className="complete"><i />DOMAIN LIVE</span><span className="complete"><i />DESKTOP APP</span><span className="complete"><i />WEB CLIENT LIVE</span></div>
+        <div className="install-command"><span>$</span><code>git clone https://github.com/btsouth/typearchy.git && ./typearchy/bin/typearchy-install</code><b>LINUX / OMARCHY</b></div><a href="https://github.com/btsouth/typearchy#install">INSTALL HELP AND UPDATES ↗</a>
       </section>
 
       <footer><a className="wordmark" href="#top"><span className="mark">T</span><span>TYPEARCHY</span></a><p>KEEP YOUR FINGERS SHARP.</p><span>TYPEARCHY.COM / 2026</span></footer>

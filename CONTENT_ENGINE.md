@@ -1,7 +1,7 @@
 # Typearchy content engine
 
 Typearchy generates practice locally from a versioned seed. The same engine
-body is used by the Omarchy plugin and the browser game. A challenge key can
+body is used by the desktop app and the browser game. A challenge key can
 reproduce the exact prompt later, which is the basis for rematch links, ghosts,
 and shared Daily runs.
 

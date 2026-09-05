@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Typearchy</title>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="#111c18"/>
+  <rect x="5" y="5" width="118" height="118" rx="25" fill="none" stroke="#384e42" stroke-width="2"/>
+  <rect x="21" y="36" width="86" height="58" rx="9" fill="#1d3027" stroke="#d7d7ad" stroke-width="5"/>
+  <path d="M34 51h6m-6 14h6m-6 15h25m-7-29h4m-4 14h4m34 15h4" fill="none" stroke="#d7d7ad" stroke-width="5" stroke-linecap="round"/>
+  <path d="M80 27 58 63h18L64 101l34-48H79l10-26Z" fill="#70bf95" stroke="#111c18" stroke-width="3" stroke-linejoin="round"/>
+</svg>

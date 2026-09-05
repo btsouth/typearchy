@@ -1,8 +1,7 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
-import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
 import "Content.js" as Content
@@ -16,27 +15,31 @@ Item {
 
   property var shell: null
   property var manifest: null
+  property bool standalone: false
+  signal quitRequested()
+  property bool paused: false
+  property bool interrupted: false
+  property real elapsedBeforePause: 0
+  property bool confirmClose: false
+  property bool statsWriting: false
+  property bool quitAfterSave: false
+  property string pendingChallengePayload: ""
+  readonly property bool appActive: keyCatcher.Window.active
+  onAppActiveChanged: if (standalone && !appActive && !competitionOpen) pausePractice()
 
-  // Monitor that had keyboard focus when the overlay was summoned. Test and
-  // history windows follow it so multi-monitor setups open where the user is.
+  // Let the window manager choose placement for normal application windows.
   readonly property var focusedScreen: {
-    var monitor = Hyprland.focusedMonitor
-    if (!monitor) return null
-    var name = String(monitor.name || "")
-    var screens = Quickshell.screens
-    for (var index = 0; index < screens.length; index++)
-      if (String(screens[index].name || "") === name) return screens[index]
     return null
   }
   property var openScreen: null
 
   readonly property string pluginId: (manifest && manifest.id) || "dev.typearchy.game"
   readonly property string home: Quickshell.env("HOME")
-  readonly property string stateDir: home + "/.local/state/typearchy"
+  readonly property string stateDir: Quickshell.env("TYPEARCHY_STATE_DIR") || (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/typearchy"
   readonly property string shareDir: home + "/Pictures/Typearchy"
-  readonly property string statePath: stateDir + "/stats.json"
-  readonly property string quarantinePath: stateDir + "/stats.json.bad"
-  readonly property string customDir: home + "/.local/share/typearchy"
+  readonly property string statePath: stateDir + (standalone ? "/desktop/stats.json" : "/stats.json")
+  readonly property string quarantinePath: statePath + ".bad"
+  readonly property string customDir: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/typearchy"
   readonly property string customPath: customDir + "/passages.txt"
   readonly property string publishPath: stateDir + "/publish.json"
   readonly property string cloudHelper: decodeURIComponent(Qt.resolvedUrl("bin/typearchy-cloud").toString().replace(/^file:\/\//, ""))
@@ -126,8 +129,17 @@ Item {
   function open(payloadJson) {
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (error) {}
+    if (standalone && opened) {
+      window.minimized = false
+      if (keyCatcher.Window.window) keyCatcher.Window.window.requestActivate()
+      if (!payload.challenge && !payload.view) return
+      if (phase === "running" || (competitionOpen && ["armed", "running", "finished"].indexOf(nativeChallenge.phase) >= 0)) {
+        if (payload.challenge) pendingChallengePayload = JSON.stringify(payload)
+        return
+      }
+    }
     root.openScreen = root.focusedScreen
-    root.windowedStats = payload.view === "stats"
+    root.windowedStats = !standalone && payload.view === "stats"
     root.opened = true
     if (!root.statsLoaded) {
       root.pendingOpenPayload = payload
@@ -154,7 +166,7 @@ Item {
       return
     }
     root.competitionOpen = false
-    root.windowedStats = payload.view === "stats"
+    root.windowedStats = !standalone && payload.view === "stats"
     if (root.phase === "running") {
       // A test is in progress: re-summoning refocuses it instead of silently
       // discarding the run. Escape still abandons it deliberately.
@@ -189,12 +201,42 @@ Item {
   }
 
   function dismiss() {
+    if (standalone) { requestClose(); return }
     if (root.phase === "running") root.resetTest()
     if (root.shell && typeof root.shell.hide === "function") root.shell.hide(root.pluginId)
     else root.close()
   }
 
+  function requestClose() {
+    if (phase === "running" || (competitionOpen && (nativeChallenge.busy || nativeChallenge.phase === "running" || (nativeChallenge.phase === "finished" && !nativeChallenge.saved)))) {
+      pausePractice(); confirmClose = true; window.visible = true
+    } else exitApp()
+  }
+
+  function exitApp() {
+    if (statsWriting) { quitAfterSave = true; return }
+    root.close(); quitRequested()
+  }
+
+  function practiceElapsed() { return paused ? elapsedMs : elapsedBeforePause + Number(practiceClock.elapsedMs()) }
+  function pausePractice() {
+    if (phase !== "running" || paused || competitionOpen) return
+    if (practiceExpired()) return
+    elapsedMs = practiceElapsed(); paused = true; interrupted = true
+    ticker.stop(); sampleTimer.stop()
+  }
+  function resumePractice() {
+    if (!paused) return
+    elapsedBeforePause = elapsedMs; practiceClock.restartMs(); paused = false
+    ticker.start(); sampleTimer.start(); keyCatcher.forceActiveFocus()
+  }
+  function writeStats() {
+    statsWriting = true
+    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+  }
+
   function resetTest() {
+    paused = false; interrupted = false; elapsedBeforePause = 0
     ticker.stop()
     sampleTimer.stop()
     root.runNonce++
@@ -256,14 +298,14 @@ Item {
     next.settings.sprintStyle = root.sprintStyle
     next.settings.codeLanguage = root.codeLanguage
     root.stats = next
-    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+    root.writeStats()
   }
 
   function updatePreference(name, value) {
     var next = Model.parseState(JSON.stringify(root.stats))
     next.settings[name] = value
     root.stats = next
-    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+    root.writeStats()
   }
 
   function toggleLiveStats() {
@@ -348,11 +390,12 @@ Item {
   }
 
   function practiceExpired() {
-    if (root.phase === "running" && root.isTimed && Number(practiceClock.elapsedMs()) >= root.duration * 1000) { root.finishTest(true); return true }
+    if (!paused && root.phase === "running" && root.isTimed && practiceElapsed() >= root.duration * 1000) { root.finishTest(true); return true }
     return false
   }
 
   function addCharacter(character) {
+    if (paused) return
     if (root.practiceExpired()) return
     if (root.challenge.available === false || root.phase === "results" || root.typedText.length >= root.prompt.length) return
     if (root.phase === "ready") root.beginTest()
@@ -391,7 +434,7 @@ Item {
     if (root.phase === "results") return
     ticker.stop()
     sampleTimer.stop()
-    root.elapsedMs = Math.max(250, root.startedAt > 0 ? Number(practiceClock.elapsedMs()) : 250)
+    root.elapsedMs = Math.max(250, root.startedAt > 0 ? practiceElapsed() : 250)
     if (root.isTimed) root.elapsedMs = Math.min(root.elapsedMs, root.duration * 1000)
 
     var finalWpm = Model.wordsPerMinute(root.correctChars, root.elapsedMs)
@@ -405,9 +448,10 @@ Item {
       date: Model.localDateKey(new Date()),
       mode: root.mode,
       duration: root.isTimed ? root.duration : Math.round(root.elapsedMs / 1000),
-      target: root.challenge.detail || "",
+      target: (root.challenge.detail || "") + (root.interrupted ? " / PAUSED PRACTICE" : ""),
       challengeKey: root.challenge.challengeKey || "",
       completed: completed !== false,
+      interrupted: root.interrupted,
       contentVersion: root.challenge.version || "",
       language: root.challenge.language || "",
       sprintStyle: root.challenge.sprintStyle || "",
@@ -422,7 +466,7 @@ Item {
       errors: root.incorrectKeypresses,
       dailyId: root.challenge.challengeId || "",
       previousBestWpm: previousBest,
-      personalBest: !!root.ghostRun && finalWpm > previousBest,
+      personalBest: !root.interrupted && !!root.ghostRun && finalWpm > previousBest,
       learning: root.learning,
       keyMistakes: root.keyMistakes,
       bigramMistakes: root.bigramMistakes,
@@ -430,7 +474,7 @@ Item {
     }
     root.currentResult = Model.normalizeRun(run)
     root.stats = Model.recordRun(root.stats, run)
-    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+    writeStats()
     root.resultsShownAt = Date.now()
     root.phase = "results"
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
@@ -462,7 +506,7 @@ Item {
 
   function applyPublishedRun(timestamp, slug, pinned) {
     root.stats = Model.updateRunPublication(root.stats, timestamp, slug, pinned, root.cloudTargetKey)
-    statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+    root.writeStats()
     if (root.currentResult && root.currentResult.timestamp === timestamp) {
       root.currentResult = Model.normalizeRun(root.stats.runs.find(function(run) { return run.timestamp === timestamp }) || root.currentResult)
     }
@@ -525,6 +569,7 @@ Item {
   }
 
   function publishRun(run) {
+    if (run && run.interrupted) { root.profileMessage = "Paused practice stays local. Complete an uninterrupted run to share a comparable time."; root.shareStatus = root.profileMessage; return }
     if (!run || root.publishPending || cloudProc.running) return
     if (root.profileStatus !== "connected") {
       root.connectProfile()
@@ -608,7 +653,7 @@ Item {
     }
     if (root.cloudAction === "delete-profile") {
       root.stats = Model.clearRunPublications(root.stats)
-      statsFile.setText(JSON.stringify(root.stats, null, 2) + "\n")
+      root.writeStats()
       if (root.currentResult) {
         root.currentResult = Model.normalizeRun(root.stats.runs.find(function(run) {
           return run.timestamp === root.currentResult.timestamp
@@ -724,7 +769,7 @@ Item {
   Component.onCompleted: {
     initProc.running = true
     // Register links only from the installed plugin, never from a QA worktree.
-    linkSetup.running = root.cloudHelper === root.home + "/.config/omarchy/plugins/" + root.pluginId + "/bin/typearchy-cloud"
+    linkSetup.running = !standalone && root.cloudHelper === root.home + "/.config/omarchy/plugins/" + root.pluginId + "/bin/typearchy-cloud"
   }
   Process {
     id: linkSetup
@@ -734,7 +779,7 @@ Item {
   Process {
     id: initProc
     command: ["bash", "-c", "mkdir -p \"$1\" \"$2\" \"$3\" && touch \"$4\"", "--",
-      root.stateDir, root.shareDir, root.customDir, root.customPath]
+      root.standalone ? root.stateDir + "/desktop" : root.stateDir, root.shareDir, root.customDir, root.customPath]
     onExited: {
       statsFile.reload()
       customFile.reload()
@@ -776,6 +821,8 @@ Item {
     printErrors: false
     onLoaded: root.loadStats(text())
     onLoadFailed: root.loadStats("")
+    onSaved: { root.statsWriting = false; if (root.quitAfterSave) root.exitApp() }
+    onSaveFailed: { root.statsWriting = false; root.quitAfterSave = false; root.shareStatus = "Could not save local history. Keep the app open and check available storage." }
   }
 
   FileView {
@@ -830,7 +877,7 @@ Item {
     interval: 50
     repeat: true
     onTriggered: {
-      root.elapsedMs = Number(practiceClock.elapsedMs())
+      root.elapsedMs = root.practiceElapsed()
       if (root.isTimed && root.elapsedMs >= root.duration * 1000) root.finishTest(true)
     }
   }
@@ -846,20 +893,76 @@ Item {
     }
   }
 
-  PanelWindow {
+  FloatingWindow {
     id: window
     visible: root.opened && !root.windowedStats
     screen: root.openScreen
-    anchors { top: true; bottom: true; left: true; right: true }
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "typearchy"
-    WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    title: "Typearchy"
+    implicitWidth: 1120
+    implicitHeight: 800
+    minimumSize: Qt.size(900, 640)
+    color: root.background
+    onClosed: if (root.standalone) root.requestClose(); else root.close()
+
+    Row {
+      visible: root.standalone
+      anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 8
+      spacing: 8; z: 50
+      Button { text: "History"; enabled: root.phase !== "running" && !root.competitionOpen; onClicked: root.toggleStats() }
+      Button { text: window.fullscreen ? "Windowed · F11" : "Fullscreen · F11"; onClicked: { window.fullscreen = !window.fullscreen; if (root.competitionOpen) nativeChallenge.refocus(); else keyCatcher.forceActiveFocus() } }
+      Button { text: "Close"; onClicked: root.requestClose() }
+    }
+
+    Row {
+      visible: !!root.pendingChallengePayload
+      anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 8
+      z: 50
+      Button {
+        text: root.phase === "running" || (root.competitionOpen && ["armed", "running"].indexOf(nativeChallenge.phase) >= 0) ? "Challenge queued for after this run" : "Open queued challenge"
+        enabled: root.phase !== "running" && !nativeChallenge.busy && (!root.competitionOpen || ["armed", "running"].indexOf(nativeChallenge.phase) < 0)
+        onClicked: { var payload = root.pendingChallengePayload; root.pendingChallengePayload = ""; root.competitionOpen = false; root.open(payload) }
+      }
+    }
+
+    Shortcut {
+      sequence: "F11"
+      enabled: root.standalone
+      context: Qt.WindowShortcut
+      onActivated: window.fullscreen = !window.fullscreen
+    }
+
+    Rectangle {
+      id: pauseDialog
+      visible: root.paused || root.confirmClose
+      onVisibleChanged: if (visible) Qt.callLater(function() { keepPlaying.forceActiveFocus() })
+      anchors.fill: parent; z: 100
+      color: root.background
+      MouseArea { anchors.fill: parent }
+      Column {
+        anchors.centerIn: parent; width: Math.min(parent.width - 80, 620); spacing: 24
+        Text { width: parent.width; text: root.confirmClose ? "Close Typearchy?" : "Practice paused"; color: root.foreground; font.family: root.fontFamily; font.pixelSize: 30 }
+        Text {
+          width: parent.width; wrapMode: Text.Wrap; color: root.muted; font.family: root.fontFamily; font.pixelSize: 16
+          text: root.confirmClose ? (root.competitionOpen ? "An unfinished online race cannot be paused. Completed results are kept locally for recovery." : "Your current practice is paused. Close to discard this unfinished run.")
+            : "Pick up where you left off. This run will be marked as paused practice and kept separate from uninterrupted personal bests."
+        }
+        Row {
+          spacing: 20
+          Button {
+            id: keepPlaying
+            Keys.onReturnPressed: clicked()
+            Keys.onEnterPressed: clicked()
+            Keys.onEscapePressed: clicked()
+            text: root.confirmClose ? "Keep playing" : "Resume · Enter"; bordered: true; onClicked: { root.confirmClose = false; root.resumePractice(); if (root.competitionOpen) nativeChallenge.refocus() } }
+          Button { text: root.confirmClose ? "Close app" : "Start over"; bordered: true; enabled: !nativeChallenge.busy; onClicked: { if (root.confirmClose) root.exitApp(); else root.resetTest() } }
+        }
+      }
+    }
 
     NativeChallenge {
       id: nativeChallenge
       anchors.fill: parent
+      anchors.topMargin: root.standalone ? 52 : 0
       z: 20
       visible: root.competitionOpen
       helper: root.cloudHelper
@@ -883,8 +986,13 @@ Item {
       visible: !root.competitionOpen
       anchors.fill: parent
       focus: true
+      anchors.topMargin: root.standalone ? 52 : 0
       Keys.priority: Keys.BeforeItem
       Keys.onPressed: function(event) {
+        if (root.standalone && event.key === Qt.Key_F11) { window.fullscreen = !window.fullscreen; event.accepted = true; return }
+        if (root.standalone && event.key === Qt.Key_Escape && window.fullscreen) { window.fullscreen = false; event.accepted = true; return }
+        if (root.paused || root.confirmClose) { event.accepted = true; return }
+        if (root.standalone && event.key === Qt.Key_Escape && !root.statsOpen) { root.pausePractice(); event.accepted = true; return }
         if (root.phase === "results" && !root.statsOpen) {
           if (event.key === Qt.Key_Escape) {
             root.dismiss()
@@ -1230,7 +1338,7 @@ Item {
               anchors.horizontalCenter: parent.horizontalCenter
               text: root.phase === "ready"
                 ? root.readyHint()
-                : "esc exits  /  backspace corrects  /  ctrl+r restarts"
+                : (root.standalone ? "esc pauses  /  backspace corrects  /  ctrl+r restarts" : "esc exits  /  backspace corrects  /  ctrl+r restarts")
               color: root.muted
               opacity: 0.72
               font.family: root.fontFamily

@@ -173,6 +173,7 @@ function normalizeRun(run) {
     target: String(value.target || ""),
     challengeKey: String(value.challengeKey || ""),
     completed: value.completed !== false,
+    interrupted: value.interrupted === true,
     contentVersion: String(value.contentVersion || ""),
     language: String(value.language || ""),
     sprintStyle: String(value.sprintStyle || "") === "words" ? "words"
@@ -218,7 +219,7 @@ function parseState(raw) {
   var state = emptyState()
   state.runs = Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun).slice(0, 500) : []
   state.bestWpm = Math.max(0, Number(parsed.bestWpm) || 0)
-  for (var i = 0; i < state.runs.length; i++) state.bestWpm = Math.max(state.bestWpm, state.runs[i].wpm)
+  for (var i = 0; i < state.runs.length; i++) if (!state.runs[i].interrupted) state.bestWpm = Math.max(state.bestWpm, state.runs[i].wpm)
   state.totalTests = Math.max(state.runs.length, Math.floor(Number(parsed.totalTests) || 0))
   state.streak = Math.max(0, Math.floor(Number(parsed.streak) || 0))
   state.lastPlayedDate = String(parsed.lastPlayedDate || "")
@@ -253,7 +254,7 @@ function recordRun(state, run) {
   next.runs.unshift(normalized)
   next.runs = next.runs.slice(0, 500)
   next.totalTests += 1
-  next.bestWpm = Math.max(next.bestWpm, normalized.wpm)
+  if (!normalized.interrupted) next.bestWpm = Math.max(next.bestWpm, normalized.wpm)
 
   for (var key in normalized.keyMistakes)
     next.keyMistakes[key] = (Number(next.keyMistakes[key]) || 0) + normalized.keyMistakes[key]
@@ -263,7 +264,7 @@ function recordRun(state, run) {
   next.bigramMistakes = capCounts(next.bigramMistakes, 128)
 
   var validDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized.date)
-  if (validDate) {
+  if (validDate && !normalized.interrupted) {
     var gap = daysBetween(next.lastPlayedDate, normalized.date)
     if (next.lastPlayedDate === normalized.date) {
       // A personal calendar day counts once, no matter how many tests are played.
@@ -339,12 +340,12 @@ function modeBest(state, mode) {
   var wanted = normalizedMode(mode)
   var runs = state && state.runs ? state.runs : []
   for (var i = 0; i < runs.length; i++)
-    if (runs[i].mode === wanted) best = Math.max(best, Number(runs[i].wpm) || 0)
+    if (!runs[i].interrupted && runs[i].mode === wanted) best = Math.max(best, Number(runs[i].wpm) || 0)
   return best
 }
 
 function recentAverage(state, field, count, mode) {
-  var runs = filteredRuns(state, mode || "all", Math.max(1, Number(count) || 10))
+  var runs = filteredRuns(state, mode || "all").filter(function(run) { return !run.interrupted }).slice(0, Math.max(1, Number(count) || 10))
   if (runs.length === 0) return 0
   var total = 0
   for (var i = 0; i < runs.length; i++) total += Number(runs[i][field]) || 0
@@ -385,7 +386,7 @@ function bestForDate(state, key) {
   var best = 0
   var runs = state && state.runs ? state.runs : []
   for (var i = 0; i < runs.length; i++) {
-    if (runs[i].date === key) best = Math.max(best, Number(runs[i].wpm) || 0)
+    if (!runs[i].interrupted && runs[i].date === key) best = Math.max(best, Number(runs[i].wpm) || 0)
   }
   return best
 }
@@ -394,7 +395,7 @@ function dailyRun(state, dailyId) {
   var best = null
   var runs = state && state.runs ? state.runs : []
   for (var i = 0; i < runs.length; i++) {
-    if (runs[i].mode !== "daily" || String(runs[i].dailyId) !== String(dailyId)) continue
+    if (runs[i].interrupted || runs[i].mode !== "daily" || String(runs[i].dailyId) !== String(dailyId)) continue
     if (!best || runs[i].wpm > best.wpm) best = normalizeRun(runs[i])
   }
   return best
@@ -414,7 +415,7 @@ function filteredRuns(state, mode, limit) {
 }
 
 function recentTrend(state, mode, count) {
-  var rows = filteredRuns(state, mode || "all", Math.max(1, Number(count) || 20))
+  var rows = filteredRuns(state, mode || "all").filter(function(run) { return !run.interrupted }).slice(0, Math.max(1, Number(count) || 20))
   rows.reverse()
   return rows
 }
@@ -425,7 +426,7 @@ function bestComparableRun(state, descriptor) {
   var runs = state && state.runs ? state.runs : []
   for (var i = 0; i < runs.length; i++) {
     var run = normalizeRun(runs[i])
-    if (run.challengeKey !== wanted) continue
+    if (run.interrupted || run.challengeKey !== wanted) continue
     if (!best || run.wpm > best.wpm) best = run
   }
   return best
