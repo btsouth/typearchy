@@ -10,7 +10,7 @@ try {
   for (const file of readdirSync(source)) if (/\.(qml|js)$/.test(file)) cpSync(new URL(file, source), join(directory, file));
   for (const folder of ['Commons', 'Ui', 'bin']) cpSync(new URL(folder, source), join(directory, folder), { recursive: true });
   let overlay = readFileSync(join(directory, 'Overlay.qml'), 'utf8')
-    .replace('  id: root', '  id: root\n  property alias testInput: keyCatcher\n  property alias testWindow: window')
+    .replace('  id: root', '  id: root\n  property alias testInput: keyCatcher\n  property alias testWindow: window\n  property alias testHistoryButton: historyButton\n  property alias testCodeChoice: codeChoice')
     .replace(/readonly property string cloudHelper: [^\n]+/, 'readonly property string cloudHelper: "/bin/false"');
   writeFileSync(join(directory, 'Overlay.qml'), overlay);
   writeFileSync(join(directory, 'shell.qml'), `import QtQuick
@@ -30,6 +30,16 @@ ShellRoot {
       check(game.testWindow.fullscreen, "F11 enables fullscreen")
       keys.keyClick(Qt.Key_F11); keys.wait(50)
       check(!game.testWindow.fullscreen, "F11 restores windowed mode")
+      // Mouse clicks on buttons must leave keyboard shortcuts working.
+      keys.mouseClick(game.testHistoryButton, 4, 4); keys.wait(100)
+      check(game.statsOpen, "the header History button opens history")
+      keys.keyClick(Qt.Key_Escape); keys.wait(50)
+      check(!game.statsOpen, "Escape closes history right after a mouse click on the header button")
+      keys.mouseClick(game.testCodeChoice, 4, 4); keys.wait(100)
+      check(game.mode === "code", "clicking a mode button selects it")
+      keys.keyClick(game.prompt[0]); keys.wait(100)
+      check(game.phase === "running", "typing starts a run right after clicking a mode button")
+      game.resetTest(); keys.wait(50)
       game.mode = "custom"; game.challenge = { available: true, targetKind: "passage", detail: "fixture", challengeKey: "test:standalone" }
       game.prompt = "red red"; game.phase = "ready"; game.testInput.forceActiveFocus()
       keys.keyClick("r"); keys.wait(50)

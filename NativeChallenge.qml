@@ -280,6 +280,7 @@ Item {
   }
   component Action: Controls.Button {
     id: actionButton
+    focusPolicy: Qt.TabFocus
     font.family: root.fontFamily; font.pixelSize: 16
     padding: 12
     contentItem: Text { text: actionButton.text; font: actionButton.font; color: Color.foreground; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
