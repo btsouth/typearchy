@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Typearchy',
     short_name: 'Typearchy',
-    description: 'A focused, local-first typing game built for Omarchy.',
+    description: 'A typing game for words, passages, and code, with timed practice and shared challenges.',
     start_url: '/play',
     display: 'standalone',
     background_color: '#0b1511',
