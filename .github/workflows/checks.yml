@@ -17,7 +17,17 @@ jobs:
           cache: npm
           cache-dependency-path: website/package-lock.json
       - name: Install content validators
-        run: sudo apt-get update && sudo apt-get install -y ruby rustc python3
+        run: |
+          typearchy_missing=""
+          for typearchy_tool in ruby rustc python3; do
+            if ! command -v "$typearchy_tool" >/dev/null; then
+              typearchy_missing="$typearchy_missing $typearchy_tool"
+            fi
+          done
+          if [ -n "$typearchy_missing" ]; then
+            sudo apt-get update -o Acquire::Retries=2
+            sudo apt-get install -y $typearchy_missing
+          fi
       - name: Install browser dependencies
         working-directory: website
         run: npm ci --ignore-scripts
