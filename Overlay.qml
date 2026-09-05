@@ -37,6 +37,10 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateDir: Quickshell.env("TYPEARCHY_STATE_DIR") || (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/typearchy"
   readonly property string shareDir: home + "/Pictures/Typearchy"
+  readonly property string exportDir: home + "/Documents/Typearchy"
+  property string historyMessage: ""
+  property string exportTarget: ""
+  property string updateAvailable: ""
   readonly property string statePath: stateDir + (standalone ? "/desktop/stats.json" : "/stats.json")
   readonly property string quarantinePath: statePath + ".bad"
   readonly property string customDir: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/typearchy"
@@ -320,6 +324,31 @@ Item {
     var values = [0.9, 1, 1.1]
     var index = values.indexOf(root.fontScale)
     root.updatePreference("fontScale", values[(index + 1) % values.length])
+  }
+
+  function exportHistory() {
+    if (exportProc.running) return
+    var stamp = Model.localDateKey(new Date())
+    root.exportTarget = root.exportDir + "/typearchy-history-" + stamp + ".json"
+    root.historyMessage = "Exporting history..."
+    exportProc.command = ["bash", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$3\"", "--", root.statePath, root.exportDir, root.exportTarget]
+    exportProc.running = true
+  }
+
+  function importHistory() {
+    if (importPick.running) return
+    root.historyMessage = "Choose a Typearchy history backup..."
+    importPick.command = ["bash", "-c", "if command -v omarchy-file-select >/dev/null; then omarchy-file-select --title \"Import Typearchy history\" --extensions json; elif command -v zenity >/dev/null; then zenity --file-selection --title=\"Import Typearchy history\" --file-filter=\"*.json\"; else exit 3; fi"]
+    importPick.running = true
+  }
+
+  function finishImport(raw) {
+    var merged = Model.mergeHistory(root.stats, raw)
+    if (merged.error) { root.historyMessage = merged.error; return }
+    root.stats = merged.state
+    root.writeStats()
+    root.historyMessage = merged.added === 0 ? "Nothing new to import  /  every run was already in your history"
+      : "Imported " + merged.added + (merged.added === 1 ? " run" : " runs") + "  /  " + root.stats.totalTests + " local tests"
   }
 
   function setHistoryFilter(filter) {
@@ -688,7 +717,9 @@ Item {
     root.profileHandle = String(response.handle || "")
     root.profileCode = String(response.code || "")
     root.profileVisibility = response.visibility === "private" ? "private" : "public"
-    if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle
+    if (response.latestClient && response.clientVersion && Model.compareVersions(response.clientVersion, response.latestClient) < 0)
+      root.updateAvailable = String(response.latestClient)
+    if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle + (root.updateAvailable ? "  /  update " + root.updateAvailable + " available" : "")
     else if (root.profileStatus === "pending") root.profileMessage = root.profileCode ? "Finish in browser  /  " + root.profileCode : "Finish recovery in browser"
     else if (root.profileStatus === "unreachable") root.profileMessage = "typearchy.com unreachable  /  still connected, local practice works"
     else root.profileMessage = ""
@@ -816,6 +847,29 @@ Item {
     }
   }
   Process { id: openCustomProc }
+  Process {
+    id: exportProc
+    onExited: function(exitCode) {
+      root.historyMessage = exitCode === 0 ? "Exported  /  " + root.exportTarget : "Export failed  /  check that " + root.exportDir + " is writable"
+    }
+  }
+  Process {
+    id: importPick
+    stdout: StdioCollector { id: importPickOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      var chosen = String(importPickOutput.text || "").trim().split("\n")[0]
+      if (exitCode === 3) { chosen = root.exportDir + "/import.json"; root.historyMessage = "No file chooser found  /  reading " + chosen }
+      else if (exitCode !== 0 || !chosen) { root.historyMessage = "Import cancelled"; return }
+      importFile.path = chosen
+      importFile.reload()
+    }
+  }
+  FileView {
+    id: importFile
+    printErrors: false
+    onLoaded: root.finishImport(text())
+    onLoadFailed: root.historyMessage = "Could not read that file  /  choose a stats.json or exported history backup"
+  }
 
   Process {
     id: cloudProc
@@ -1059,6 +1113,8 @@ Item {
           else if (event.text === "l" || event.text === "L") root.toggleLiveStats()
           else if (event.text === "g" || event.text === "G") root.toggleGhost()
           else if (event.text === "f" || event.text === "F") root.cycleFontScale()
+          else if (event.text === "e" || event.text === "E") root.exportHistory()
+          else if (event.text === "i" || event.text === "I") root.importHistory()
           event.accepted = true
           return
         }
@@ -1455,9 +1511,7 @@ Item {
 
                   Text {
                     anchors.right: parent.right
-                    text: root.currentResult && root.currentResult.personalBest
-                      ? "NEW PERSONAL BEST"
-                      : (root.currentResult && root.currentResult.previousBestWpm > 0 ? "PERSONAL BEST" : "FIRST RESULT")
+                    text: root.currentResult ? Model.comparison(root.currentResult).label : ""
                     color: root.currentResult && root.currentResult.personalBest ? root.accent : root.muted
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
@@ -1467,10 +1521,7 @@ Item {
 
                   Text {
                     anchors.right: parent.right
-                    text: root.currentResult && root.currentResult.personalBest
-                      ? "+" + Math.round(root.currentResult.wpm - root.currentResult.previousBestWpm) + " WPM"
-                      : (root.currentResult && root.currentResult.previousBestWpm > 0
-                        ? Math.round(root.currentResult.previousBestWpm) + " WPM" : "BASELINE SET")
+                    text: root.currentResult ? Model.comparison(root.currentResult).value : ""
                     color: root.foreground
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
@@ -1513,7 +1564,7 @@ Item {
 
                 Text {
                   width: parent.width * 0.38
-                  text: "BEAT THIS RUN  /  TYPEARCHY.COM"
+                  text: root.currentResult ? Model.resultStatus(root.currentResult) : "LOCAL RESULT  /  TYPEARCHY.COM"
                   color: root.muted
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -1747,6 +1798,8 @@ Item {
                   selected: false
                   onClicked: root.cycleFontScale()
                 }
+                HistoryChoice { text: "EXPORT"; selected: false; onClicked: root.exportHistory() }
+                HistoryChoice { text: "IMPORT"; selected: false; onClicked: root.importHistory() }
               }
 
               ProfileSettings { width: parent.width }
@@ -1790,7 +1843,7 @@ Item {
                       Keys.onSpacePressed: root.openRunResult(modelData)
                       Accessible.role: Accessible.ListItem
                       Accessible.name: Content.modeLabel(modelData.mode) + ", " + (modelData.target || modelData.duration + " seconds")
-                        + ", " + Math.round(modelData.wpm) + " words per minute, " + Math.round(modelData.accuracy) + " percent, " + modelData.date
+                        + ", " + Math.round(modelData.wpm) + " words per minute, " + Math.round(modelData.accuracy) + " percent, " + modelData.date + (Model.runBadge(modelData) ? ", " + Model.runBadge(modelData).toLowerCase() : ", local only")
                       Accessible.onPressAction: root.openRunResult(modelData)
 
                       Rectangle {
@@ -1813,11 +1866,12 @@ Item {
                         anchors.leftMargin: Style.space(10)
                         anchors.rightMargin: Style.space(10)
 
-                        HistoryCell { width: parent.width * 0.18; value: Content.modeLabel(modelData.mode); accentText: true }
-                        HistoryCell { width: parent.width * 0.22; value: modelData.target || (modelData.duration + " seconds") }
-                        HistoryCell { width: parent.width * 0.20; value: Math.round(modelData.wpm) + " WPM"; strong: true }
-                        HistoryCell { width: parent.width * 0.18; value: Math.round(modelData.accuracy) + "% ACC" }
-                        HistoryCell { width: parent.width * 0.22; value: modelData.date; alignRight: true }
+                        HistoryCell { width: parent.width * 0.16; value: Content.modeLabel(modelData.mode); accentText: true }
+                        HistoryCell { width: parent.width * 0.24; value: (modelData.target || (modelData.duration + " seconds")).replace(" / PAUSED PRACTICE", "") }
+                        HistoryCell { width: parent.width * 0.16; value: Math.round(modelData.wpm) + " WPM"; strong: true }
+                        HistoryCell { width: parent.width * 0.14; value: Math.round(modelData.accuracy) + "% ACC" }
+                        HistoryCell { width: parent.width * 0.12; value: Model.runBadge(modelData); accentText: Model.runBadge(modelData) === "PUBLIC" || Model.runBadge(modelData) === "PINNED" }
+                        HistoryCell { width: parent.width * 0.18; value: modelData.date; alignRight: true }
                       }
                     }
                   }
@@ -1844,11 +1898,11 @@ Item {
           Text {
             width: parent.width * 0.72
             anchors.verticalCenter: parent.verticalCenter
-            text: root.statsOpen ? "0-8 filters  /  ↑↓ history  /  l live stats  /  g ghost  /  f type size  /  esc returns"
+            text: root.statsOpen ? (root.historyMessage || "0-8 filters  /  ↑↓ history  /  e export  /  i import  /  l live  /  g ghost  /  f type size  /  esc returns")
               : root.phase === "results"
-              ? (root.shareStatus || "results locked  /  ctrl+r retry  /  ctrl+s share  /  ctrl+c link  /  ctrl+h history  /  esc exit")
+              ? (root.shareStatus || Model.nextAction(root.currentResult, { connected: root.profileStatus === "connected", drillReady: Model.drillProfile(root.stats, 12).personalized }))
               : "AI can take the dictation. Keep your fingers sharp.  /  h shows stats"
-            color: root.shareStatus ? root.accent : root.muted
+            color: root.shareStatus || (root.statsOpen && root.historyMessage) ? root.accent : root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideMiddle
@@ -1919,6 +1973,8 @@ Item {
         } else if (event.text === "l" || event.text === "L") root.toggleLiveStats()
         else if (event.text === "g" || event.text === "G") root.toggleGhost()
         else if (event.text === "f" || event.text === "F") root.cycleFontScale()
+        else if (event.text === "e" || event.text === "E") root.exportHistory()
+        else if (event.text === "i" || event.text === "I") root.importHistory()
         event.accepted = true
       }
 
@@ -2062,6 +2118,8 @@ Item {
             HistoryChoice { text: "LIVE " + (root.showLiveStats ? "ON" : "OFF"); selected: root.showLiveStats; onClicked: root.toggleLiveStats() }
             HistoryChoice { text: "GHOST " + (root.ghostEnabled ? "ON" : "OFF"); selected: root.ghostEnabled; onClicked: root.toggleGhost() }
             HistoryChoice { text: "TYPE " + Math.round(root.fontScale * 100) + "%"; selected: false; onClicked: root.cycleFontScale() }
+            HistoryChoice { text: "EXPORT"; selected: false; onClicked: root.exportHistory() }
+            HistoryChoice { text: "IMPORT"; selected: false; onClicked: root.importHistory() }
           }
         }
 
@@ -2126,11 +2184,12 @@ Item {
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(10)
                   anchors.rightMargin: Style.space(10)
-                  HistoryCell { width: parent.width * 0.18; value: Content.modeLabel(modelData.mode); accentText: true }
-                  HistoryCell { width: parent.width * 0.22; value: modelData.target || (modelData.duration + " seconds") }
-                  HistoryCell { width: parent.width * 0.20; value: Math.round(modelData.wpm) + " WPM"; strong: true }
-                  HistoryCell { width: parent.width * 0.18; value: Math.round(modelData.accuracy) + "% ACC" }
-                  HistoryCell { width: parent.width * 0.22; value: modelData.date; alignRight: true }
+                  HistoryCell { width: parent.width * 0.16; value: Content.modeLabel(modelData.mode); accentText: true }
+                  HistoryCell { width: parent.width * 0.24; value: (modelData.target || (modelData.duration + " seconds")).replace(" / PAUSED PRACTICE", "") }
+                  HistoryCell { width: parent.width * 0.16; value: Math.round(modelData.wpm) + " WPM"; strong: true }
+                  HistoryCell { width: parent.width * 0.14; value: Math.round(modelData.accuracy) + "% ACC" }
+                  HistoryCell { width: parent.width * 0.12; value: Model.runBadge(modelData); accentText: Model.runBadge(modelData) === "PUBLIC" || Model.runBadge(modelData) === "PINNED" }
+                  HistoryCell { width: parent.width * 0.18; value: modelData.date; alignRight: true }
                 }
               }
             }
@@ -2151,8 +2210,8 @@ Item {
           width: parent.width
           Text {
             width: parent.width * 0.75
-            text: "0-8 filters  /  ↑↓ history  /  l live  /  g ghost  /  f type size  /  esc closes"
-            color: root.muted
+            text: root.historyMessage || "0-8 filters  /  ↑↓ history  /  e export  /  i import  /  l live  /  g ghost  /  f type size  /  esc closes"
+            color: root.historyMessage ? root.accent : root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight

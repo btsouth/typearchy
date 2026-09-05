@@ -1,10 +1,12 @@
 import { authenticateDevice, db, errorResponse, json, sha256 } from '../../../../lib/db';
 import { linkVisibleSql } from '../../../../lib/challenges';
+import { requireSupportedClient } from '../../../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    requireSupportedClient(request);
     const identity = await authenticateDevice(request);
     if (!identity) return json({ error: 'Connect your profile to publish this result' }, 401);
     if (identity.visibility !== 'public') return json({ error: 'Make your profile public before publishing a result' }, 409);

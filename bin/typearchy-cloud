@@ -2,6 +2,8 @@
 set -euo pipefail
 
 api_url="${TYPEARCHY_API_URL:-https://typearchy.com}"
+manifest_path="$(dirname "$(readlink -f "$0")")/../manifest.json"
+client_version="$(jq -r '.version // "0"' "$manifest_path" 2>/dev/null || printf '0')"
 state_dir="${TYPEARCHY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/typearchy}"
 credentials_path="$state_dir/profile.json"
 pending_path="$state_dir/profile-pending.json"
@@ -44,6 +46,7 @@ request() {
     printf 'url = "%s%s"\n' "$api_url" "$path"
     printf 'request = "%s"\n' "$method"
     printf 'header = "Accept: application/json"\n'
+    printf 'header = "X-Typearchy-Client: desktop/%s"\n' "$client_version"
     if [[ -n "$token" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$token"; fi
     if [[ -n "$attempt_token" ]]; then printf 'header = "X-Attempt-Token: %s"\n' "$attempt_token"; fi
     if [[ -n "$body" ]]; then printf 'header = "Content-Type: application/json"\ndata-binary = "@%s"\n' "$body_path"; fi
@@ -73,6 +76,7 @@ request() {
     elif ! message="$(jq -er '.error' <<<"$output" 2>/dev/null)"; then
       case "$code" in
         401|403) message="This device is no longer connected. Reconnect your profile in History." ;;
+        426) message="Update Typearchy to keep using online features: close it, run git pull in its folder, then bin/typearchy-install." ;;
         404) message="That link is no longer available." ;;
         410) message="The attempt session expired. Your local result is kept." ;;
         413) message="The recording is too large to submit." ;;
@@ -116,7 +120,7 @@ status() {
     token="$(token_from_file "$credentials_path")"
     if response="$(request GET /api/device "$token" 2>/dev/null)"; then
       save_connected "$token" "$response"
-      printf '%s\n' "$response"
+      jq -c --arg version "$client_version" '. + {clientVersion: $version}' <<<"$response"
     elif credentials_rejected; then
       rm -f "$credentials_path"
       jq -cn '{status:"disconnected"}'

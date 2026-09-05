@@ -3,11 +3,13 @@ import { parseResultTheme } from '../../../lib/resultTheme';
 import { ClientError } from '../../../lib/clientError';
 import { parseRecording, validateAttempt, type ChallengeRules } from '../../../lib/challengeContract';
 import { linkVisibleSql } from '../../../lib/challenges';
+import { requireSupportedClient } from '../../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    requireSupportedClient(request);
     const token = request.headers.get('x-attempt-token') || '';
     if (!/^[a-f0-9]{64}$/.test(token)) return json({ error: 'Attempt session is missing' }, 401);
     const session = await db().prepare(`SELECT s.*, c.passage, c.rules_json FROM attempt_sessions s

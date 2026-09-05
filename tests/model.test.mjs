@@ -421,3 +421,48 @@ assert.equal(model.modeBest(afterReload, 'sprint'), 60);
 assert.equal(model.recentAverage(afterReload, 'wpm', 10, 'sprint'), 60);
 assert.equal(model.recentTrend(afterReload, 'sprint', 20).length, 1);
 assert.equal(model.bestComparableRun(afterReload, { challengeKey: 'pause:test' }).wpm, 60);
+
+// Result states, comparisons, and next actions read from one place.
+// Objects created inside the QML library context carry a different prototype, so compare shapes.
+const assertShape = (actual, expected) => assert.equal(JSON.stringify(actual), JSON.stringify(expected))
+assert.equal(model.runBadge({ interrupted: true, publicSlug: "ABCDEFGH" }), "PAUSED")
+assert.equal(model.runBadge({ publicSlug: "ABCDEFGH", publicPinned: true }), "PINNED")
+assert.equal(model.runBadge({ publicSlug: "ABCDEFGH" }), "PUBLIC")
+assert.equal(model.runBadge({}), "")
+assert.match(model.resultStatus({ publicSlug: "ABCDEFGH" }), /PUBLIC {2}\/ {2}TYPEARCHY\.COM\/R\/ABCDEFGH/)
+assert.match(model.resultStatus({ mode: "custom" }), /STAYS LOCAL/)
+assert.match(model.resultStatus({ interrupted: true }), /PAUSED PRACTICE/)
+assertShape(model.comparison({ wpm: 70, previousBestWpm: 65, personalBest: true }), { label: "NEW PERSONAL BEST", value: "+5 WPM" })
+assertShape(model.comparison({ wpm: 60, previousBestWpm: 65 }), { label: "COMPARABLE BEST", value: "65 WPM  /  -5" })
+assertShape(model.comparison({ wpm: 65, previousBestWpm: 65 }), { label: "COMPARABLE BEST", value: "65 WPM  /  TIED" })
+assertShape(model.comparison({ wpm: 65 }), { label: "FIRST OF ITS KIND", value: "BASELINE SET" })
+assertShape(model.comparison({ wpm: 99, previousBestWpm: 65, interrupted: true }), { label: "PAUSED PRACTICE", value: "NOT COMPARED" })
+assert.match(model.nextAction({ wpm: 60, accuracy: 90, previousBestWpm: 65 }), /accuracy first/)
+assert.match(model.nextAction({ wpm: 60, accuracy: 97, previousBestWpm: 65 }, { drillReady: true }), /^5 wpm short of your best.*practice targets your misses$/)
+assert.match(model.nextAction({ wpm: 70, accuracy: 97, previousBestWpm: 65, personalBest: true }, { connected: true }), /ctrl\+s shares a link/)
+assert.match(model.nextAction({ wpm: 70, accuracy: 97, previousBestWpm: 65, personalBest: true }, { connected: false }), /connect in history/)
+assert.match(model.nextAction({ wpm: 70, accuracy: 97, interrupted: true }), /paused runs stay local/)
+assert.match(model.nextAction({ wpm: 70, accuracy: 97, mode: "custom" }), /custom passages stay local/)
+assert.match(model.nextAction({ wpm: 70, accuracy: 97 }), /baseline set/)
+
+// Importing a backup merges runs without duplicates and never lowers totals.
+const localRun = { timestamp: "2026-09-01T10:00:00Z", date: "2026-09-01", mode: "sprint", wpm: 50, accuracy: 96, challengeKey: "merge:a", keyMistakes: { e: 2 } }
+const local = model.recordRun(model.emptyState(), localRun)
+const remote = model.recordRun(model.recordRun(model.emptyState(), { ...localRun, publicSlug: "ABCDEFGH", publicPinned: true }), { timestamp: "2026-09-02T10:00:00Z", date: "2026-09-02", mode: "code", wpm: 80, accuracy: 99, challengeKey: "merge:b", keyMistakes: { e: 5, x: 1 } })
+const merged = model.mergeHistory(local, JSON.stringify(remote))
+assert.equal(merged.error, "")
+assert.equal(merged.added, 1)
+assert.equal(merged.state.runs.length, 2)
+assert.equal(merged.state.runs[0].challengeKey, "merge:b", "newest run first")
+assert.equal(merged.state.runs[1].publicSlug, "ABCDEFGH", "a public link fills in on the matching local run")
+assert.equal(merged.state.bestWpm, 80)
+assert.equal(merged.state.totalTests, 2)
+assertShape(merged.state.keyMistakes, { e: 7, x: 1 })
+assert.equal(model.mergeHistory(merged.state, JSON.stringify(remote)).added, 0, "re-importing the same backup adds nothing")
+assert.match(model.mergeHistory(local, "not json").error, /not a Typearchy history backup/)
+assert.match(model.mergeHistory(local, JSON.stringify({ format: "typearchy-practice", version: 1, runs: [] })).error, /browser practice backup/)
+assert.match(model.mergeHistory(local, JSON.stringify({ version: 99, runs: [] })).error, /not a Typearchy history backup/)
+assert.equal(model.compareVersions("1.3.0", "1.4.0"), -1)
+assert.equal(model.compareVersions("1.4.0", "1.4.0"), 0)
+assert.equal(model.compareVersions("1.10.0", "1.4.0"), 1)
+console.log("Result state, next action, history merge, and version tests passed")

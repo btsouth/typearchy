@@ -1,11 +1,13 @@
 import { authenticateDevice, clientKey, db, enforceRateLimit, errorResponse, json, randomHex, sha256 } from '../../../../lib/db';
 import { sweepAttempts } from '../../../../lib/attemptRetention';
 import { findChallenge } from '../../../../lib/challenges';
+import { requireSupportedClient } from '../../../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
+    requireSupportedClient(request);
     await enforceRateLimit(`attempt-start:${clientKey(request)}`, 120, 3600);
     const identity = await authenticateDevice(request);
     const challenge = await findChallenge((await params).slug, identity?.profileId);

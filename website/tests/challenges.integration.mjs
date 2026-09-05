@@ -80,6 +80,9 @@ try {
   assert.equal((await request('/api/moderation', { cookie: creator })).response.status, 403);
   const report = await request('/api/challenges/' + challenge + '/report', { method: 'POST', body: { reason: 'other', detail: 'Local integration test' } });
   assert.equal(report.response.status, 201);
+  const outdated = await request(`/api/challenges/${challenge}/attempts`, { method: 'POST', cookie: racer, headers: { 'X-Typearchy-Client': 'desktop/0.9.0' } });
+  assert.equal(outdated.response.status, 426, 'Unsupported desktop versions get an update message instead of a rejected race');
+  assert.match(outdated.data.error, /Update Typearchy/);
   result = await request(`/api/challenges/${challenge}/attempts`, { method: 'POST', cookie: racer });
   assert.equal(result.response.status, 201, JSON.stringify(result.data));
   const session = result.data;
@@ -131,6 +134,8 @@ try {
     assert.ok(nativeResult.saved);
     assert.equal(helper('attempt-publish', nativeSession.id).slug, nativeResult.slug);
     assert.equal(helper('challenge', challenge).connected, true, 'The native UI learns whether it races as a guest');
+    const device = helper('status');
+    assert.match(device.clientVersion, /^\d+\.\d+\.\d+$/); assert.equal(device.latestClient, device.clientVersion, 'The shipped app is the latest version');
     // A connected device hands a browser a one-time code; the browser adopts it without a recovery code.
     const grant = helper('browser');
     assert.match(grant.code, /^[A-HJ-NP-Z2-9]{8}$/);

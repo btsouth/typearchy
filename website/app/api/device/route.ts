@@ -1,11 +1,12 @@
 import { authenticateDevice, db, json } from '../../lib/db';
+import { LATEST_DESKTOP_CLIENT } from '../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const identity = await authenticateDevice(request);
   if (!identity) return json({ error: 'Device is not connected' }, 401);
-  return json({ status: 'connected', handle: identity.handle, profileUrl: `https://typearchy.com/u/${identity.handle}`, visibility: identity.visibility });
+  return json({ status: 'connected', handle: identity.handle, profileUrl: `https://typearchy.com/u/${identity.handle}`, visibility: identity.visibility, latestClient: LATEST_DESKTOP_CLIENT });
 }
 
 export async function DELETE(request: Request) {
