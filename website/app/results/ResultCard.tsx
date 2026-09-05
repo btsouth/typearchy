@@ -16,6 +16,7 @@ export default function ResultCard({ result }: { result: ResultCardData }) {
   const [elapsed, setElapsed] = useState(0); const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); const [copied, setCopied] = useState(false); const [message, setMessage] = useState('');
   const elapsedRef = useRef(0); const passageRef = useRef<HTMLDivElement>(null);
+  const passageDetailsRef = useRef<HTMLDetailsElement>(null);
   const characters = useMemo(()=>Array.from(result.passage || ''),[result.passage]);
   const position = result.progress ? Math.floor(competitionPosition(result.progress, elapsed)) : 0;
   useEffect(() => {
@@ -45,8 +46,10 @@ export default function ResultCard({ result }: { result: ResultCardData }) {
       catch(cause) { if(!(cause instanceof Error && cause.name==='AbortError')) await copyLink(); }
     } else await copyLink();
   }
-  function seek(value: number) { setPlaying(false); elapsedRef.current=value; setElapsed(value); }
+  function revealPassage() { if(passageDetailsRef.current) passageDetailsRef.current.open=true; }
+  function seek(value: number) { revealPassage(); setPlaying(false); elapsedRef.current=value; setElapsed(value); }
   function togglePlayback() {
+    if(!playing) revealPassage();
     if(!playing && elapsedRef.current>=result.durationMs) {elapsedRef.current=0;setElapsed(0);}
     setPlaying(value=>!value);
   }
@@ -63,7 +66,7 @@ export default function ResultCard({ result }: { result: ResultCardData }) {
       </svg>
       {result.progress && <div className="live-result-playback"><button type="button" onClick={togglePlayback}>{playing ? 'Pause' : elapsed>=result.durationMs ? 'Replay' : 'Play run'}</button><input type="range" min="0" max={result.durationMs} step="10" value={elapsed} onChange={event=>seek(Number(event.target.value))} aria-label="Replay position" aria-valuetext={`${(elapsed/1000).toFixed(1)} seconds`} /><select value={speed} onChange={event=>setSpeed(Number(event.target.value))} aria-label="Playback speed"><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option></select></div>}
     </section>}
-    {characters.length>0 && <details className="live-result-passage"><summary>Passage and playback</summary><div ref={passageRef}><span className="played">{characters.slice(0,position).join('')}</span><span data-playback-caret>{characters[position] || ''}</span><span>{characters.slice(position+1).join('')}</span></div>{result.source && <p>{result.source}</p>}</details>}
+    {characters.length>0 && <details ref={passageDetailsRef} className="live-result-passage"><summary>Passage and playback</summary><div ref={passageRef}><span className="played">{characters.slice(0,position).join('')}</span><span data-playback-caret>{characters[position] || ''}</span><span>{characters.slice(position+1).join('')}</span></div>{result.source && <p>{result.source}</p>}</details>}
     {result.bestTimeMs !== undefined && <p className="live-result-comparison">{result.durationMs<=result.bestTimeMs ? 'This run matches the leading time.' : `${((result.durationMs-result.bestTimeMs)/1000).toFixed(2)}s behind the leading time.`}</p>}
 
     <footer className="live-result-footer"><span>{result.validated ? 'Score calculated from recorded input' : 'Score reported by the player’s device'}</span>{result.createdAt && <time dateTime={new Date(result.createdAt).toISOString()}>{new Date(result.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}</time>}</footer>
