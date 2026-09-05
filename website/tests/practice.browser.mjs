@@ -21,7 +21,7 @@ try {
   const input = page.locator('.demo-input');
   const prompt = page.locator('.live-prompt');
   for (const mode of ['SPRINT', 'DAILY', 'QUOTE', 'SHELL', 'CODE', 'DRILL', 'CUSTOM']) {
-    await page.getByRole('tab', { name: mode, exact: true }).click();
+    await page.getByLabel('Practice mode', { exact: true }).selectOption(mode.toLowerCase());
     if (mode === 'CUSTOM') {
       await page.getByLabel('CUSTOM PASSAGE', { exact: true }).fill('red blue');
       await page.getByRole('button', { name: 'APPLY PASSAGE' }).click();
@@ -30,15 +30,18 @@ try {
     assert.ok(text.length, `${mode} has a passage`);
     await input.pressSequentially(text.slice(0, 3));
     await expect(page.locator('.demo-callout')).toHaveText('KEEP THE PACE');
-    await input.press('Control+r');
+    await page.getByRole('button', { name: 'Restart practice', exact: true }).click();
     await expect(page.locator('.demo-callout')).toHaveText('CLICK HERE, THEN START TYPING');
     if (['DAILY', 'QUOTE', 'DRILL', 'CUSTOM'].includes(mode)) {
       await input.pressSequentially(text.replace(/\n/g, ''));
       await expect(page.locator('.web-game-result')).toBeVisible();
+      await expect(page.locator('.practice-feedback')).not.toHaveAttribute('open');
+      await page.getByText('Practice tips & mistype drills', { exact: true }).click();
+      await expect(page.locator('.practice-feedback')).toHaveAttribute('open');
       await page.getByRole('button', { name: 'NEW TEST', exact: true }).click();
     }
     if (mode === 'SHELL') {
-      await page.getByRole('button', { name: '15', exact: true }).click();
+      await page.getByRole('button', { name: '15s', exact: true }).click();
       await input.pressSequentially((await prompt.getAttribute('aria-label')).slice(0, 3));
       await page.clock.runFor(15500);
       await expect(page.locator('.web-game-result')).toBeVisible();
@@ -46,7 +49,7 @@ try {
     }
     console.log(`${mode}: selection, keyboard input, restart passed`);
   }
-  await page.getByRole('tab', { name: 'CODE', exact: true }).click();
+  await page.getByLabel('Practice mode', { exact: true }).selectOption('code');
   for (const language of ['BASH', 'PYTHON', 'JS', 'RUST', 'RUBY']) {
     await page.getByRole('button', { name: language, exact: true }).click();
     assert.ok((await prompt.getAttribute('aria-label')).includes('\n'), `${language} contains code`);
@@ -55,11 +58,11 @@ try {
     await expect(page.locator('.web-game-result')).toBeVisible();
     await page.getByRole('button', { name: 'NEW TEST', exact: true }).click();
   }
-  await page.getByRole('tab', { name: 'SPRINT', exact: true }).click();
-  for (const style of ['WORDS', 'PROSE']) {
+  await page.getByLabel('Practice mode', { exact: true }).selectOption('sprint');
+  for (const style of ['Words', 'Passages']) {
     await page.getByRole('button', { name: style, exact: true }).click();
     for (const seconds of [15, 30, 60]) {
-      await page.getByRole('button', { name: String(seconds), exact: true }).click();
+      await page.getByRole('button', { name: `${seconds}s`, exact: true }).click();
       await input.pressSequentially((await prompt.getAttribute('aria-label')).slice(0, 3));
       await page.clock.runFor(seconds * 1000 + 500);
       await expect(page.locator('.web-game-result')).toBeVisible();
@@ -68,7 +71,7 @@ try {
     }
   }
   // Pausing freezes time, preserves input, and never produces a shareable best.
-  await page.getByRole('button', { name: '15', exact: true }).click();
+  await page.getByRole('button', { name: '15s', exact: true }).click();
   await input.pressSequentially((await prompt.getAttribute('aria-label')).slice(0, 3));
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await expect(page.getByRole('heading', { name: 'Practice paused' })).toBeVisible();
@@ -81,12 +84,12 @@ try {
   await page.clock.runFor(15500);
   await expect(page.locator('.web-game-result')).toContainText('PAUSED PRACTICE');
   await expect(page.getByRole('button', { name: 'SHARE RESULT', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: /^HISTORY/ }).click();
+  await page.getByRole('button', { name: /^History/ }).click();
   await page.locator('.web-game-history-list button').first().click();
   await expect(page.locator('.web-game-result')).toContainText('PAUSED PRACTICE');
 
   // A saved result survives a failed share and inline profile creation.
-  await page.getByRole('button', { name: /^HISTORY/ }).click();
+  await page.getByRole('button', { name: /^History/ }).click();
   await page.locator('.web-game-history-list button').nth(1).click();
   await context.setOffline(true);
   await page.getByRole('button', { name: 'SHARE RESULT', exact: true }).click();

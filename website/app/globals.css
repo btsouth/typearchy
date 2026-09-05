@@ -750,3 +750,75 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 .web-game-history-list b small { display: block; color: var(--demo-muted); font-size: 9px; font-weight: normal; margin-top: 4px; }
 
 .web-game-modes[inert], .web-game-settings[inert] { opacity: .4; }
+
+/* Practice surface: readable controls, a quiet passage, and details on demand. */
+.play-shell { max-width: 1180px; padding: 32px 28px 64px; }
+.play-shell > header { align-items: center; margin-bottom: 28px; }
+.play-shell h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; letter-spacing: -.04em; }
+.play-shell > header > p { font-size: 13px; }
+.web-game.game-stage { min-height: 570px; padding: clamp(20px, 4vw, 44px); gap: 22px; justify-content: flex-start; border: 1px solid color-mix(in srgb, var(--demo-muted) 24%, transparent); border-radius: 12px; box-shadow: none; cursor: default; }
+.web-game.game-stage::before { display: none; }
+.web-game .web-game-topline { flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid color-mix(in srgb, var(--demo-muted) 22%, transparent); }
+.web-game-view-tabs { border: 0; gap: 4px; }
+.web-game-view-tabs button { min-height: 40px; padding: 10px 14px; border: 0; border-radius: 6px; font-size: 11px; letter-spacing: .03em; }
+.web-game-view-tabs button.active { color: var(--demo-ink); background: color-mix(in srgb, var(--demo-ink) 9%, transparent); }
+.game-theme-picker { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--demo-muted); font-size: 12px; }
+.web-game select { max-width: 100%; padding: 10px 30px 10px 12px; border: 1px solid color-mix(in srgb, var(--demo-muted) 35%, transparent); border-radius: 6px; background: var(--demo-panel); color: var(--demo-ink); font: inherit; cursor: pointer; }
+.web-game .web-game-modes { overflow: visible; }
+.game-mode-picker { display: flex; align-items: center; gap: 16px; color: var(--demo-muted); font-size: 13px; }
+.game-mode-picker select { min-width: 200px; font-size: 15px; }
+.web-game .web-game-settings { gap: 12px; flex-wrap: wrap; margin-top: -10px; font-size: 11px; letter-spacing: 0; }
+.web-game-settings > span { flex-basis: 100%; margin-left: 0; line-height: 1.5; }
+.web-game .demo-duration-tabs, .web-game-language { gap: 3px; padding: 3px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--demo-ink) 5%, transparent); }
+.web-game .demo-duration-tabs button, .web-game-language button, .web-game-edit { min-height: 38px; padding: 10px 13px; border: 0; border-radius: 4px; font-size: 11px; letter-spacing: .02em; }
+.web-game .web-game-language.sprint-style { margin-left: 0; }
+.web-game .sprint-style::before { display: none; }
+.web-game .game-head { align-items: center; margin-top: 12px; }
+.game-instruction { font-size: 13px; color: var(--demo-muted); }
+.web-game .metrics { gap: 24px; }
+.web-game .metrics span { font-size: 23px; font-weight: 500; }
+.web-game .metrics small { font-size: 10px; font-weight: 400; letter-spacing: 0; }
+.web-game .live-prompt { margin: 18px 0 0; font-size: clamp(25px, 2.6vw, 34px); line-height: 1.65; height: 4.95em; color: var(--demo-muted); letter-spacing: -.02em; cursor: text; }
+.web-game .live-prompt.technical { font-size: clamp(19px, 2vw, 25px); line-height: 1.6; height: 6.4em; }
+.web-game .demo-callout { font-size: 11px; letter-spacing: .04em; padding: 10px 0; }
+.web-game .game-foot { margin-top: auto; gap: 16px; flex-wrap: wrap; padding-top: 18px; color: var(--demo-muted); font-size: 10px; letter-spacing: 0; }
+.web-game .game-foot span { font-size: inherit; }
+.web-game-expand { font-size: 10px; padding: 10px; border-radius: 5px; }
+.web-game .demo-result-card { width: 100%; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.web-game .demo-result-head { font-size: 12px; }
+.web-game .demo-result-score b { font-size: clamp(64px, 9vw, 104px); }
+.web-game .demo-result-score small, .web-game .demo-result-metrics small { font-size: 11px; letter-spacing: .03em; }
+.web-game .demo-result-metrics span { font-size: 20px; font-weight: 500; }
+.web-game .demo-result-pace { margin: 22px 0; }
+.web-game .demo-result-pace > div { font-size: 10px; }
+.web-game .demo-result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.web-game .demo-result-actions button, .web-game .demo-result-actions a { padding: 13px 17px; min-height: 44px; font-size: 11px; border-radius: 6px; }
+.web-game .practice-feedback { padding: 18px 0; border-top: 1px solid color-mix(in srgb, var(--demo-muted) 25%, transparent); }
+.web-game .practice-feedback summary { color: var(--demo-ink); font-size: 14px; cursor: pointer; }
+.web-game .practice-feedback p, .web-game .web-game-result > p { font-size: 12px; line-height: 1.7; }
+.web-game button:focus-visible, .web-game select:focus-visible, .web-game summary:focus-visible { outline: 2px solid var(--demo-accent); outline-offset: 4px; }
+.web-game button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 650px) {
+  .play-shell { padding: 24px 14px 40px; }
+  .play-shell > header { display: block; margin-bottom: 20px; }
+  .play-shell > header > p { text-align: left; margin-top: 8px; }
+  .web-game.game-stage { padding: 18px; gap: 18px; min-height: 540px; }
+  .game-theme-picker { font-size: 0; gap: 0; }
+  .game-theme-picker select { font-size: 11px; max-width: 150px; }
+  .web-game .game-instruction { display: none; }
+  .web-game .metrics { width: 100%; justify-content: space-between; }
+  .web-game .metrics span { text-align: left; }
+  .web-game .demo-result-metrics { grid-template-columns: repeat(2, 1fr); }
+  .web-game .web-game-language { flex-wrap: wrap; }
+  .web-game .game-foot { font-size: 10px; }
+}
+.web-game .demo-result-card::before { display: none; }
+.web-game .game-foot .practice-restart { display: inline-flex; align-items: center; gap: 12px; min-height: 40px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--demo-muted) 35%, transparent); border-radius: 6px; font-size: 12px; letter-spacing: 0; }
+.practice-restart kbd { color: var(--demo-muted); font-size: 10px; }
+.web-game .game-foot { align-items: center; }
+.web-game .game-foot > span:last-child { margin-left: auto; }
+.web-game .demo-result-head span, .web-game .demo-result-score > span strong { font-size: 12px; }
+@media (max-width: 650px) {
+  .web-game .game-foot { display: flex; }
+  .web-game .game-foot > span { display: none; }
+}
