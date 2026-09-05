@@ -37,7 +37,7 @@ ShellRoot {
   } }
   Timer { id: finish; interval: 200; onTriggered: Qt.quit() }
 }`);
-  const result=spawnSync('quickshell',['--no-color','--path',join(directory,'shell.qml')],{env:{...process.env,QT_QPA_PLATFORM:'offscreen',QSG_RHI_BACKEND:'software'},encoding:'utf8',timeout:15000});
+  const result=spawnSync('quickshell',['--no-color','--path',join(directory,'shell.qml')],{env:{...process.env,TYPEARCHY_STATE_DIR:join(directory,'state'),XDG_STATE_HOME:join(directory,'state-home'),XDG_DATA_HOME:join(directory,'data'),QT_QPA_PLATFORM:'offscreen',QSG_RHI_BACKEND:'software'},encoding:'utf8',timeout:15000});
   const output=result.stdout+result.stderr;
   assert.equal(result.status,0,output);assert.match(output,/NATIVE_PRACTICE_PASSED/);
   assert.doesNotMatch(output,/ReferenceError|TypeError|Unable to load|Cannot assign|not a type|Binding loop/i);
