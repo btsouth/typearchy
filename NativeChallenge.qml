@@ -170,6 +170,8 @@ Item {
         Controls.TextField { id: linkInput; width: parent.width - 180; placeholderText: "https://typearchy.com/c/..."; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 18; onAccepted: root.loadLink(); background: Rectangle { color: Color.background; border.color: Color.muted } }
         Action { text: root.busy ? "Loading..." : "Open challenge"; enabled: !root.busy; onClicked: root.loadLink() }
       }
+      Action { visible: root.phase === "ready"; text: root.busy ? "Preparing..." : "Start challenge"; enabled: !root.busy; onClicked: root.start() }
+      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay."; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Text { visible: !!root.challenge; text: root.challenge ? root.challenge.language.toUpperCase() + " / @" + root.challenge.handle + " / Correct every mistake / " + (root.challenge.rules.autoIndent ? "Auto-indent on" : "Type every space") : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Row {
         visible: !!root.challenge; spacing: 48
@@ -227,8 +229,6 @@ Item {
           Action { visible: !!root.publicUrl; text: "View result"; onClicked: { opener.command = ["xdg-open", root.publicUrl]; opener.running = true } }
         }
       }
-      Action { visible: root.phase === "ready"; text: root.busy ? "Preparing..." : "Start challenge"; enabled: !root.busy; onClicked: root.start() }
-      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay."; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Text { visible: !!root.message; text: root.message; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 16 }
       Text { visible: !!root.challenge && !!root.challenge.attribution; text: root.challenge ? root.challenge.attribution : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 14 }
     }
