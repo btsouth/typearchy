@@ -69,7 +69,11 @@ export function json(data: unknown, status = 200, headers?: HeadersInit) {
 export function errorResponse(error: unknown, fallback = 'Request failed', status = 500) {
   if (error instanceof ClientError) return json({ error: error.message || fallback }, error.status);
   if (error instanceof RateLimitError) return rateLimitResponse(error);
-  console.error(error);
+  const failure = error as { name?: unknown; message?: unknown } | null;
+  console.error('Typearchy request failed: ' + JSON.stringify({
+    name: typeof failure?.name === 'string' ? failure.name : 'UnknownError',
+    message: typeof failure?.message === 'string' ? failure.message : 'No error message',
+  }));
   return json({ error: fallback }, status);
 }
 
