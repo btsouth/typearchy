@@ -726,6 +726,8 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 .account-settings { margin-top: 48px; border-top: 1px solid var(--faint); padding-top: 24px; }
 .account-settings summary { cursor: pointer; margin-bottom: 24px; }
 .account-device { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 20px 0; }
+.account-device > span { display: grid; gap: 4px; min-width: 0; }
+.account-device small { color: var(--muted); font-size: .8125rem; }
 
 .practice-filter { display: flex; align-items: center; gap: 16px; margin: 20px 0; font-size: 14px; }
 .practice-filter select { background: var(--demo-panel); color: var(--demo-ink); border: 1px solid var(--demo-muted); padding: 10px; max-width: 70%; font: inherit; }

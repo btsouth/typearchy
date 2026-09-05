@@ -538,6 +538,12 @@ Item {
     root.startCloudAction("recover", ["recover"])
   }
 
+  function connectBrowser() {
+    if (root.profileStatus !== "connected") return
+    root.profileMessage = "Opening typearchy.com in your browser..."
+    root.startCloudAction("browser", ["browser"])
+  }
+
   function disconnectProfile() {
     root.profileDeleteArmed = false
     root.startCloudAction("disconnect", ["disconnect"])
@@ -629,7 +635,7 @@ Item {
     var response = {}
     try { response = JSON.parse(raw || errorText || "{}") || {} } catch (error) {}
     if (exitCode !== 0 || response.error) {
-      root.profileMessage = String(response.error || "Profile service unavailable")
+      root.profileMessage = String(response.error || "typearchy.com unavailable  /  local practice still works")
       if (root.cloudAction === "status" || root.cloudAction === "connect" || root.cloudAction === "recover") {
         root.profileStatus = "disconnected"
         profilePoll.stop()
@@ -667,6 +673,10 @@ Item {
       profilePoll.stop()
       return
     }
+    if (root.cloudAction === "browser") {
+      root.profileMessage = "Confirm in browser  /  " + String(response.code || "") + "  /  code lasts 10 minutes"
+      return
+    }
     if (root.cloudAction === "visibility") {
       root.profileVisibility = response.visibility === "private" ? "private" : "public"
       root.profileMessage = root.profileVisibility === "private"
@@ -680,7 +690,7 @@ Item {
     root.profileVisibility = response.visibility === "private" ? "private" : "public"
     if (root.profileStatus === "connected") root.profileMessage = "Connected as @" + root.profileHandle
     else if (root.profileStatus === "pending") root.profileMessage = root.profileCode ? "Finish in browser  /  " + root.profileCode : "Finish recovery in browser"
-    else if (root.profileStatus === "unreachable") root.profileMessage = "Profile service unreachable"
+    else if (root.profileStatus === "unreachable") root.profileMessage = "typearchy.com unreachable  /  still connected, local practice works"
     else root.profileMessage = ""
     if (root.profileStatus === "pending") profilePoll.start()
     else profilePoll.stop()
@@ -2247,6 +2257,13 @@ Item {
           selected: root.profileStatus === "connected"
           onClicked: root.profileStatus === "connected" ? root.disconnectProfile()
             : (root.profileStatus === "pending" ? root.checkProfileStatus() : root.connectProfile())
+        }
+        HistoryChoice {
+          visible: root.profileStatus === "connected"
+          text: "BROWSER"
+          selected: false
+          Accessible.description: "Connect this profile in your web browser without a recovery code"
+          onClicked: root.connectBrowser()
         }
         HistoryChoice {
           visible: root.profileStatus === "connected"

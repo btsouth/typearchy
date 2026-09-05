@@ -133,13 +133,21 @@ Item {
   Process {
     id: worker
     stdout: StdioCollector { id: output; waitForEnd: true }
+    stderr: StdioCollector { id: errors; waitForEnd: true }
     onExited: function(exitCode) {
       var response = {}
-      try { response = JSON.parse(output.text || "{}") } catch (error) {}
-      if (exitCode !== 0 || response.error) { root.message = response.error || "Connection failed. Try again."; return }
+      try { response = JSON.parse(String(output.text || "").trim() || String(errors.text || "").trim() || "{}") || {} } catch (error) {}
+      if (exitCode !== 0 || response.error) {
+        var fallback = root.action === "attempt-submit" ? "Could not save your result. It is kept locally; retry saving when you are online."
+          : root.action === "attempt-publish" ? "Could not publish your result. Your validated result is kept."
+          : root.action === "challenge" ? "Could not load this challenge." : "Could not start the race."
+        root.message = (response.error || fallback) + (response.status === "unreachable" && root.action !== "challenge" ? " Your result is kept on this device." : "")
+        if (root.action === "challenge" && response.code === 404) { root.challenge = null; root.phase = "empty"; Qt.callLater(function() { linkInput.forceActiveFocus() }) }
+        return
+      }
       root.message = ""
       if (root.action === "challenge") {
-        root.challenge = response.challenge; root.ghost = response.ghost; root.standings = response.standings || []
+        root.challenge = response.challenge; root.challenge.connected = response.connected !== false; root.ghost = response.ghost; root.standings = response.standings || []
         root.entered = ""; root.result = null; root.phase = "ready"; root.elapsedMs = 0; root.engine = null
         recordingFile.reload()
       } else if (root.action === "attempt-start") {
@@ -148,7 +156,7 @@ Item {
         root.events = []; root.entered = ""; root.elapsedMs = 0; root.result = null; root.saved = false; root.publicUrl = ""
         root.phase = "armed"; Qt.callLater(function() { catcher.forceActiveFocus() })
       } else if (root.action === "attempt-submit") {
-        root.saved = true; root.message = "Validated. Publish your result to join the standings."
+        root.saved = true; root.message = root.challenge && root.challenge.connected === false ? "Validated. Connect a profile in History and publish within seven days to keep this run." : "Validated. Publish your result to join the standings."
       } else if (root.action === "attempt-publish") {
         root.publicUrl = response.url; root.message = "Published. Your result is ready to share."
       }
@@ -179,7 +187,7 @@ Item {
         Action { text: root.busy ? "Loading..." : "Open challenge"; enabled: !root.busy; onClicked: root.loadLink() }
       }
       Action { visible: root.phase === "ready"; text: root.busy ? "Preparing..." : "Start challenge"; enabled: !root.busy; onClicked: root.start() }
-      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay."; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay." + (root.challenge && root.challenge.connected === false ? " You are racing as a guest: connect a profile in History within seven days to keep and publish a result, or it is removed." : ""); width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Text { visible: !!root.challenge; text: root.challenge ? root.challenge.language.toUpperCase() + " / @" + root.challenge.handle + " / Correct every mistake / " + (root.challenge.rules.autoIndent ? "Auto-indent on" : "Type every space") : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Row {
         visible: !!root.challenge; spacing: 48

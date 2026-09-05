@@ -35,6 +35,17 @@ typearchy.com/recover with it, and the player confirms with their handle and
 recovery code. Recovery rotates the code, revokes previous device access, and
 connects the new device. No token material ever appears in a URL.
 
+A second device connects without the recovery code. When a browser is already
+signed in, it can approve an app's connection code on typearchy.com/connect. When
+the app is connected, choosing Browser in History asks the service for a one-time
+code that lasts ten minutes and opens typearchy.com/connect?browser=CODE; the
+player confirms there and the browser receives its own device token. Neither path
+revokes other devices or changes the recovery code.
+
+A connected device can replace a lost recovery code from Account on the website.
+The old code stops working, every device stays connected, and the account page
+shows when the code was last replaced.
+
 Profiles can be made private from the app. A private profile and its runs stop
 appearing publicly immediately, and publishing to it stays available locally.
 

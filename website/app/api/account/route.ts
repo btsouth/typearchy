@@ -5,9 +5,9 @@ export async function GET(request: Request) {
   try {
     const identity = await authenticateDevice(request);
     if (!identity) return json({ error: 'Connect your profile first' }, 401);
-    const devices = await db().prepare(`SELECT id, label, last_used_at FROM devices
+    const devices = await db().prepare(`SELECT id, label, created_at, last_used_at FROM devices
       WHERE profile_id = ? AND revoked_at IS NULL ORDER BY last_used_at DESC`).bind(identity.profileId).all();
-    const moderation = await db().prepare('SELECT suspended, moderation_note FROM profiles WHERE id = ?').bind(identity.profileId).first();
+    const moderation = await db().prepare('SELECT suspended, moderation_note, recovery_rotated_at FROM profiles WHERE id = ?').bind(identity.profileId).first();
     return json({ ...moderation, handle: identity.handle, visibility: identity.visibility, currentDevice: identity.deviceId, devices: devices.results });
   } catch (error) { return errorResponse(error); }
 }

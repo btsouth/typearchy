@@ -118,7 +118,10 @@ try {
   const nativeDirectory = mkdtempSync(join(tmpdir(), 'typearchy-native-api-'));
   try {
     writeFileSync(join(nativeDirectory, 'profile.json'), JSON.stringify({ token }), { mode: 0o600 });
-    const helper = (...args) => JSON.parse(execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory }, encoding: 'utf8' }));
+    const helper = (...args) => JSON.parse(execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory, TYPEARCHY_NO_BROWSER: '1' }, encoding: 'utf8' }));
+    const failure = (...args) => { try { execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory, TYPEARCHY_NO_BROWSER: '1' }, encoding: 'utf8', stdio: 'pipe' }); assert.fail('Expected the helper to fail'); } catch (error) { return JSON.parse(String(error.stderr || error.stdout).trim().split('\n').at(-1)); } };
+    const missing = failure('attempt-start', 'zzzzzzzzzzzz');
+    assert.equal(missing.code, 404); assert.match(missing.error, /not found|no longer available/i);
     assert.equal(helper('challenge', challenge).challenge.slug, challenge);
     const nativeSession = helper('attempt-start', challenge);
     assert.equal(nativeSession.token, undefined, 'Native UI must not receive the private attempt token');
@@ -127,6 +130,33 @@ try {
     const nativeResult = helper('attempt-submit', nativeSession.id, join(nativeDirectory, 'attempt-recording.json'));
     assert.ok(nativeResult.saved);
     assert.equal(helper('attempt-publish', nativeSession.id).slug, nativeResult.slug);
+    assert.equal(helper('challenge', challenge).connected, true, 'The native UI learns whether it races as a guest');
+    // A connected device hands a browser a one-time code; the browser adopts it without a recovery code.
+    const grant = helper('browser');
+    assert.match(grant.code, /^[A-HJ-NP-Z2-9]{8}$/);
+    assert.equal(grant.handle, `creator_${suffix}`);
+    assert.equal((await request(`/api/session/grant?code=${grant.code}`)).data.handle, `creator_${suffix}`);
+    const wrongOrigin = await request('/api/session/adopt', { method: 'POST', headers: { Origin: 'https://unrelated.invalid' }, body: { code: grant.code } });
+    assert.equal(wrongOrigin.response.status, 403);
+    const adopted = await request('/api/session/adopt', { method: 'POST', body: { code: grant.code } });
+    assert.equal(adopted.response.status, 200, JSON.stringify(adopted.data));
+    const browserCookie = adopted.response.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('/api/session', { cookie: browserCookie })).data.handle, `creator_${suffix}`);
+    assert.equal((await request('/api/session/adopt', { method: 'POST', body: { code: grant.code } })).response.status, 404, 'A browser code is single use');
+    assert.equal((await request('/api/session/grant?code=' + grant.code)).response.status, 404);
+    assert.equal((await request('/api/device', { headers: { Authorization: 'Bearer ' + token } })).response.status, 200, 'Linking a browser keeps the app connected');
+    // Replacing a lost recovery code from a connected session keeps every device connected.
+    const before = await request('/api/account', { cookie: browserCookie });
+    assert.equal(before.data.recovery_rotated_at, null);
+    assert.ok(before.data.devices.some(device => device.label === 'Web browser'));
+    const rotated = await request('/api/account/recovery-code', { method: 'POST', cookie: browserCookie });
+    assert.equal(rotated.response.status, 200, JSON.stringify(rotated.data));
+    assert.match(rotated.data.recoveryCode, /^tpy_recovery_[a-f0-9]{36}$/);
+    assert.ok((await request('/api/account', { cookie: browserCookie })).data.recovery_rotated_at > 0);
+    assert.equal((await request('/api/device', { headers: { Authorization: 'Bearer ' + token } })).response.status, 200, 'Rotation must not sign out other devices');
+    assert.equal((await request('/api/session', { method: 'POST', body: { action: 'recover', handle: `creator_${suffix}`, recoveryCode: recoveryCodes.get('creator') } })).response.status, 401, 'The old recovery code stops working');
+    recoveryCodes.set('creator', rotated.data.recoveryCode);
+    assert.equal((await request('/api/account', { method: 'PATCH', cookie: browserCookie, body: { revokeDevice: before.data.currentDevice } })).data.signedOut, true);
   } finally { rmSync(nativeDirectory, { recursive: true, force: true }); }
   const devices = await request('/api/account', { cookie: creator });
   const nativeDevice = devices.data.devices.find(device => device.label === 'Native integration');
@@ -141,7 +171,7 @@ try {
   clients[0] = recovered.response.headers.get('set-cookie').split(';')[0];
   assert.equal((await request('/api/account/challenges', { cookie: clients[0] })).data.challenges.length, 2);
   assert.equal((await request('/api/session', { method: 'POST', body: { action: 'recover', handle: `creator_${suffix}`, recoveryCode: recoveryCodes.get('creator') } })).response.status, 401);
-  console.log('Local challenge integration passed: create, link-shared unreviewed passages, complete, retry, themed result URLs, practice sharing, claim ownership, publish, standings, privacy, origin checks, native helper, device linking/revocation, and recovery.');
+  console.log('Local challenge integration passed: create, link-shared unreviewed passages, browser linking, recovery replacement, readable helper errors, complete, retry, themed result URLs, practice sharing, claim ownership, publish, standings, privacy, origin checks, native helper, device linking/revocation, and recovery.');
 } finally {
   for (const cookie of clients) {
     const cleanup = await request('/api/profile', { method: 'DELETE', cookie });
