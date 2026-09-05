@@ -193,6 +193,7 @@ node tests/native-practice-smoke.mjs
 node tests/native-challenge-smoke.mjs
 node tests/standalone-smoke.mjs
 python3 tests/desktop-install.py
+python3 tests/desktop-update.py
 cd website
 npm ci
 npm test

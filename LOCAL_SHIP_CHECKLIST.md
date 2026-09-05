@@ -20,9 +20,11 @@ check or a written script run on a clean machine against the deployed worker.
 6. Revisit results and tell local, unpublished, link-only, and public apart:
    `tests/model.test.mjs` covers the labels; check the result card and history
    rows by eye at the minimum window size.
-7. Update the app from the previous tag with no lost data: install the previous
-   tag in a private home, run `bin/typearchy-install` from the new checkout,
-   and confirm history, account, and the launcher survive.
+7. Update the app from the previous tag with no lost data:
+   `python3 tests/desktop-update.py` installs the previous tag in a private
+   home, updates it from this checkout, and confirms history, account, the
+   launcher, and link registration survive. Set `TYPEARCHY_PREVIOUS_TAG` to
+   check an older release.
 
 ## Checks
 
