@@ -28,7 +28,12 @@ export function parseChallenge(input: unknown): ChallengeInput {
   if (value.visibility !== 'public' && value.visibility !== 'unlisted') throw new ClientError('Choose public or unlisted');
   const rules: ChallengeRules = { version: COMPETITION_VERSION, finish: 'passage', correction: 'required', autoIndent: value.autoIndent };
   try { competitionState(passage, rules); } catch { throw new ClientError('Use 40 to 4,000 characters of readable text'); }
-  return { title: text(value.title, 3, 80, 'title'), passage, language,
+  const title = text(value.title, 3, 80, 'title');
+  // Titles appear on social cards for passages nobody has reviewed yet, so they
+  // must not carry links. Attribution may cite a source URL; it never reaches a card.
+  if (/(?:https?:\/\/|www\.|[a-z0-9-]+\.(?:com|net|org|io|dev|co|me|ly|gg|xyz|app|sh|us|uk|info|biz|link|site|online|club|top|to|cc|tv|ai)(?![a-z]))/i.test(title))
+    throw new ClientError('Keep links out of the title');
+  return { title, passage, language,
     attribution: text(value.attribution ?? '', 0, 240, 'attribution'), visibility: value.visibility, rules };
 }
 

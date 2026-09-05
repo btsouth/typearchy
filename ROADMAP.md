@@ -1,5 +1,20 @@
 # Typearchy roadmap
 
+## Shipped in 1.4
+
+- Custom challenges work by link as soon as they are saved; review gates the
+  public library, profile pages, and search
+- Results on a link-shared passage join its standings and open by link
+- Connect a browser from a connected app without the recovery code
+- Replace a lost recovery code from a connected session; devices stay connected
+- Every result shows one state: local, public, pinned, or paused practice
+- Comparable-best labels say what they compare against, and each result ends
+  with a suggested next step
+- History export and import in the app, merging without duplicates
+- Readable errors for offline, rate-limited, expired, and rejected attempts,
+  plus an update notice when the server knows a newer app
+- Guest races explain that unclaimed results expire
+
 ## Shipped in 1.3
 
 - Standalone Linux app launched from the application launcher
@@ -13,9 +28,8 @@
 ## Next
 
 - Broader testing across Linux desktops, screen sizes, and input methods
-- Improve the path from a completed test to a useful next practice session
 - Expand reviewed prose and code passages with clear source attribution
-- History export and import
+- Device list and recovery replacement inside the app, not only on the website
 
 ## Later
 

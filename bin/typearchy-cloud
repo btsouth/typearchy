@@ -2,6 +2,8 @@
 set -euo pipefail
 
 api_url="${TYPEARCHY_API_URL:-https://typearchy.com}"
+manifest_path="$(dirname "$(readlink -f "$0")")/../manifest.json"
+client_version="$(jq -r '.version // "0"' "$manifest_path" 2>/dev/null || printf '0')"
 state_dir="${TYPEARCHY_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/typearchy}"
 credentials_path="$state_dir/profile.json"
 pending_path="$state_dir/profile-pending.json"
@@ -44,13 +46,14 @@ request() {
     printf 'url = "%s%s"\n' "$api_url" "$path"
     printf 'request = "%s"\n' "$method"
     printf 'header = "Accept: application/json"\n'
+    printf 'header = "X-Typearchy-Client: desktop/%s"\n' "$client_version"
     if [[ -n "$token" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$token"; fi
     if [[ -n "$attempt_token" ]]; then printf 'header = "X-Attempt-Token: %s"\n' "$attempt_token"; fi
     if [[ -n "$body" ]]; then printf 'header = "Content-Type: application/json"\ndata-binary = "@%s"\n' "$body_path"; fi
     printf 'write-out = "%%{http_code}"\n'
   } > "$config_path"
   set +e
-  output="$(curl --config "$config_path")"
+  output="$(curl --config "$config_path" 2>/dev/null)"
   status=$?
   set -e
   rm -f "$config_path"
@@ -62,8 +65,33 @@ request() {
     output="${output:0:${#output}-3}"
   fi
   if [[ -n "$code" ]]; then printf '%s' "$code" > "$last_http_code_path"; fi
+  if [[ "$status" -ne 0 ]]; then
+    # Callers capture stdout, and a failed assignment under set -e ends the
+    # script before anything is printed. Emit one readable JSON error on both
+    # streams so the UI can show the real reason instead of a generic failure.
+    local message="" state="error"
+    if [[ -z "$code" ]]; then
+      message="typearchy.com is unreachable. Check your connection and try again; local practice still works."
+      state="unreachable"
+    elif ! message="$(jq -er '.error' <<<"$output" 2>/dev/null)"; then
+      case "$code" in
+        401|403) message="This device is no longer connected. Reconnect your profile in History." ;;
+        426) message="Update Typearchy to keep using online features: close it, run git pull in its folder, then bin/typearchy-install." ;;
+        404) message="That link is no longer available." ;;
+        410) message="The attempt session expired. Your local result is kept." ;;
+        413) message="The recording is too large to submit." ;;
+        429) message="Too many requests. Wait a moment and try again." ;;
+        5*) message="typearchy.com had a problem. Try again in a minute." ;;
+        *) message="Request failed (HTTP $code)." ;;
+      esac
+    fi
+    local failure
+    failure="$(jq -cn --arg error "$message" --arg status "$state" --arg code "${code:-0}" '{error:$error,status:$status,code:($code|tonumber)}')"
+    printf '%s' "$failure"
+    printf '%s\n' "$failure" >&2
+    exit "$status"
+  fi
   printf '%s' "$output"
-  return "$status"
 }
 
 credentials_rejected() {
@@ -92,7 +120,7 @@ status() {
     token="$(token_from_file "$credentials_path")"
     if response="$(request GET /api/device "$token" 2>/dev/null)"; then
       save_connected "$token" "$response"
-      printf '%s\n' "$response"
+      jq -c --arg version "$client_version" '. + {clientVersion: $version}' <<<"$response"
     elif credentials_rejected; then
       rm -f "$credentials_path"
       jq -cn '{status:"disconnected"}'
@@ -210,13 +238,24 @@ delete_run() {
 }
 
 load_challenge() {
-  local slug="${1:-}" ghost="${2:-}" path token=""
+  local slug="${1:-}" ghost="${2:-}" path token="" response
   [[ "$slug" =~ ^[a-z0-9]{12}$ ]] || json_error "Challenge link is invalid"
   [[ -z "$ghost" || "$ghost" =~ ^[a-z0-9]{12}$ ]] || json_error "Opponent link is invalid"
   path="/api/challenges/$slug"
   if [[ -n "$ghost" ]]; then path="$path?race=$ghost"; fi
   if [[ -f "$credentials_path" ]]; then token="$(token_from_file "$credentials_path")"; fi
-  request GET "$path" "$token"
+  response="$(request GET "$path" "$token")"
+  # Tell the UI whether this race runs as a guest so it can explain claiming.
+  jq -c --argjson connected "$([[ -n "$token" ]] && echo true || echo false)" '. + {connected: $connected}' <<<"$response"
+}
+
+connect_browser() {
+  [[ -f "$credentials_path" ]] || json_error "Connect your profile first"
+  local token response
+  token="$(token_from_file "$credentials_path")"
+  response="$(request POST /api/session/grant "$token")"
+  if [[ "${TYPEARCHY_NO_BROWSER:-0}" != "1" ]]; then xdg-open "$(jq -r '.url' <<<"$response")" >/dev/null 2>&1 & fi
+  printf '%s\n' "$response"
 }
 
 start_attempt() {
@@ -254,6 +293,7 @@ case "${1:-status}" in
   status) status ;;
   connect) connect_profile ;;
   recover) recover_profile ;;
+  browser) connect_browser ;;
   disconnect) disconnect_profile ;;
   delete-profile) delete_profile ;;
   visibility) visibility_profile "${2:-}" ;;

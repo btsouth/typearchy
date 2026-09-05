@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { findAttempt } from '../../lib/attempts';
+import { isListed } from '../../lib/challenges';
 import ResultCard from '../../results/ResultCard';
 import { decodeResultTheme, themeStyle } from '../../lib/resultTheme';
 import ChallengeNav from '../../challenges/ChallengeNav';
@@ -12,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!attempt) return { title: 'Result not found | Typearchy', robots: { index: false } };
   const title = `Beat @${attempt.handle}: ${(attempt.duration_ms / 1000).toFixed(2)}s | Typearchy`;
   const description = `${attempt.title}. ${attempt.wpm} WPM, ${attempt.accuracy}% accuracy. Race the same passage.`;
-  return { title, description, alternates: { canonical: `/a/${attempt.slug}` },
+  return { title, description, alternates: { canonical: `/a/${attempt.slug}` }, robots: { index: isListed(attempt) },
     openGraph: { title, description, url: `https://typearchy.com/a/${attempt.slug}`, images: [`https://typearchy.com/og/attempt/${attempt.slug}`] },
     twitter: { card: 'summary_large_image', title, description, images: [`https://typearchy.com/og/attempt/${attempt.slug}`] } };
 }

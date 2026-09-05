@@ -30,7 +30,7 @@ use the shared service to validate completed attempts and race other players.
 - Shareable result URLs with theme-matched social previews and interactive playback
 - Optional PNG result cards saved locally and copied to the clipboard
 - Reviewed prose and Rails challenges with recorded opponents and shared standings
-- Custom challenges saved for review before other players can see them
+- Custom challenges shareable by link right away, with review before library listing
 - Optional public handles with three pinned runs and replayable pace ghosts
 - Automatic Omarchy theme colors and typography
 
@@ -96,6 +96,17 @@ Production builds target Cloudflare Workers through Vinext.
   pinning, unpinning, and removing a public run are always explicit. A
   connected profile can also be hidden from the website at any time without
   disconnecting.
+- Every result and history row shows its state: local only, public, pinned to
+  your profile, or paused practice. The comparison line says what it compares
+  against, and the footer suggests a next step.
+- Once connected, press **Browser** in History to sign the same profile in to
+  your web browser. No recovery code is needed and no other device is signed
+  out. Devices and the recovery code are managed under Account on the website,
+  where a lost recovery code can be replaced.
+- Press `E` in History to export your history to `~/Documents/Typearchy`, or
+  `I` to import a backup from another machine. Imports merge without duplicates.
+- Browser practice does not pause when you switch tabs. Only the desktop app
+  pauses local practice on focus loss.
 
 Before a test starts:
 
@@ -106,12 +117,14 @@ Before a test starts:
 - In Custom, press `O` to open the local passage file.
 
 In history, press `0` through `8` to filter by mode. Press `L` to toggle live
-stats, `G` to toggle the pace ghost, or `F` to cycle the prompt size.
+stats, `G` to toggle the pace ghost, `F` to cycle the prompt size, `E` to export,
+or `I` to import.
 
 ## Shared challenges
 
 Open Challenges in the browser or desktop app. Pick a reviewed passage,
-including attributed Ruby on Rails excerpts, or submit your own text for review.
+including attributed Ruby on Rails excerpts, or paste your own text and share the
+link.
 The passage and correction rules stay fixed so everyone races the same test.
 
 Guests can play. Connect a profile to publish a result and enter the standings.
@@ -124,8 +137,10 @@ calculate the score. The server keeps sanitized passage progress, not incorrect
 keystrokes. These checks establish consistent scores; they do not prove a player
 is human. Old practice results remain separate from challenge standings.
 
-Custom submissions are private to their creator until reviewed. Reports go to the
-moderation queue. Profile visibility and per-result publishing remain explicit.
+Custom passages work by link as soon as they are saved. They join the public
+library, profile pages, and search only after a moderator approves them. Reports
+go to the moderation queue, and a rejected passage disappears from public view
+along with any results on it. Profile visibility and per-result publishing remain explicit.
 Recovery codes and linked devices are managed under Account.
 
 ## Local data
@@ -178,6 +193,7 @@ node tests/native-practice-smoke.mjs
 node tests/native-challenge-smoke.mjs
 node tests/standalone-smoke.mjs
 python3 tests/desktop-install.py
+python3 tests/desktop-update.py
 cd website
 npm ci
 npm test

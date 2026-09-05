@@ -1,5 +1,6 @@
 import { authenticateDevice, db, errorResponse, json, readJson } from '../../../lib/db';
 import { challengeGhost, challengeStandings, findChallenge, publicChallenge } from '../../../lib/challenges';
+import { LATEST_DESKTOP_CLIENT } from '../../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
@@ -8,7 +9,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     const challenge = await findChallenge((await params).slug, identity?.profileId);
     if (!challenge) return json({ error: 'Challenge not found' }, 404);
     const [ghost, standings] = await Promise.all([challengeGhost(challenge.id, new URL(request.url).searchParams.get('race') || undefined), challengeStandings(challenge.id)]);
-    return json({ challenge: publicChallenge(challenge), ghost, standings });
+    return json({ challenge: publicChallenge(challenge), ghost, standings, latestClient: LATEST_DESKTOP_CLIENT });
   } catch (error) { return errorResponse(error); }
 }
 

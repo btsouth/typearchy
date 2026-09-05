@@ -25,7 +25,8 @@ It does not upload the prompt, custom passage, typed text, individual keystrokes
 or local history. A public profile is required to create a public result URL.
 
 Custom practice stays local. Publishing a custom passage is a separate creator
-flow, with review before public access. Failed sharing preserves the local result.
+flow. The link works immediately; review gates library listing. Failed sharing
+preserves the local result.
 Copy Link copies a URL; Export Image remains available in the native client.
 
 ## Online challenge validation
@@ -48,8 +49,16 @@ validation does not establish human identity or make the game cheat-proof.
 
 ## Publication and removal
 
-Custom titles, passages, and attribution require approval. Exact reviewed catalog
-entries may publish immediately. Rejection hides challenge and result pages,
+Challenge visibility has two levels. A challenge is reachable by link when its
+creator has not hidden it, a moderator has not rejected it, and the creator's
+profile is public. It is listed in the library, on profile pages, and to search
+engines only when the creator chose public and a moderator approved it. Exact
+reviewed catalog entries are approved on save. Custom titles, passages, and
+attribution enter the review queue but are shareable by link right away. Titles
+may not contain links because they appear on social cards before review, and a
+profile may hold at most 20 unreviewed passages. Results published on an
+unreviewed passage join that passage's standings and open by link, but stay off
+public profiles until approval. Rejection hides challenge and result pages,
 public API content, and freshly requested social cards. A hidden creator profile
 also hides its challenges. A player can unpublish an attempt or hide their profile.
 Deleting an account removes its server-owned challenges and results. Public
@@ -69,7 +78,8 @@ Credentials are private files and are never exposed to QML or shared links.
 Attempt sessions expire after 20 minutes. A bounded, opportunistic cleanup removes
 old unfinished sessions and guest results unclaimed for over seven days. The
 service does not promise an exact deletion deadline during periods of inactivity.
-See [WEBSITE_OPERATIONS.md](WEBSITE_OPERATIONS.md) for deployment and retention.
+The Worker deploys with `npm run deploy:production` from `website/`; D1 migrations
+run with `wrangler d1 migrations apply` before each deploy.
 
 ## Hosted components
 

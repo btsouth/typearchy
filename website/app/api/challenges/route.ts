@@ -10,6 +10,13 @@ export async function POST(request: Request) {
     if (!identity) return json({ error: 'Connect your profile to publish a challenge' }, 401);
     await enforceRateLimit(`challenge-create:${identity.profileId}`, 12, 3600);
     const challenge = parseChallenge(await readJson(request));
+    if (!isCuratedPassage(challenge)) {
+      // Unreviewed passages are reachable by link right away, so bound how many
+      // one profile can hold open before a moderator has looked at any of them.
+      const pending = await db().prepare(`SELECT COUNT(*) AS count FROM challenges WHERE creator_id = ? AND moderation = 'pending'`)
+        .bind(identity.profileId).first<{ count: number }>();
+      if ((pending?.count || 0) >= 20) return json({ error: 'You have 20 passages awaiting review. Wait for a review before adding more.' }, 429);
+    }
     const contentHash = await sha256(JSON.stringify({ passage: challenge.passage, rules: challenge.rules, language: challenge.language }));
     const slug = randomCode(12).toLowerCase();
     await db().prepare(`INSERT INTO challenges

@@ -1,6 +1,7 @@
 import { authenticateDevice, clientKey, db, enforceRateLimit, errorResponse, json, randomCode, rateLimitResponse, RateLimitError, readJson } from '../../lib/db';
 import { parseResultTheme } from '../../lib/resultTheme';
 import { parsePublishedRun } from '../../lib/profileContract';
+import { requireSupportedClient } from '../../lib/clientVersion';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ function isSlugCollision(error: unknown) {
 
 export async function POST(request: Request) {
   try {
+    requireSupportedClient(request);
     const identity = await authenticateDevice(request);
     if (!identity) return json({ error: 'Connect a public profile first' }, 401);
     if (identity.visibility !== 'public') return json({ error: 'Make your profile public before sharing a result' }, 409);

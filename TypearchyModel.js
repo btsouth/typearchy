@@ -486,6 +486,97 @@ function shareText(run) {
     + "\nBEAT THIS RUN  " + (run.publicSlug ? "TYPEARCHY.COM/R/" + run.publicSlug : "TYPEARCHY.COM")
 }
 
+// Every result belongs to exactly one visible state. Keep the wording in one
+// place so the card, history rows, and exported image never disagree.
+function runBadge(run) {
+  var value = run || {}
+  if (value.interrupted) return "PAUSED"
+  if (value.publicPinned && value.publicSlug) return "PINNED"
+  if (value.publicSlug) return "PUBLIC"
+  return ""
+}
+
+function resultStatus(run) {
+  var value = run || {}
+  if (value.interrupted) return "PAUSED PRACTICE  /  LOCAL ONLY"
+  if (value.publicPinned && value.publicSlug) return "PINNED  /  TYPEARCHY.COM/R/" + value.publicSlug
+  if (value.publicSlug) return "PUBLIC  /  TYPEARCHY.COM/R/" + value.publicSlug
+  if (normalizedMode(value.mode) === "custom") return "CUSTOM PASSAGE  /  STAYS LOCAL"
+  return "LOCAL RESULT  /  TYPEARCHY.COM"
+}
+
+// The comparison answers "against what?" A paused run is never compared, a new
+// best shows its margin, and a slower run shows the gap to close.
+function comparison(run) {
+  var value = normalizeRun(run)
+  if (value.interrupted) return { label: "PAUSED PRACTICE", value: "NOT COMPARED" }
+  if (value.personalBest) return { label: "NEW PERSONAL BEST", value: "+" + Math.max(1, Math.round(value.wpm - value.previousBestWpm)) + " WPM" }
+  if (value.previousBestWpm > 0) {
+    var gap = Math.round(value.previousBestWpm - value.wpm)
+    return { label: "COMPARABLE BEST", value: Math.round(value.previousBestWpm) + " WPM" + (gap > 0 ? "  /  -" + gap : "  /  TIED") }
+  }
+  return { label: "FIRST OF ITS KIND", value: "BASELINE SET" }
+}
+
+function nextAction(run, options) {
+  var value = normalizeRun(run)
+  var settings = options || {}
+  if (value.interrupted) return "paused runs stay local  /  ctrl+r for an uninterrupted run"
+  if (value.mode === "custom") return "custom passages stay local  /  ctrl+r retry  /  ctrl+h history"
+  if (value.accuracy < 94) return "accuracy first: slow down and retry  ctrl+r" + (settings.drillReady ? "  /  practice targets your misses" : "")
+  if (value.personalBest) return settings.connected ? "new best  /  ctrl+s shares a link  /  ctrl+r goes again" : "new best  /  connect in history to share  /  ctrl+r goes again"
+  if (value.previousBestWpm > 0 && value.wpm < value.previousBestWpm)
+    return Math.round(value.previousBestWpm - value.wpm) + " wpm short of your best  /  ctrl+r retry" + (settings.drillReady ? "  /  practice targets your misses" : "")
+  return "baseline set  /  ctrl+r retry  /  ctrl+h history"
+}
+
+// Merge a stats.json backup from another machine. Runs are matched by timestamp
+// and challenge key; the existing copy wins but picks up a public link it lacks.
+function mergeHistory(state, raw) {
+  var parsed = null
+  try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { state: state, added: 0, error: "That file is not a Typearchy history backup." } }
+  if (!parsed || typeof parsed !== "object") return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+  if (parsed.format === "typearchy-practice") return { state: state, added: 0, error: "That is a browser practice backup. Import it from History in the browser." }
+  if ([1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0 || !Array.isArray(parsed.runs))
+    return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+  var incoming = parseState(JSON.stringify(parsed))
+  var next = parseState(JSON.stringify(state || emptyState()))
+  var seen = {}
+  for (var i = 0; i < next.runs.length; i++) seen[next.runs[i].timestamp + "|" + next.runs[i].challengeKey] = i
+  var added = 0
+  for (var j = 0; j < incoming.runs.length; j++) {
+    var run = incoming.runs[j]
+    var key = run.timestamp + "|" + run.challengeKey
+    if (seen[key] !== undefined) {
+      var existing = next.runs[seen[key]]
+      if (!existing.publicSlug && run.publicSlug) { existing.publicSlug = run.publicSlug; existing.publicPinned = run.publicPinned }
+      continue
+    }
+    next.runs.push(run)
+    seen[key] = next.runs.length - 1
+    added++
+  }
+  next.runs.sort(function(a, b) { return a.timestamp < b.timestamp ? 1 : (a.timestamp > b.timestamp ? -1 : 0) })
+  next.runs = next.runs.slice(0, 500)
+  next.bestWpm = 0
+  for (var k = 0; k < next.runs.length; k++) if (!next.runs[k].interrupted) next.bestWpm = Math.max(next.bestWpm, next.runs[k].wpm)
+  next.totalTests = Math.max(next.runs.length, next.totalTests, incoming.totalTests)
+  for (var mistake in incoming.keyMistakes) next.keyMistakes[mistake] = Math.max(Number(next.keyMistakes[mistake]) || 0, incoming.keyMistakes[mistake])
+  for (var pair in incoming.bigramMistakes) next.bigramMistakes[pair] = Math.max(Number(next.bigramMistakes[pair]) || 0, incoming.bigramMistakes[pair])
+  next.keyMistakes = capCounts(next.keyMistakes, 128)
+  next.bigramMistakes = capCounts(next.bigramMistakes, 128)
+  next.streak = Math.max(next.streak, incoming.streak)
+  if (incoming.lastPlayedDate > next.lastPlayedDate) next.lastPlayedDate = incoming.lastPlayedDate
+  return { state: next, added: added, error: "" }
+}
+
+function compareVersions(left, right) {
+  var a = String(left || "0").split(".").map(function(part) { return parseInt(part, 10) || 0 })
+  var b = String(right || "0").split(".").map(function(part) { return parseInt(part, 10) || 0 })
+  for (var i = 0; i < 3; i++) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0) ? -1 : 1 }
+  return 0
+}
+
 function colorString(color) {
   return String(color || "#ffffff")
 }

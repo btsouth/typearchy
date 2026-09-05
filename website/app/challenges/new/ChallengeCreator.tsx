@@ -75,11 +75,11 @@ export default function ChallengeCreator() {
     </div>
     <aside className="challenge-settings">{draftSaved && <p className="competition-note">Draft kept in this tab until you save the challenge or close the tab.</p>}<h2>One passage. Equal rules.</h2><p>Fastest complete time wins. Everyone corrects their mistakes before finishing.</p>
       <label className="competition-check"><input type="checkbox" checked={autoIndent} onChange={event => setAutoIndent(event.target.checked)} /><span>Automatic indentation<small>Leading spaces after Enter are filled in and excluded from WPM.</small></span></label>
-      <label>Who can find it?<select value={visibility} onChange={event => setVisibility(event.target.value)}><option value="public">Everyone</option><option value="unlisted">Anyone with the link</option></select></label>
-      <p>The passage and rules are fixed when saved. Only submit text you have permission to share. Custom passages, titles, and attribution are reviewed before others can play.</p>
+      <label>Who can find it?<select value={visibility} onChange={event => setVisibility(event.target.value)}><option value="public">Everyone, in the library after review</option><option value="unlisted">Anyone with the link</option></select></label>
+      <p>The passage and rules are fixed when saved. Only submit text you have permission to share. Your link works right away; a moderator reviews custom passages before they appear in the public library. Keep links out of the title.</p>
       {error && <p className="competition-error" role="alert">{error}</p>}
       {needsProfile && <p><a href="/account" target="_blank" rel="noopener">Connect your profile in a new tab</a>, then publish here. Your passage stays in this tab.</p>}
-      <button className="competition-button primary" disabled={busy || !draftReady} type="submit">{busy ? 'Saving…' : isCuratedPassage({ title, language, passage, attribution }) ? 'Publish challenge' : 'Save for review'}</button>
+      <button className="competition-button primary" disabled={busy || !draftReady} type="submit">{busy ? 'Saving…' : isCuratedPassage({ title, language, passage, attribution }) ? 'Publish challenge' : 'Save and get the link'}</button>
     </aside>
   </form>;
 }

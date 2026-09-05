@@ -45,15 +45,44 @@ try {
   assert.equal(result.response.status, 201, JSON.stringify(result.data));
   const challenge = result.data.slug;
   assert.equal(result.data.reviewPending, false);
-  const pending = await request('/api/challenges', { method: 'POST', cookie: creator, body: { title: 'My custom passage', passage, language: 'prose', autoIndent: false, visibility: 'public' } });
+  const pending = await request('/api/challenges', { method: 'POST', cookie: creator, body: { title: 'My custom passage', passage, language: 'prose', autoIndent: false, visibility: 'unlisted' } });
   assert.equal(pending.response.status, 201);
   assert.equal(pending.data.reviewPending, true);
-  assert.equal((await request('/api/challenges/' + pending.data.slug)).response.status, 404);
+  // Unreviewed passages work by link right away, but stay out of the library, profile, and search index.
+  assert.equal((await request('/api/challenges/' + pending.data.slug)).response.status, 200, 'Link access must not wait for review');
+  const pendingPage = await request('/c/' + pending.data.slug);
+  assert.equal(pendingPage.response.status, 200);
+  assert.match(pendingPage.data, /not been reviewed yet/);
+  assert.match(pendingPage.data, /noindex/);
+  assert.ok(!(await request('/challenges')).data.includes('My custom passage'), 'Unreviewed passages must not be listed');
+  assert.ok(!(await request(`/u/creator_${suffix}`)).data.includes('My custom passage'), 'Unreviewed passages must not appear on profiles');
+  const pendingRace = await request('/api/challenges/' + pending.data.slug + '/attempts', { method: 'POST', cookie: racer });
+  assert.equal(pendingRace.response.status, 201, JSON.stringify(pendingRace.data));
+  const pendingEvents = Array.from(passage).map((text, index) => ({ type: 'input', text, at: index * 30 }));
+  await wait(pendingEvents.at(-1).at + 100);
+  const pendingResult = await request(`/api/attempts/${pendingRace.data.id}`, { method: 'POST', headers: { 'X-Attempt-Token': pendingRace.data.token }, body: { events: pendingEvents } });
+  assert.equal(pendingResult.response.status, 201, JSON.stringify(pendingResult.data));
+  const pendingPublish = await request(`/api/attempts/${pendingRace.data.id}/publish`, { method: 'POST', cookie: racer, headers: { 'X-Attempt-Token': pendingRace.data.token } });
+  assert.equal(pendingPublish.response.status, 200, JSON.stringify(pendingPublish.data));
+  const pendingAttemptPage = await request(`/a/${pendingResult.data.slug}`);
+  assert.equal(pendingAttemptPage.response.status, 200, 'Results on link-shared passages must open by link');
+  assert.match(pendingAttemptPage.data, /noindex/);
+  assert.match((await request('/c/' + pending.data.slug)).data, new RegExp(`racer_${suffix}`), 'Published results join that passage\'s standings');
+  assert.ok(!(await request(`/u/racer_${suffix}`)).data.includes('My custom passage'), 'Results on unreviewed passages stay off public profiles');
+  assert.equal((await request(`/og/challenge/${pending.data.slug}`)).response.status, 200);
+  const linked = await request('/api/challenges', { method: 'POST', cookie: creator, body: { title: 'Win prizes at fast-keys.xyz', passage, language: 'prose', autoIndent: false, visibility: 'unlisted' } });
+  assert.equal(linked.response.status, 400, 'Titles on unreviewed cards must not carry links');
+  const hidden = await request('/api/challenges/' + pending.data.slug, { method: 'PATCH', cookie: creator, body: { visibility: 'hidden' } });
+  assert.equal(hidden.response.status, 200);
+  assert.equal((await request('/api/challenges/' + pending.data.slug)).response.status, 404, 'Hiding removes link access');
+  assert.equal((await request(`/a/${pendingResult.data.slug}`)).response.status, 404, 'Hiding removes results with it');
   assert.equal((await request('/api/challenges/' + pending.data.slug, { cookie: creator })).response.status, 200);
-  assert.equal((await request('/api/challenges/' + pending.data.slug + '/attempts', { method: 'POST', cookie: racer })).response.status, 404);
   assert.equal((await request('/api/moderation', { cookie: creator })).response.status, 403);
   const report = await request('/api/challenges/' + challenge + '/report', { method: 'POST', body: { reason: 'other', detail: 'Local integration test' } });
   assert.equal(report.response.status, 201);
+  const outdated = await request(`/api/challenges/${challenge}/attempts`, { method: 'POST', cookie: racer, headers: { 'X-Typearchy-Client': 'desktop/0.9.0' } });
+  assert.equal(outdated.response.status, 426, 'Unsupported desktop versions get an update message instead of a rejected race');
+  assert.match(outdated.data.error, /Update Typearchy/);
   result = await request(`/api/challenges/${challenge}/attempts`, { method: 'POST', cookie: racer });
   assert.equal(result.response.status, 201, JSON.stringify(result.data));
   const session = result.data;
@@ -92,7 +121,10 @@ try {
   const nativeDirectory = mkdtempSync(join(tmpdir(), 'typearchy-native-api-'));
   try {
     writeFileSync(join(nativeDirectory, 'profile.json'), JSON.stringify({ token }), { mode: 0o600 });
-    const helper = (...args) => JSON.parse(execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory }, encoding: 'utf8' }));
+    const helper = (...args) => JSON.parse(execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory, TYPEARCHY_NO_BROWSER: '1' }, encoding: 'utf8' }));
+    const failure = (...args) => { try { execFileSync(fileURLToPath(new URL('../../bin/typearchy-cloud', import.meta.url)), args, { env: { ...process.env, TYPEARCHY_API_URL: origin, TYPEARCHY_STATE_DIR: nativeDirectory, TYPEARCHY_NO_BROWSER: '1' }, encoding: 'utf8', stdio: 'pipe' }); assert.fail('Expected the helper to fail'); } catch (error) { return JSON.parse(String(error.stderr || error.stdout).trim().split('\n').at(-1)); } };
+    const missing = failure('attempt-start', 'zzzzzzzzzzzz');
+    assert.equal(missing.code, 404); assert.match(missing.error, /not found|no longer available/i);
     assert.equal(helper('challenge', challenge).challenge.slug, challenge);
     const nativeSession = helper('attempt-start', challenge);
     assert.equal(nativeSession.token, undefined, 'Native UI must not receive the private attempt token');
@@ -101,6 +133,35 @@ try {
     const nativeResult = helper('attempt-submit', nativeSession.id, join(nativeDirectory, 'attempt-recording.json'));
     assert.ok(nativeResult.saved);
     assert.equal(helper('attempt-publish', nativeSession.id).slug, nativeResult.slug);
+    assert.equal(helper('challenge', challenge).connected, true, 'The native UI learns whether it races as a guest');
+    const device = helper('status');
+    assert.match(device.clientVersion, /^\d+\.\d+\.\d+$/); assert.equal(device.latestClient, device.clientVersion, 'The shipped app is the latest version');
+    // A connected device hands a browser a one-time code; the browser adopts it without a recovery code.
+    const grant = helper('browser');
+    assert.match(grant.code, /^[A-HJ-NP-Z2-9]{8}$/);
+    assert.equal(grant.handle, `creator_${suffix}`);
+    assert.equal((await request(`/api/session/grant?code=${grant.code}`)).data.handle, `creator_${suffix}`);
+    const wrongOrigin = await request('/api/session/adopt', { method: 'POST', headers: { Origin: 'https://unrelated.invalid' }, body: { code: grant.code } });
+    assert.equal(wrongOrigin.response.status, 403);
+    const adopted = await request('/api/session/adopt', { method: 'POST', body: { code: grant.code } });
+    assert.equal(adopted.response.status, 200, JSON.stringify(adopted.data));
+    const browserCookie = adopted.response.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('/api/session', { cookie: browserCookie })).data.handle, `creator_${suffix}`);
+    assert.equal((await request('/api/session/adopt', { method: 'POST', body: { code: grant.code } })).response.status, 404, 'A browser code is single use');
+    assert.equal((await request('/api/session/grant?code=' + grant.code)).response.status, 404);
+    assert.equal((await request('/api/device', { headers: { Authorization: 'Bearer ' + token } })).response.status, 200, 'Linking a browser keeps the app connected');
+    // Replacing a lost recovery code from a connected session keeps every device connected.
+    const before = await request('/api/account', { cookie: browserCookie });
+    assert.equal(before.data.recovery_rotated_at, null);
+    assert.ok(before.data.devices.some(device => device.label === 'Linked browser'));
+    const rotated = await request('/api/account/recovery-code', { method: 'POST', cookie: browserCookie });
+    assert.equal(rotated.response.status, 200, JSON.stringify(rotated.data));
+    assert.match(rotated.data.recoveryCode, /^tpy_recovery_[a-f0-9]{36}$/);
+    assert.ok((await request('/api/account', { cookie: browserCookie })).data.recovery_rotated_at > 0);
+    assert.equal((await request('/api/device', { headers: { Authorization: 'Bearer ' + token } })).response.status, 200, 'Rotation must not sign out other devices');
+    assert.equal((await request('/api/session', { method: 'POST', body: { action: 'recover', handle: `creator_${suffix}`, recoveryCode: recoveryCodes.get('creator') } })).response.status, 401, 'The old recovery code stops working');
+    recoveryCodes.set('creator', rotated.data.recoveryCode);
+    assert.equal((await request('/api/account', { method: 'PATCH', cookie: browserCookie, body: { revokeDevice: before.data.currentDevice } })).data.signedOut, true);
   } finally { rmSync(nativeDirectory, { recursive: true, force: true }); }
   const devices = await request('/api/account', { cookie: creator });
   const nativeDevice = devices.data.devices.find(device => device.label === 'Native integration');
@@ -115,7 +176,7 @@ try {
   clients[0] = recovered.response.headers.get('set-cookie').split(';')[0];
   assert.equal((await request('/api/account/challenges', { cookie: clients[0] })).data.challenges.length, 2);
   assert.equal((await request('/api/session', { method: 'POST', body: { action: 'recover', handle: `creator_${suffix}`, recoveryCode: recoveryCodes.get('creator') } })).response.status, 401);
-  console.log('Local challenge integration passed: create, complete, retry, themed result URLs, practice sharing, claim ownership, publish, standings, privacy, origin checks, native helper, device linking/revocation, and recovery.');
+  console.log('Local challenge integration passed: create, link-shared unreviewed passages, browser linking, recovery replacement, readable helper errors, complete, retry, themed result URLs, practice sharing, claim ownership, publish, standings, privacy, origin checks, native helper, device linking/revocation, and recovery.');
 } finally {
   for (const cookie of clients) {
     const cleanup = await request('/api/profile', { method: 'DELETE', cookie });

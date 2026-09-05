@@ -13,7 +13,7 @@ type Session = { id: string; token: string; expiresAt: number; contentHash: stri
 type Score = ReturnType<typeof competitionResult>;
 type View = { typed: string[]; correct: number; errors: number; wrong: number };
 
-export default function ChallengeRace({ challenge, ghost }: { challenge: PublicChallenge; ghost: Ghost | null }) {
+export default function ChallengeRace({ challenge, ghost, guest = false }: { challenge: PublicChallenge; ghost: Ghost | null; guest?: boolean }) {
   const engine = useRef(competitionState(challenge.passage, challenge.rules));
   const input = useRef<HTMLTextAreaElement>(null); const prompt = useRef<HTMLDivElement>(null);
   const recording = useRef<AttemptEvent[]>([]); const origin = useRef<number | null>(null);
@@ -159,7 +159,7 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
   }, [chars, view.typed]);
 
   return <section className={`competition-race ${phase === 'running' ? 'is-running' : ''}`} aria-label="Challenge race">
-    {!score && <div className="competition-start">{phase === 'ready' || phase === 'preparing' || phase === 'stopped' ? <><button className="competition-button primary" onClick={prepare} disabled={phase === 'preparing'}>{phase === 'preparing' ? 'Preparing your race…' : ghost ? 'Race this run' : 'Start challenge'}</button><p>Online attempts send test input and timing for score validation. Only passage progress is kept for replay.</p></>
+    {!score && <div className="competition-start">{phase === 'ready' || phase === 'preparing' || phase === 'stopped' ? <><button className="competition-button primary" onClick={prepare} disabled={phase === 'preparing'}>{phase === 'preparing' ? 'Preparing your race…' : ghost ? 'Race this run' : 'Start challenge'}</button><p>Online attempts send test input and timing for score validation. Only passage progress is kept for replay.{guest && ' You are playing as a guest: connect a profile within seven days to keep and publish a result, or it is removed.'}</p></>
         : <><p role="status">{!focused ? phase === 'armed' ? 'Click the passage to begin. The clock has not started.' : 'Click the passage to continue. The clock keeps running.' : view.wrong ? `${view.wrong} uncorrected ${view.wrong === 1 ? 'character' : 'characters'}. First mistake on line ${mistakeLine}.` : nextIsReturn ? 'Press Enter at ↵, including blank lines. The next line indents automatically when enabled.' : inputHint || (phase === 'armed' ? 'Start typing when you are ready. The first key starts the clock.' : 'Keep your rhythm.')}</p>
         {view.wrong > 0 && <button className="competition-button" onClick={correctMistake}>Erase back to first mistake</button>}</>}</div>}
 
@@ -177,7 +177,7 @@ export default function ChallengeRace({ challenge, ghost }: { challenge: PublicC
           : saved ? <button className="competition-button" disabled={saving} onClick={publish}>{saving ? 'Publishing…' : 'Publish my result'}</button>
             : <button className="competition-button" disabled={saving} onClick={() => session && save(session, recording.current)}>{saving ? 'Saving result…' : 'Retry saving'}</button>}
       </div>{published && <a className="competition-result-link" href={published.replace('https://typearchy.com', '')}>{published}</a>}
-      {!published && <p className="competition-note">{saved ? 'Validated. Publish to join the standings and share your run.' : 'Your result is kept in this tab while we save it. You can reload and retry.'}</p>}
+      {!published && <p className="competition-note">{saved ? guest ? 'Validated. Connect a profile and publish within seven days to keep this run; unclaimed guest results are removed.' : 'Validated. Publish to join the standings and share your run.' : 'Your result is kept in this tab while we save it. You can reload and retry.'}</p>}
     </div> : <>
       <div className="competition-prompt-wrap" onClick={() => { if (phase === 'armed' || phase === 'running') input.current?.focus({ preventScroll: true }); }}>
         <div className="competition-prompt" ref={prompt} aria-label="Passage to type">{runs.map(run => <span key={`${run.start}-${run.state}`} className={run.state} data-caret={run.state === 'caret' ? '' : undefined}>{run.text === '\n' ? <><span className="competition-return" aria-label="Enter">↵</span>{'\n'}</> : run.state === 'incorrect' ? run.text.replace(/ /g, '·') : run.text}</span>)}</div>

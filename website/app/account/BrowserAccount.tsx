@@ -38,7 +38,7 @@ export default function BrowserAccount({ recovering = false }: { recovering?: bo
       {(!recoveryCode || saved) && <><MyChallenges /><MyAttempts /><AccountSettings /></>}
     </> : <form onSubmit={register}><p>{recovering ? 'Recovery signs out previous devices and gives you a replacement recovery code.' : 'Claim a handle to publish challenges and keep your place in the standings.'}</p><label htmlFor="account-handle">Public handle</label><input id="account-handle" value={handle} onChange={event => setHandle(event.target.value.toLowerCase())} autoComplete="username" autoCapitalize="none" pattern="[a-z0-9][a-z0-9_-]{1,18}[a-z0-9]" minLength={3} maxLength={20} required />
       {recovering && <><label htmlFor="account-recovery">Recovery code</label><input id="account-recovery" type="password" autoComplete="off" value={oldRecovery} onChange={event => setOldRecovery(event.target.value)} required /></>}
-      <button className="competition-button primary" disabled={busy}>{busy ? 'Connecting…' : recovering ? 'Recover profile' : 'Create profile'}</button><p>{recovering ? <a href="/account">Create a new profile</a> : <>Already have a profile? <a href="/recover">Recover access</a>.</>}</p></form>}
+      <button className="competition-button primary" disabled={busy}>{busy ? 'Connecting…' : recovering ? 'Recover profile' : 'Create profile'}</button><p>{recovering ? <a href="/account">Create a new profile</a> : <>Already have a profile? On Omarchy, open History and choose <strong>Browser</strong> to connect this browser without a recovery code. Otherwise, <a href="/recover">recover access</a>.</>}</p></form>}
     {error && <p className="competition-error" role="alert">{error}</p>}
   </div>;
 }

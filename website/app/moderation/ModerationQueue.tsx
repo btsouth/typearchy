@@ -44,13 +44,13 @@ export default function ModerationQueue() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
-  return <section className="moderation-queue"><p>Review the title, passage, attribution, and creator handle. Reject explicit content, abuse, spam, exposed personal information, or material without permission to share. Check source credits before approving code excerpts.</p>
+  return <section className="moderation-queue"><p>Unreviewed passages are already reachable by link. Reports come first: rejecting hides the passage, its results, and its social cards immediately. Approval adds a passage to the public library. Reject explicit content, abuse, spam, exposed personal information, or material without permission to share, and check source credits before approving code excerpts.</p>
     {error && <p role="alert">{error}</p>}{!queue && !error && <p role="status">Loading queue…</p>}
     <button className="competition-button" onClick={() => void load()}>Refresh</button>
     {queue && <><h2>Profile reports ({queue.profileReports.length})</h2>{queue.profileReports.map(entry => <ProfileReview key={entry.id} entry={entry} onReviewed={() => void load()} />)}
       <h2>Restricted profiles ({queue.restrictedProfiles.length})</h2>{queue.restrictedProfiles.map(entry => <ProfileReview key={entry.handle} entry={entry} onReviewed={() => void load()} />)}
       <h2>Reports ({queue.reports.length})</h2>{queue.reports.map(entry => <Review key={entry.id} entry={entry} onReviewed={() => void load()} />)}
-      <h2>Awaiting review ({queue.challenges.length})</h2>{queue.challenges.map(entry => <Review key={entry.slug} entry={entry} onReviewed={() => void load()} />)}
+      <h2>Awaiting library review ({queue.challenges.length})</h2>{queue.challenges.map(entry => <Review key={entry.slug} entry={entry} onReviewed={() => void load()} />)}
       {!queue.challenges.length && !queue.reports.length && !queue.profileReports.length && <p>The queue is clear.</p>}</>}
   </section>;
 }

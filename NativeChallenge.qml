@@ -34,7 +34,30 @@ Item {
   readonly property real ghostPosition: ghost ? Engine.competitionPosition(ghost.progress, elapsedMs) : 0
   readonly property real playerPosition: engine ? engine.correct + engine.assistedCount : 0
   Keys.onPressed: function(event) {
-    if (event.key === Qt.Key_Escape) { root.stop(); root.exitRequested(); event.accepted = true }
+    // Escape matches the browser: during a race it only releases typing focus and
+    // the clock keeps running. Outside a race it returns to practice.
+    if (event.key === Qt.Key_Escape) {
+      if (phase === "armed" || phase === "running") { root.forceActiveFocus(); root.message = phase === "armed" ? "Typing focus released. Click the passage or press Enter to continue; the clock has not started." : "Typing focus released. Click the passage or press Enter to continue; the clock keeps running." }
+      else { root.stop(); root.exitRequested() }
+      event.accepted = true
+    } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (phase === "armed" || phase === "running") && !catcher.activeFocus) {
+      root.message = ""; catcher.forceActiveFocus(); event.accepted = true
+    }
+  }
+
+  // Mirrors the browser's Tab rule: an indentation aid at the start of a line
+  // when auto-indent is off, never a literal tab, and a no-op mid-line or after a mistake.
+  function tabIndent() {
+    if (!engine || !challenge || challenge.rules.autoIndent) return ""
+    var passage = engine.passage
+    var typed = engine.typed
+    for (var i = 0; i < typed.length; i++) if (typed[i] !== passage[i]) return ""
+    var index = typed.length
+    var start = passage.lastIndexOf("\n", index - 1) + 1
+    for (var j = start; j < index; j++) if (passage[j] !== " ") return ""
+    var count = 0
+    while (passage[index + count] === " " && count < 4) count++
+    return " ".repeat(count)
   }
 
   function refocus() {
@@ -133,13 +156,21 @@ Item {
   Process {
     id: worker
     stdout: StdioCollector { id: output; waitForEnd: true }
+    stderr: StdioCollector { id: errors; waitForEnd: true }
     onExited: function(exitCode) {
       var response = {}
-      try { response = JSON.parse(output.text || "{}") } catch (error) {}
-      if (exitCode !== 0 || response.error) { root.message = response.error || "Connection failed. Try again."; return }
+      try { response = JSON.parse(String(output.text || "").trim() || String(errors.text || "").trim() || "{}") || {} } catch (error) {}
+      if (exitCode !== 0 || response.error) {
+        var fallback = root.action === "attempt-submit" ? "Could not save your result. It is kept locally; retry saving when you are online."
+          : root.action === "attempt-publish" ? "Could not publish your result. Your validated result is kept."
+          : root.action === "challenge" ? "Could not load this challenge." : "Could not start the race."
+        root.message = (response.error || fallback) + (response.status === "unreachable" && root.action !== "challenge" ? " Your result is kept on this device." : "")
+        if (root.action === "challenge" && response.code === 404) { root.challenge = null; root.phase = "empty"; Qt.callLater(function() { linkInput.forceActiveFocus() }) }
+        return
+      }
       root.message = ""
       if (root.action === "challenge") {
-        root.challenge = response.challenge; root.ghost = response.ghost; root.standings = response.standings || []
+        root.challenge = response.challenge; root.challenge.connected = response.connected !== false; root.ghost = response.ghost; root.standings = response.standings || []
         root.entered = ""; root.result = null; root.phase = "ready"; root.elapsedMs = 0; root.engine = null
         recordingFile.reload()
       } else if (root.action === "attempt-start") {
@@ -148,7 +179,7 @@ Item {
         root.events = []; root.entered = ""; root.elapsedMs = 0; root.result = null; root.saved = false; root.publicUrl = ""
         root.phase = "armed"; Qt.callLater(function() { catcher.forceActiveFocus() })
       } else if (root.action === "attempt-submit") {
-        root.saved = true; root.message = "Validated. Publish your result to join the standings."
+        root.saved = true; root.message = root.challenge && root.challenge.connected === false ? "Validated. Connect a profile in History and publish within seven days to keep this run." : "Validated. Publish your result to join the standings."
       } else if (root.action === "attempt-publish") {
         root.publicUrl = response.url; root.message = "Published. Your result is ready to share."
       }
@@ -179,7 +210,7 @@ Item {
         Action { text: root.busy ? "Loading..." : "Open challenge"; enabled: !root.busy; onClicked: root.loadLink() }
       }
       Action { visible: root.phase === "ready"; text: root.busy ? "Preparing..." : "Start challenge"; enabled: !root.busy; onClicked: root.start() }
-      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay."; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay." + (root.challenge && root.challenge.connected === false ? " You are racing as a guest: connect a profile in History within seven days to keep and publish a result, or it is removed." : ""); width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Text { visible: !!root.challenge; text: root.challenge ? root.challenge.language.toUpperCase() + " / @" + root.challenge.handle + " / Correct every mistake / " + (root.challenge.rules.autoIndent ? "Auto-indent on" : "Type every space") : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Row {
         visible: !!root.challenge; spacing: 48
@@ -222,13 +253,14 @@ Item {
           else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.apply("input", "\n"); event.accepted = true }
           else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
             event.accepted = true
-            root.message = root.challenge.rules.autoIndent ? "Indentation is automatic after Enter, including after blank lines." : "Type the leading spaces as shown. Tab keeps your typing focus."
+            if (event.key === Qt.Key_Tab) Array.from(root.tabIndent()).forEach(function(character) { root.apply("input", character) })
+            root.message = root.challenge.rules.autoIndent ? "Indentation is automatic after Enter, including after blank lines." : "Tab fills up to four leading spaces. Type other spaces normally."
           }
           else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_V || event.key === Qt.Key_Insert)) event.accepted = true
           else if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert) event.accepted = true
         }
       }
-      Text { visible: root.phase === "armed" || root.phase === "running"; width: parent.width; wrapMode: Text.Wrap; text: root.engine && root.engine.wrong ? "Correct the highlighted mistakes to finish." : root.phase === "armed" ? "Start typing. The first key starts the clock." : "Keep your rhythm."; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: root.phase === "armed" || root.phase === "running"; width: parent.width; wrapMode: Text.Wrap; text: root.engine && root.engine.wrong ? "Correct the highlighted mistakes to finish." : root.phase === "armed" ? "Start typing. The first key starts the clock. Escape releases typing focus." : "Keep your rhythm."; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Action { visible: root.phase === "running" && !!root.engine && root.engine.wrong > 0; text: "Erase back to first mistake"; onClicked: root.correctMistake() }
       Column {
         visible: root.phase === "finished"; width: parent.width; spacing: 18

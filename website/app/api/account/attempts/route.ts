@@ -1,4 +1,5 @@
 import { authenticateDevice, db, errorResponse, json, readJson } from '../../../lib/db';
+import { linkVisibleSql } from '../../../lib/challenges';
 
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
@@ -22,9 +23,9 @@ export async function PATCH(request: Request) {
     if (body.published && identity.visibility !== 'public') return json({ error: 'Make your profile public before publishing a result' }, 409);
     const result = await db().prepare(`UPDATE challenge_attempts SET published = ? WHERE id = ? AND profile_id = ?
       AND (? = 0 OR challenge_id IN (SELECT c.id FROM challenges c JOIN profiles p ON p.id = c.creator_id
-        WHERE c.moderation = 'approved' AND c.visibility != 'hidden' AND p.visibility = 'public'))`)
+        WHERE ${linkVisibleSql()}))`)
       .bind(Number(body.published), body.id, identity.profileId, Number(body.published)).run();
-    if (!result.meta.changes) return json({ error: 'Result is unavailable, or its passage is not approved for sharing' }, 404);
+    if (!result.meta.changes) return json({ error: 'Result is unavailable, or its passage can no longer be shared' }, 404);
     return json({ published: body.published });
   } catch (error) { return errorResponse(error); }
 }

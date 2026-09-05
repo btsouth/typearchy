@@ -28,9 +28,11 @@ export default function MyAttempts() {
     {attempts?.map(attempt => <article className="moderation-entry" key={attempt.id}><h3>{attempt.title}</h3>
       <p>{(attempt.duration_ms / 1000).toFixed(2)}s · {attempt.wpm} WPM · {attempt.accuracy}% accuracy</p>
       <div className="competition-actions"><a className="competition-button" href={`/c/${attempt.challenge_slug}`}>Race again</a>
-        <button className="competition-button" disabled={busy === attempt.id || (!attempt.published && (attempt.moderation !== 'approved' || attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public'))} onClick={() => void publish(attempt)}>{attempt.published ? 'Unpublish' : 'Publish result'}</button>
+        <button className="competition-button" disabled={busy === attempt.id || (!attempt.published && (attempt.moderation === 'rejected' || attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public'))} onClick={() => void publish(attempt)}>{attempt.published ? 'Unpublish' : 'Publish result'}</button>
         {!!attempt.published && <a className="competition-button" href={`/a/${attempt.slug}`}>View shared result ↗</a>}
-      </div>{attempt.moderation !== 'approved' && <p className="competition-note">Sharing is unavailable until the passage is approved.</p>}
+      </div>{attempt.moderation === 'rejected' ? <p className="competition-note">This passage was not approved. Your result stays here but cannot be shared.</p>
+        : attempt.visibility === 'hidden' || attempt.creator_visibility !== 'public' ? <p className="competition-note">The creator has hidden this passage, so results on it cannot be shared right now.</p>
+        : attempt.moderation === 'pending' ? <p className="competition-note">Shareable by link. It stays off your public profile until the passage is reviewed.</p> : null}
     </article>)}
     {attempts?.length === 0 && <p>No completed challenges yet.</p>}
   </section>;
