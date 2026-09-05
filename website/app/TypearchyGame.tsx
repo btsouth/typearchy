@@ -2,6 +2,7 @@
 
 import { loadHistory, saveHistoryRuns, clearHistory, subscribeHistory } from './lib/historyStore';
 import { savedPractice } from './lib/savedPractice';
+import { useClientReady } from './lib/useClientReady';
 import BrowserAccount from './account/BrowserAccount';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -92,6 +93,7 @@ function promptRuns(prompt: string, typed: string) {
 }
 
 export default function TypearchyGame({ compact = false, initialChallengeKey = '', initialRunId = '', initialPractice = '' }: { compact?: boolean; initialChallengeKey?: string; initialRunId?: string; initialPractice?: string }) {
+  const clientReady = useClientReady();
   const initialShared = sharedChallengeFromKey(initialChallengeKey);
   const [sharedChallenge, setSharedChallenge] = useState<SharedChallenge | null>(initialShared);
   const [mode, setMode] = useState<ModeKey>(initialShared?.mode || (MODES.some(item=>item.key===initialPractice) ? initialPractice as ModeKey : 'sprint'));
@@ -499,13 +501,13 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     <div id={compact ? 'typing-demo' : 'web-game'} className={`game-stage web-game ${compact ? 'web-game-compact' : 'web-game-full'} ${startedAt ? 'is-running' : ''} ${result ? 'has-result' : ''}`} style={gameVars} onClick={() => screen === 'test' && !editingCustom && inputRef.current?.focus()}>
       <div className="web-game-topline">
         <div className="web-game-view-tabs"><button type="button" className={screen === 'test' ? 'active' : ''} onClick={(event) => { event.stopPropagation(); setScreen('test'); if(result) reset(true, true); }}>Practice</button><button type="button" className={screen === 'history' ? 'active' : ''} onClick={(event) => { event.stopPropagation(); pausePractice(); setScreen('history'); }}>History <span>{history.length}</span></button></div>
-        <label className="game-theme-picker" onClick={event => event.stopPropagation()}>Theme<select aria-label="Game theme" value={themeIndex} onChange={event => chooseTheme(Number(event.target.value))}>{THEMES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}</select></label>
+        <label className="game-theme-picker" onClick={event => event.stopPropagation()}>Theme<select disabled={!clientReady} aria-label="Game theme" value={themeIndex} onChange={event => chooseTheme(Number(event.target.value))}>{THEMES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}</select></label>
         {compact && <a className="web-game-expand" href="/play" onClick={(event) => event.stopPropagation()}>OPEN FULL GAME ↗</a>}
       </div>
 
-      {screen === 'test' && !result && <><div inert={!!startedAt} className="web-game-modes" onClick={event => event.stopPropagation()}><label className="game-mode-picker">Practice<select aria-label="Practice mode" value={mode} onChange={event => chooseMode(event.target.value as ModeKey, false)}>{MODES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
+      {screen === 'test' && !result && <><div inert={!!startedAt || !clientReady} className="web-game-modes" onClick={event => event.stopPropagation()}><label className="game-mode-picker">Practice<select disabled={!clientReady} aria-label="Practice mode" value={mode} onChange={event => chooseMode(event.target.value as ModeKey, false)}>{MODES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
 
-      <div inert={!!startedAt} className="web-game-settings" onClick={(event) => event.stopPropagation()}>
+      <div inert={!!startedAt || !clientReady} className="web-game-settings" onClick={(event) => event.stopPropagation()}>
         {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setSharedChallenge(null); setDuration(seconds); rememberPractice({duration:seconds}); reset(false, true); }}>{seconds}s</button>)}</div>}
         {mode === 'sprint' && <div className="web-game-language sprint-style" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>Words</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>Passages</button></div>}
         {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust', 'ruby'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); rememberPractice({language:item}); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
@@ -520,7 +522,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       </div>}
 
       {practiceSession && !result && <div className="practice-session-bar"><span>{practiceSession.stage === 'drill' ? '2 / 3 · Focused practice' : '3 / 3 · Retest your original passage'}</span><span>Baseline: {practiceSession.baseline.wpm} WPM · {practiceSession.baseline.accuracy}% accuracy</span></div>}
-      <textarea ref={inputRef} className="demo-input" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={event => { composingRef.current = false; event.currentTarget.value = ''; if (event.data) addCharacters(event.data.normalize('NFC')); }} onInput={(event) => { if (composingRef.current || (event.nativeEvent as InputEvent).isComposing) return; const value = event.currentTarget.value; event.currentTarget.value = ''; if (value) addCharacters(value.normalize('NFC')); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+      <textarea disabled={!clientReady} ref={inputRef} className="demo-input" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={event => { composingRef.current = false; event.currentTarget.value = ''; if (event.data) addCharacters(event.data.normalize('NFC')); }} onInput={(event) => { if (composingRef.current || (event.nativeEvent as InputEvent).isComposing) return; const value = event.currentTarget.value; event.currentTarget.value = ''; if (value) addCharacters(value.normalize('NFC')); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
 
       {initialRunId && !result && shareError && <p role="status">{shareError}</p>}
       {storageError && <div role="alert"><p>History could not be saved or loaded. Keep this tab open. Previous stored data has not been removed.</p><button type="button" onClick={event=>{event.stopPropagation();const url=URL.createObjectURL(new Blob([JSON.stringify({format:'typearchy-practice',version:1,runs:history})],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='typearchy-recovery.json';link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export available runs</button></div>}
@@ -558,7 +560,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       ) : paused ? (
         <div className="demo-result-card" onClick={event => event.stopPropagation()}><h2>Practice paused</h2><p>Your place is saved. Resumed runs stay in history but do not count toward personal bests or sharing.</p><div className="demo-result-actions"><button type="button" onClick={resumePractice}>Resume practice</button><button type="button" onClick={() => reset()}>Start again</button></div></div>
       ) : (
-        <><div ref={promptRef} className={`live-prompt ${technical ? 'technical' : ''}`} aria-label={prompt}>{renderedRuns.map((run) => <span className={run.state} key={`${run.start}-${run.state}`}>{run.text}</span>)}</div><div className="demo-callout">{startedAt ? 'KEEP THE PACE' : prompt ? 'CLICK HERE, THEN START TYPING' : 'ADD A CUSTOM PASSAGE'}</div></>
+        <><div ref={promptRef} className={`live-prompt ${technical ? 'technical' : ''}`} aria-label={prompt}>{renderedRuns.map((run) => <span className={run.state} key={`${run.start}-${run.state}`}>{run.text}</span>)}</div><div className="demo-callout">{!clientReady ? 'Loading practice…' : startedAt ? 'KEEP THE PACE' : prompt ? 'CLICK HERE, THEN START TYPING' : 'ADD A CUSTOM PASSAGE'}</div></>
       )}
 
       <div className="game-foot" onClick={event => event.stopPropagation()}>{screen === 'test' && !result && !editingCustom && <button type="button" className="practice-restart" onClick={() => reset()} aria-label="Restart practice">Restart <kbd>Ctrl+R</kbd></button>}<span>Ctrl+H history</span><span>Saved on this device</span></div>

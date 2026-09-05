@@ -11,6 +11,15 @@ async function complete(page,text) {
  await page.locator('.demo-input').pressSequentially(text);await expect(page.locator('.web-game-result')).toBeVisible();
 }
 try {
+ const slowContext=await browser.newContext();const slowPage=await slowContext.newPage();
+ let releaseScripts;const scriptsReady=new Promise(resolve=>{releaseScripts=resolve;});
+ await slowPage.route('**/*.js',async route=>{await scriptsReady;await route.continue();});
+ try {
+  await slowPage.goto(origin+'/play',{waitUntil:'commit'});
+  await expect(slowPage.getByLabel('Practice mode',{exact:true})).toBeDisabled();
+  await expect(slowPage.locator('.demo-callout')).toHaveText('Loading practice…');
+  releaseScripts();await expect(slowPage.getByLabel('Practice mode',{exact:true})).toBeEnabled();
+ } finally {releaseScripts();await slowContext.close();}
  const context=await browser.newContext();
  await context.addInitScript(({fixture})=>{if(!localStorage.getItem('test-seeded')){localStorage.setItem('typearchy.web.runs.v1',JSON.stringify(Array.from({length:605},(_,i)=>({...fixture,id:`legacy-${i}`,timestamp:new Date(Date.parse(fixture.timestamp)+i*1000).toISOString()}))));localStorage.setItem('test-seeded','1');}}, {fixture});
  const page=await context.newPage();await page.goto(origin+'/history');await expect(page.locator('.history-overview')).toContainText('605');
