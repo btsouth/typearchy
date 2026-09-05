@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -1636,7 +1637,11 @@ Item {
           }
 
           Rectangle {
+            id: statsPanel
             visible: root.statsOpen
+            // Short tiled windows drop the trend chart and shrink the list so the profile
+            // row and results stay reachable. Anything left over scrolls with a visible bar.
+            readonly property bool compact: parent.height < Style.space(560)
             width: Math.min(parent.width, Style.space(920))
             height: Math.min(parent.height, statsContent.implicitHeight + Style.space(56))
             anchors.centerIn: parent
@@ -1656,6 +1661,7 @@ Item {
               clip: true
               interactive: contentHeight > height
               boundsBehavior: Flickable.StopAtBounds
+              Controls.ScrollBar.vertical: Controls.ScrollBar { policy: statsFlick.contentHeight > statsFlick.height ? Controls.ScrollBar.AlwaysOn : Controls.ScrollBar.AlwaysOff }
 
             Column {
               id: statsContent
@@ -1694,6 +1700,7 @@ Item {
               }
 
               Item {
+                visible: !statsPanel.compact
                 width: parent.width
                 height: Style.space(58)
 
@@ -1834,7 +1841,7 @@ Item {
               Flickable {
                 id: historyFlick
                 width: parent.width
-                height: Math.min(Style.space(178), Math.max(Style.space(34), historyList.implicitHeight))
+                height: Math.min(Style.space(statsPanel.compact ? 110 : 178), Math.max(Style.space(34), historyList.implicitHeight))
                 contentWidth: width
                 contentHeight: historyList.implicitHeight
                 clip: true
