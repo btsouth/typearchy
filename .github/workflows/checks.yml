@@ -1,0 +1,53 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Install content validators
+        run: |
+          typearchy_missing=""
+          for typearchy_tool in ruby rustc python3; do
+            if ! command -v "$typearchy_tool" >/dev/null; then
+              typearchy_missing="$typearchy_missing $typearchy_tool"
+            fi
+          done
+          if [ -n "$typearchy_missing" ]; then
+            sudo apt-get update -o Acquire::Retries=2
+            sudo apt-get install -y $typearchy_missing
+          fi
+      - name: Install browser dependencies
+        working-directory: website
+        run: npm ci --ignore-scripts
+      - name: Validate desktop engines and content
+        run: node tests/model.test.mjs && node tests/content-engine.test.mjs
+      - name: Verify migrations and browser behavior
+        working-directory: website
+        run: node scripts/schema.mjs --check && npm test && npx tsc --noEmit && npm run lint
+      - name: Build the production worker
+        working-directory: website
+        run: npm run build
+      - name: Exercise sharing and moderation against the built worker
+        working-directory: website
+        run: |
+          printf '%s\n' 'TYPEARCHY_MODERATOR_PROFILE_IDS=local-moderation-test' > .dev.vars
+          npx wrangler d1 migrations apply DB --local --config wrangler.local.json
+          npx wrangler dev --config dist/server/wrangler.json --local --port 5178 --persist-to "$PWD/.wrangler/state" --var TYPEARCHY_MODERATOR_PROFILE_IDS:local-moderation-test > /tmp/typearchy-worker.log 2>&1 &
+          typearchy_worker_pid=$!
+          trap 'kill "$typearchy_worker_pid" 2>/dev/null || true' EXIT
+          node scripts/wait-for-local-worker.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/moderation.integration.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/challenges.integration.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/library.integration.mjs

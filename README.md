@@ -8,8 +8,9 @@ Typearchy is a local-first typing game for the Omarchy shell. It adds a compact
 bar launcher, a focused fullscreen typing experience, and a movable, resizable
 History window that follows the current Omarchy theme.
 
-The game works without an account or network connection. Results and practice
-insights stay on the local machine unless you explicitly publish one.
+Practice works without an account or network connection. Practice results and
+insights stay on the device unless you explicitly share a result. Online challenges
+use the shared service to validate completed attempts and race other players.
 
 ## Included
 
@@ -17,7 +18,7 @@ insights stay on the local machine unless you explicitly publish one.
 - One full-paragraph deterministic UTC daily challenge for every user
 - A large, rolling prompt that advances without blocking input
 - Curated Quote Relay, Shell, Code, adaptive Drill, and local Custom modes
-- Bash, Python, JavaScript, and Rust code practice
+- Bash, Python, JavaScript, Rust, and Ruby code practice
 - A seeded content engine for balanced words, shell workflows, prose, quote relays, and complete code programs
 - Reproducible challenge keys and exact URL rematches
 - Eight themed Quote Relays with attributed excerpts and a maintained source list
@@ -26,7 +27,10 @@ insights stay on the local machine unless you explicitly publish one.
 - Filtered local history, recent trends, personal bests, and streak tracking
 - Optional live stats, a personal-best pace ghost, and three type sizes
 - A keyboard-and-bolt bar widget with a quick-launch panel
-- Pace graphs and PNG result cards saved locally and copied to the clipboard
+- Shareable result URLs with theme-matched social previews and interactive playback
+- Optional PNG result cards saved locally and copied to the clipboard
+- Reviewed prose and Rails challenges with recorded opponents and shared standings
+- Custom challenges saved for review before other players can see them
 - Optional public handles with three pinned runs and replayable pace ghosts
 - Automatic Omarchy theme colors and typography
 
@@ -70,7 +74,7 @@ Production builds target Cloudflare Workers through Vinext.
 - Quote Relay advances through four attributed excerpts under one timer.
 - Press `H` before or after a test to open history and preferences.
 - On results, use the visible actions or press `Ctrl+R` to retry, `Ctrl+S` to
-  save a card, `Ctrl+C` to copy text, or `Ctrl+H` to open history. Ordinary
+  share a result URL, `Ctrl+C` to copy its link, or `Ctrl+H` to open history. Ordinary
   typing is ignored so a finished result cannot disappear accidentally.
 - In History, connect a public profile with one browser step. Publishing,
   pinning, unpinning, and removing a public run are always explicit. A
@@ -82,11 +86,31 @@ Before a test starts:
 - Press `Tab` or `Shift+Tab` to cycle through modes.
 - In Sprint, choose Words or Prose, then press `1`, `2`, or `3` for 15, 30,
   or 60 seconds. `W` and `P` switch the content directly.
-- In Code, choose Bash, Python, JavaScript, or Rust onscreen.
+- In Code, choose Bash, Python, JavaScript, Rust, or Ruby onscreen.
 - In Custom, press `O` to open the local passage file.
 
 In history, press `0` through `8` to filter by mode. Press `L` to toggle live
 stats, `G` to toggle the pace ghost, or `F` to cycle the prompt size.
+
+## Shared challenges
+
+Open Challenges in the browser or the Omarchy game. Pick a reviewed passage,
+including attributed Ruby on Rails excerpts, or submit your own text for review.
+The passage and correction rules stay fixed so everyone races the same test.
+
+Guests can play. Connect a profile to publish a result and enter the standings.
+Share the result URL: it includes a social preview, playback, and a **Race this
+run** action. Each result keeps the selected theme. The native client uses the
+current Omarchy palette; browser practice offers six themes.
+
+Online attempts send input and timing when the test finishes so the server can
+calculate the score. The server keeps sanitized passage progress, not incorrect
+keystrokes. These checks establish consistent scores; they do not prove a player
+is human. Old practice results remain separate from challenge standings.
+
+Custom submissions are private to their creator until reviewed. Reports go to the
+moderation queue. Profile visibility and per-result publishing remain explicit.
+Recovery codes and linked devices are managed under Account.
 
 ## Local data
 
@@ -125,8 +149,9 @@ The opt-in result URL and privacy boundary are documented in
 
 Personal streaks use the machine's local calendar. The shared Daily challenge
 uses UTC so every player receives the same prompt. History is capped at the
-latest 500 tests. Share cards contain scores only, never the passage or typed
-text.
+latest 500 tests. Ordinary practice shares scores and a pace series. Online
+challenges share an approved passage and sanitized progress replay; incorrect
+keystrokes never appear in public playback.
 
 ## Development checks
 

@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "typearchy-local",
+  "compatibility_date": "2026-08-28",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "typearchy-prod",
+      "database_id": "01d89dca-3a71-458d-9485-4dbc4282bfb7",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

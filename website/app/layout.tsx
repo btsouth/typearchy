@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://typearchy.com'),
   applicationName: 'Typearchy',
   title: 'Typearchy | Keep Your Fingers Sharp',
-  description: 'A focused, local-first typing game built for Omarchy. Seven modes, useful practice insights, and no account required.',
+  description: 'Focused typing for Omarchy and the browser. Practice words, prose, and code, or share a challenge for friends to race. No account required to practice.',
   alternates: { canonical: '/' },
   category: 'technology',
   robots: {

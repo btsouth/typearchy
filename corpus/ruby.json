@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rails-rate-limit-2024",
+    "title": "Action Controller: rate_limit",
+    "language": "ruby",
+    "passage": "def rate_limit(to:, within:, by: -> { request.remote_ip }, with: -> { head :too_many_requests }, **options)\n  require_compatible_kredis\n  before_action -> { rate_limiting(to: to, within: within, by: by, with: with) }, **options\nend",
+    "author": "David Heinemeier Hansson",
+    "sourceUrl": "https://github.com/rails/rails/blob/179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd/actionpack/lib/action_controller/metal/rate_limiting.rb#L31-L34",
+    "commit": "179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd",
+    "license": "MIT",
+    "note": "Original implementation from 2024. Excerpt with outer indentation removed; not a current Rails setup guide.",
+    "description": "Connects a request limit to controller actions through a before-action callback. The keyword arguments let an application choose its limit, time window, caller identity, and response."
+  },
+  {
+    "id": "rails-rate-limit-example",
+    "title": "Rails: protect a session",
+    "language": "ruby",
+    "passage": "class SessionsController < ApplicationController\n  rate_limit to: 10, within: 3.minutes, only: :create\nend",
+    "author": "David Heinemeier Hansson",
+    "sourceUrl": "https://github.com/rails/rails/blob/179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd/actionpack/lib/action_controller/metal/rate_limiting.rb#L20-L22",
+    "commit": "179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd",
+    "license": "MIT",
+    "note": "Documentation example from the original rate-limiting change. Comment prefixes removed.",
+    "description": "Limits session creation to ten requests in three minutes. This is a compact example of Rails expressing useful behavior with a small amount of code."
+  },
+  {
+    "id": "rails-string-inquirer",
+    "title": "Rails: StringInquirer",
+    "language": "ruby",
+    "passage": "class StringInquirer < String\n  private\n    def respond_to_missing?(method_name, include_private = false)\n      method_name.end_with?(\"?\") || super\n    end\n\n    def method_missing(method_name, ...)\n      if method_name.end_with?(\"?\")\n        self == method_name[0..-2]\n      else\n        super\n      end\n    end\nend",
+    "author": "Rails contributors",
+    "sourceUrl": "https://github.com/rails/rails/blob/946e46ebccaee862a3bed84d62424655723bc407/activesupport/lib/active_support/string_inquirer.rb#L21-L34",
+    "commit": "946e46ebccaee862a3bed84d62424655723bc407",
+    "license": "MIT",
+    "note": "Class excerpt with outer indentation removed. This revision includes contributions by multiple authors.",
+    "description": "Makes a string answer readable questions about its value. For example, StringInquirer.new(\"production\").production? returns true. The question-mark method is handled dynamically."
+  },
+  {
+    "id": "rails-request-limiter-2024",
+    "title": "Rails: request limiter",
+    "language": "ruby",
+    "passage": "def rate_limiting(to:, within:, by:, with:)\n  limiter = Kredis.limiter \"rate-limit:#{controller_path}:#{instance_exec(&by)}\", limit: to, expires_in: within\n\n  if limiter.exceeded?\n    ActiveSupport::Notifications.instrument(\"rate_limit.action_controller\", request: request) do\n      instance_exec(&with)\n    end\n  else\n    limiter.poke\n  end\nend",
+    "author": "David Heinemeier Hansson",
+    "sourceUrl": "https://github.com/rails/rails/blob/179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd/actionpack/lib/action_controller/metal/rate_limiting.rb#L52-L62",
+    "commit": "179b979ddbb7bcc4d1a12d0d71779f47c1c9d9cd",
+    "license": "MIT",
+    "note": "Complete method from the original 2024 implementation, with outer indentation removed. Counts requests and handles callers that exceed the limit; not a current Rails setup guide.",
+    "description": "Builds a request counter for the controller and caller. When the limit is exceeded, it emits a notification and runs the configured response. Otherwise, it increments the counter."
+  }
+]

@@ -1,0 +1,3 @@
+# Comma-separated internal profile IDs allowed to review submissions.
+# Empty means no moderator access. Use actual owner IDs in production.
+TYPEARCHY_MODERATOR_PROFILE_IDS=

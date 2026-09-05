@@ -2,34 +2,19 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { generateCode, generateProse, generateQuoteRelay, generateShell, generateWords } from './contentEngine';
+import PracticeHistory from './PracticeHistory';
+import { sharedChallengeFromKey, type SharedChallenge } from './lib/sharedPractice';
+import { learningState, learningRecord, learningProfile } from './learningEngine';
+import { HISTORY_LIMIT, normalizePracticeHistory, mergePracticeHistory, practiceGroup, type PracticeRun as WebRun } from './lib/practiceHistory';
+import { THEMES, selectedResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
+import practicePassages from './practicePassages.json';
 import { advanceLineBreaks, alignCharacter, countCorrectCharacters, eraseInput, isCorrectCharacter } from './typingEngine';
 
 type ModeKey = 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
-type Language = 'bash' | 'python' | 'javascript' | 'rust';
+type Language = 'bash' | 'python' | 'javascript' | 'rust' | 'ruby';
 type SprintStyle = 'words' | 'prose';
 type Screen = 'test' | 'history';
-
-type WebRun = {
-  id: string;
-  timestamp: string;
-  mode: ModeKey;
-  target: string;
-  wpm: number;
-  raw: number;
-  accuracy: number;
-  consistency: number;
-  errors: number;
-  pace: number[];
-  weakKeys: string[];
-  weakPairs?: string[];
-  drillKeys?: string[];
-  drillBigrams?: string[];
-  targetErrors?: number;
-  challengeKey: string;
-  engineVersion: string;
-  sprintStyle?: SprintStyle;
-};
 
 const MODES: { key: ModeKey; label: string }[] = [
   { key: 'sprint', label: 'SPRINT' },
@@ -41,14 +26,7 @@ const MODES: { key: ModeKey; label: string }[] = [
   { key: 'custom', label: 'CUSTOM' },
 ];
 
-const THEMES = [
-  { name: 'OSAKA JADE', short: 'OSAKA', bg: '#0b1511', panel: '#101d17', ink: '#d7d7ad', muted: '#6d806f', accent: '#56a47b', error: '#e95d4f' },
-  { name: 'TOKYO NIGHT', short: 'TOKYO', bg: '#1a1b26', panel: '#24283b', ink: '#c0caf5', muted: '#565f89', accent: '#7aa2f7', error: '#f7768e' },
-  { name: 'CATPPUCCIN', short: 'MOCHA', bg: '#1e1e2e', panel: '#313244', ink: '#cdd6f4', muted: '#6c7086', accent: '#cba6f7', error: '#f38ba8' },
-  { name: 'GRUVBOX', short: 'GRUV', bg: '#282828', panel: '#3c3836', ink: '#ebdbb2', muted: '#928374', accent: '#b8bb26', error: '#fb4934' },
-  { name: 'PAPER', short: 'PAPER', bg: '#f4f0e6', panel: '#e7e1d4', ink: '#282b27', muted: '#77786f', accent: '#426b8a', error: '#b4473f' },
-  { name: 'AMBER CRT', short: 'AMBER', bg: '#151006', panel: '#21190a', ink: '#f2e5bd', muted: '#8f7951', accent: '#e9a520', error: '#ef5b45' },
-];
+
 
 const WORD_BANK = contentPack.words;
 const DAILY_PROMPTS = contentPack.dailyPassages;
@@ -70,38 +48,10 @@ function dailyPrompt(index: number) {
     .join(' ');
 }
 
-type SharedChallenge = {
-  mode: ModeKey;
-  duration: number;
-  sprintStyle: SprintStyle;
-  language: Language;
-  target: string;
-  prompt: string;
-  key: string;
-  version: string;
-};
-
-function sharedChallengeFromKey(key: string): SharedChallenge | null {
-  let match = key.match(/^daily:(\d+)$/);
-  if (match) return { mode: 'daily', duration: 60, sprintStyle: 'prose', language: 'javascript', target: `#${match[1]}`, prompt: dailyPrompt(Number(match[1])), key, version: 'daily-v2' };
-  match = key.match(/^sprint:(words|prose):(15|30|60):(generated:(?:words|prose):[a-z0-9]+)$/);
-  if (match) {
-    const style = match[1] as SprintStyle; const duration = Number(match[2]);
-    const generated = style === 'words' ? generateWords(WORD_BANK, Math.min(WORD_BANK.length, Math.max(160, Math.ceil(duration * 5.5))), match[3]) : generateProse(DAILY_PROMPTS, match[3], Math.max(680, duration * 18));
-    return { mode: 'sprint', duration, sprintStyle: style, language: 'javascript', target: `${style.toUpperCase()} / ${duration} SEC`, prompt: generated.prompt, key, version: generated.version };
-  }
-  match = key.match(/^shell:(15|30|60):(generated:shell:[a-z0-9]+)$/);
-  if (match) { const duration = Number(match[1]); const generated = generateShell(match[2], Math.max(360, duration * 16)); return { mode: 'shell', duration, sprintStyle: 'prose', language: 'bash', target: `${duration} SEC`, prompt: generated.prompt, key, version: generated.version }; }
-  match = key.match(/^code:(bash|python|javascript|rust):(15|30|60):(generated:code:\1:[a-z0-9]+)$/);
-  if (match) { const language = match[1] as Language; const duration = Number(match[2]); const generated = generateCode(language, match[3], Math.max(360, duration * 16)); return { mode: 'code', duration, sprintStyle: 'prose', language, target: `${language.toUpperCase()} / ${duration} SEC`, prompt: generated.prompt, key, version: generated.version }; }
-  match = key.match(/^(generated:quote:[a-z0-9]+)$/);
-  if (match) { const generated = generateQuoteRelay(WEB_QUOTES, match[1], 4); return { mode: 'quote', duration: 60, sprintStyle: 'prose', language: 'javascript', target: '4 EXCERPTS', prompt: generated.prompt, key, version: generated.version }; }
-  return null;
-}
 
 function drillChallenge(keys: string[], bigrams: string[], nonce: number) {
   const score = (text: string, pattern: string) => text.toLowerCase().split(pattern.toLowerCase()).length - 1;
-  const ranked = DAILY_PROMPTS.map((prompt, index) => ({
+  const ranked = practicePassages.map(item => item.passage).map((prompt, index) => ({
     prompt,
     index,
     score: keys.reduce((total, key) => total + score(prompt, key), 0)
@@ -111,8 +61,8 @@ function drillChallenge(keys: string[], bigrams: string[], nonce: number) {
   const labels = [...keys, ...bigrams.map((pair) => pair.replace('→', ''))];
   return {
     prompt: ranked.map((entry) => entry.prompt).join(' '),
-    key: `drill:${labels.join('-')}:${ranked.map((entry) => entry.index).join('-')}`,
-    version: 'drill-v2',
+    key: `drill:v3:${labels.join('-')}:${ranked.map((entry) => entry.index).join('-')}`,
+    version: 'drill-v3',
   };
 }
 
@@ -149,6 +99,15 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const [nonce, setNonce] = useState(0);
   const [customText, setCustomText] = useState('Paste or write a passage here, then apply it and start typing. Everything in Custom mode stays inside this browser.');
   const [editingCustom, setEditingCustom] = useState(false);
+  const [customIdentity, setCustomIdentity] = useState({ text: '', key: '' });
+  useEffect(() => {
+    let active = true; const text = customText.trim();
+    void crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(buffer => {
+      const key = 'custom:sha256:' + Array.from(new Uint8Array(buffer), byte => byte.toString(16).padStart(2,'0')).join('');
+      if (active) setCustomIdentity({ text, key });
+    });
+    return () => { active = false; };
+  }, [customText]);
   const [typed, setTyped] = useState('');
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(0);
@@ -156,13 +115,20 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const [pace, setPace] = useState<number[]>([]);
   const [keystrokes, setKeystrokes] = useState(0);
   const [mistakes, setMistakes] = useState(0);
+  const shareGeneration = useRef(0);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [needsProfile, setNeedsProfile] = useState(false);
   const [history, setHistory] = useState<WebRun[]>([]);
   const [result, setResult] = useState<WebRun | null>(null);
+  const [practiceSession, setPracticeSession] = useState<{ baseline: WebRun; challenge: SharedChallenge; stage: 'drill' | 'retest' } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const composingRef = useRef(false);
   const promptRef = useRef<HTMLDivElement>(null);
   const typedRef = useRef('');
+  const learningRef = useRef(learningState());
   const startedRef = useRef(0);
   const completedRef = useRef(false);
   const keystrokesRef = useRef(0);
@@ -177,7 +143,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     const timer = window.setTimeout(() => {
       try {
         const storedRuns = JSON.parse(localStorage.getItem('typearchy.web.runs.v1') || '[]');
-        if (Array.isArray(storedRuns)) setHistory(storedRuns.slice(0, 100));
+        setHistory(normalizePracticeHistory(storedRuns));
         const storedTheme = Number(localStorage.getItem('typearchy.web.theme.v1'));
         if (storedTheme >= 0 && storedTheme < THEMES.length) setThemeIndex(storedTheme);
         if (localStorage.getItem('typearchy.web.sprint-style.v1') === 'words') setSprintStyle('words');
@@ -186,28 +152,13 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     return () => window.clearTimeout(timer);
   }, []);
 
+  const practiceEvidence = useMemo(() => learningProfile(history), [history]);
   const drillProfile = useMemo(() => {
-    const keyScores = new Map<string, number>();
-    const pairScores = new Map<string, number>();
-    history.slice(0, 12).forEach((run, index) => {
-      const weight = 12 - index;
-      (run.weakKeys || []).forEach((key) => {
-        const normalized = key.toLowerCase();
-        if (/^[a-z]$/.test(normalized)) keyScores.set(normalized, (keyScores.get(normalized) || 0) + weight);
-      });
-      (run.weakPairs || []).forEach((pair) => {
-        const normalized = pair.toLowerCase();
-        if (/^[a-z]→[a-z]$/.test(normalized)) pairScores.set(normalized, (pairScores.get(normalized) || 0) + weight);
-      });
-    });
-    const keys = [...keyScores].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([key]) => key);
-    const bigrams = [...pairScores].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([pair]) => pair);
-    return {
-      keys: keys.length ? keys : ['r', 't'],
-      bigrams: bigrams.length ? bigrams : ['t→h', 'e→r'],
-      calibrating: history.length < 3,
-    };
-  }, [history]);
+    const keys = practiceEvidence.keys.filter(row => /^[a-z]$/.test(row.key)).slice(0, 2).map(row => row.key);
+    const bigrams = practiceEvidence.pairs.filter(row => /^[a-z]→[a-z]$/.test(row.key)).slice(0, 2).map(row => row.key);
+    return { keys, bigrams,
+      calibrating: practiceEvidence.calibrating, personalized: keys.length > 0 || bigrams.length > 0 };
+  }, [practiceEvidence]);
 
   const challenge = useMemo(() => {
     if (sharedChallenge) return { prompt: sharedChallenge.prompt, key: sharedChallenge.key, version: sharedChallenge.version };
@@ -217,16 +168,17 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       : generateProse(DAILY_PROMPTS, `sprint-prose-${seed}`, Math.max(680, duration * 18));
     if (mode === 'daily') return { prompt: dailyPrompt(dailyIndex()), key: `daily:${dailyIndex()}`, version: 'daily-v2' };
     if (mode === 'quote') return generateQuoteRelay(WEB_QUOTES, seed, 4);
-    if (mode === 'shell') return generateShell(seed, Math.max(480, duration * 18));
-    if (mode === 'code') return generateCode(language, seed, Math.max(480, duration * 18));
+    if (mode === 'shell') return generateShell(seed, Math.max(360, duration * 16));
+    if (mode === 'code') return generateCode(language, seed, Math.max(360, duration * 16));
     if (mode === 'drill') return drillChallenge(drillProfile.keys, drillProfile.bigrams, nonce);
-    return { prompt: customText.trim(), key: `custom:${customText.length}:${nonce}`, version: 'custom-v1' };
-  }, [mode, nonce, duration, sprintStyle, language, drillProfile, customText, sharedChallenge]);
+    return { prompt: customText.trim(), key: customIdentity.text === customText.trim() ? customIdentity.key : '', version: 'custom-v2' };
+  }, [mode, nonce, duration, sprintStyle, language, drillProfile, customText, customIdentity, sharedChallenge]);
   const prompt = challenge.prompt;
+  const inputMode = sharedChallenge?.inputMode || mode;
   const renderedRuns = useMemo(() => promptRuns(prompt, typed), [prompt, typed]);
 
   const timed = mode === 'sprint' || mode === 'shell' || mode === 'code';
-  const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? (mode === 'code' ? `${language.toUpperCase()} / ${duration} SEC` : `${duration} SEC`) : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'drill' ? `${drillProfile.calibrating ? 'BASELINE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
+  const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? (mode === 'code' ? `${language.toUpperCase()} / ${duration} SEC` : `${duration} SEC`) : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'drill' ? `${!drillProfile.personalized ? 'GENERAL PRACTICE' : drillProfile.calibrating ? 'EARLY PRACTICE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
   const correct = countCorrectCharacters(prompt, typed);
@@ -246,6 +198,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const reset = useCallback((focus = true, advance = false) => {
     setTyped('');
     typedRef.current = '';
+    learningRef.current = learningState();
     setStartedAt(null);
     startedRef.current = 0;
     setNow(0);
@@ -261,14 +214,18 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     mistakePairsRef.current = [];
     mistakeEventsRef.current = [];
     setResult(null);
+    shareGeneration.current += 1;
+    setShareBusy(false);
+    setShareError('');
+    setNeedsProfile(false);
     setCopied(false);
     promptLineTopRef.current = 0;
     if (promptRef.current) promptRef.current.scrollTop = 0;
-    if (advance) { setSharedChallenge(null); setNonce((value) => value + 1); }
+    if (advance) { setSharedChallenge(null); setPracticeSession(null); setNonce((value) => value + 1); }
     if (focus) window.setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  const finishTest = useCallback((endedAt = Date.now()) => {
+  const finishTest = useCallback((endedAt = performance.now()) => {
     if (!startedRef.current || completedRef.current) return;
     completedRef.current = true;
     const elapsedMs = Math.max(1000, endedAt - startedRef.current);
@@ -277,10 +234,12 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     const finalRaw = Math.round(keystrokesRef.current / 5 / (elapsedMs / 60000));
     const finalPace = paceRef.current.length ? [...paceRef.current, finalWpm].slice(-20) : [finalWpm];
     const run: WebRun = {
-      id: `${endedAt}-${mode}`,
-      timestamp: new Date(endedAt).toISOString(),
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
       mode,
       target,
+      durationMs: elapsedMs,
+      learning: learningRef.current,
       wpm: finalWpm,
       raw: finalRaw,
       accuracy: keystrokesRef.current ? Math.round(((keystrokesRef.current - mistakesRef.current) / keystrokesRef.current) * 100) : 100,
@@ -300,7 +259,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     setCompletedAt(endedAt);
     setResult(run);
     setHistory((runs) => {
-      const next = [run, ...runs].slice(0, 100);
+      const next = [run, ...runs].slice(0, HISTORY_LIMIT);
       try { localStorage.setItem('typearchy.web.runs.v1', JSON.stringify(next)); } catch { /* Browser storage is optional. */ }
       return next;
     });
@@ -309,7 +268,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   useEffect(() => {
     if (!startedAt || completedAt) return;
     const timer = window.setInterval(() => {
-      const current = Date.now();
+      const current = performance.now();
       setNow(current);
       const seconds = Math.max(0.75, (current - startedRef.current) / 1000);
       const liveCorrect = countCorrectCharacters(prompt, typedRef.current);
@@ -329,10 +288,11 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     const nextScrollTop = Math.max(0, current.offsetTop - lineHeight);
     if (Math.abs(nextScrollTop - promptLineTopRef.current) < 1) return;
     promptLineTopRef.current = nextScrollTop;
-    container.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+    container.scrollTo({ top: nextScrollTop, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }, [typed, prompt]);
 
   const chooseMode = (next: ModeKey) => {
+    setPracticeSession(null);
     setSharedChallenge(null);
     setMode(next);
     setScreen('test');
@@ -340,6 +300,22 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     reset(false, true);
     window.setTimeout(() => inputRef.current?.focus(), 0);
   };
+
+  function startFocusedPractice() {
+    if (!result) return;
+    const baseline = result;
+    const original: SharedChallenge = { mode, duration, sprintStyle, language, target, prompt, key: challenge.key, version: challenge.version || 'unknown' };
+    chooseMode('drill');
+    if (mode === 'code' || mode === 'shell') setSharedChallenge({ ...original, mode: 'drill', inputMode: mode, target: `${mode === 'code' ? language.toUpperCase() : 'SHELL'} / UNTIMED`, key: `drill:${original.key}` });
+    setPracticeSession({ baseline, challenge: original, stage: 'drill' });
+  }
+  function retestBaseline() {
+    if (!practiceSession) return;
+    const original = practiceSession.challenge;
+    setSharedChallenge(original); setMode(original.mode); setDuration(original.duration);
+    setSprintStyle(original.sprintStyle); setLanguage(original.language); setScreen('test');
+    setPracticeSession({ ...practiceSession, stage: 'retest' }); reset();
+  }
 
   const chooseTheme = (index: number) => {
     setThemeIndex(index);
@@ -354,9 +330,10 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   };
 
   const addCharacters = (characters: string) => {
-    if (result || editingCustom || !prompt) return;
+    if (screen !== 'test' || result || completedRef.current || editingCustom || !prompt) return;
+    if (timed && startedRef.current && performance.now() - startedRef.current >= duration * 1000) { finishTest(startedRef.current + duration * 1000); return; }
     if (!startedRef.current) {
-      const start = Date.now();
+      const start = performance.now();
       startedRef.current = start;
       setStartedAt(start);
       setNow(start);
@@ -371,6 +348,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       if (next.length >= prompt.length) break;
       const index = next.length;
       const aligned = alignCharacter(prompt, next, character);
+      learningRecord(learningRef.current, aligned.expected, index > 0 ? prompt[index - 1] : '', aligned.correct);
       addedKeystrokes += 1;
       if (!aligned.correct) {
         addedMistakes += 1;
@@ -380,7 +358,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
         if (/^[a-z]→[a-z]$/.test(pair)) addedPairs.push(pair);
         addedEvents.push({ key, pair });
       }
-      next = advanceLineBreaks(mode, prompt, aligned.text, character);
+      next = advanceLineBreaks(inputMode, prompt, aligned.text, character);
     }
     if (addedKeystrokes) {
       keystrokesRef.current += addedKeystrokes;
@@ -395,17 +373,19 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     }
     typedRef.current = next;
     setTyped(next);
-    if (next.length === prompt.length) window.setTimeout(() => finishTest(Date.now()), 0);
+    if (next.length === prompt.length) window.setTimeout(() => finishTest(performance.now()), 0);
   };
 
   const eraseTyped = (word: boolean) => {
-    if (result || editingCustom || !typedRef.current.length) return;
+    if (screen !== 'test' || result || completedRef.current || editingCustom || !typedRef.current.length) return;
+    if (timed && startedRef.current && performance.now() - startedRef.current >= duration * 1000) { finishTest(startedRef.current + duration * 1000); return; }
     const next = eraseInput(typedRef.current, word);
     typedRef.current = next;
     setTyped(next);
   };
 
   const handleKey = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || composingRef.current) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r') {
       event.preventDefault();
       reset();
@@ -415,6 +395,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       setScreen((value) => value === 'history' ? 'test' : 'history');
       return;
     }
+    if (screen !== 'test') return;
     if (event.key === 'Backspace') {
       event.preventDefault();
       eraseTyped(event.ctrlKey || event.metaKey);
@@ -422,7 +403,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      if ((mode === 'shell' || mode === 'code') && prompt[typedRef.current.length] === '\n') addCharacters('\n');
+      if ((inputMode === 'shell' || inputMode === 'code') && prompt[typedRef.current.length] === '\n') addCharacters('\n');
       return;
     }
     if (event.key === 'Tab' && prompt[typedRef.current.length] === '\t') {
@@ -432,15 +413,36 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   };
 
   const copyResult = async () => {
-    if (!result) return;
-    await navigator.clipboard.writeText(`TYPEARCHY / ${result.mode.toUpperCase()} ${result.target}\n${result.wpm} WPM  |  ${result.accuracy}% ACC\nCHALLENGE ${result.challengeKey}\n${location.origin}/play`);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
+    if (!result || shareBusy) return;
+    const generation = shareGeneration.current;
+    const isCurrent = () => generation === shareGeneration.current;
+    setShareBusy(true); setShareError(''); setNeedsProfile(false);
+    try {
+      let slug = result.publicSlug;
+      if (!slug) {
+        const response = await fetch('/api/runs', { method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+          clientRunId:`browser:${result.id}`,timestamp:result.timestamp,contentVersion:result.engineVersion,mode:result.mode,
+          challengeKey:result.challengeKey,target:result.target,duration:Math.max(1,Math.round((result.durationMs || 30000)/1000)),
+          wpm:result.wpm,rawWpm:result.raw,accuracy:result.accuracy,consistency:result.consistency,errors:result.errors,pace:result.pace,
+          theme:selectedResultTheme(),
+        }) });
+        const data=await response.json() as {slug:string;error?:string};
+        if(response.status===401 && isCurrent()) setNeedsProfile(true);
+        if(!response.ok) throw new Error(data.error || 'Could not share this result');
+        slug=data.slug; const updated={...result,publicSlug:slug};
+        if (isCurrent()) setResult(current => current?.id === result.id ? updated : current);
+        setHistory(runs=>{const next=runs.map(run=>run.id===result.id ? updated : run);try{localStorage.setItem('typearchy.web.runs.v1',JSON.stringify(next));}catch{}return next;});
+      }
+      if (!isCurrent()) return;
+      try { await navigator.clipboard.writeText(`https://typearchy.com/r/${slug}`); if (isCurrent()) setCopied(true); }
+      catch { if (isCurrent()) setShareError('Your result is published. Open it below to share the URL.'); }
+    } catch(cause) {if (isCurrent()) setShareError(cause instanceof Error ? cause.message : 'Could not share this result');}
+    finally {if (isCurrent()) setShareBusy(false);}
   };
 
-  const bestForMode = history.filter((run) => run.mode === mode && run.target === target).reduce((best, run) => Math.max(best, run.wpm), 0);
+  const bestForMode = history.filter((run) => result ? practiceGroup(run) === practiceGroup(result) : run.mode === mode && run.target === target && run.engineVersion === challenge.version).reduce((best, run) => Math.max(best, run.wpm), 0);
   const paceMaximum = Math.max(1, ...(result?.pace || pace));
-  const technical = mode === 'shell' || mode === 'code' || mode === 'quote';
+  const technical = inputMode === 'shell' || inputMode === 'code' || mode === 'quote';
 
   return (
     <div id={compact ? 'typing-demo' : 'web-game'} className={`game-stage web-game ${compact ? 'web-game-compact' : 'web-game-full'} ${startedAt ? 'is-running' : ''} ${result ? 'has-result' : ''}`} style={gameVars} onClick={() => screen === 'test' && !editingCustom && inputRef.current?.focus()}>
@@ -455,9 +457,9 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       <div className="web-game-settings" onClick={(event) => event.stopPropagation()}>
         {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setSharedChallenge(null); setDuration(seconds); reset(false, true); }}>{seconds}</button>)}</div>}
         {mode === 'sprint' && <div className="web-game-language sprint-style" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>WORDS</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>PROSE</button></div>}
-        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
+        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust', 'ruby'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
         {mode === 'custom' && <button className="web-game-edit" type="button" onClick={() => setEditingCustom(true)}>EDIT PASSAGE</button>}
-        <span>{mode === 'sprint' ? `TIMED ${sprintStyle.toUpperCase()}` : mode === 'drill' && drillProfile.calibrating ? `CALIBRATING / ${Math.min(3, history.length)} OF 3 RUNS` : MODE_HINTS[mode]}</span>
+        <span>{mode === 'sprint' ? `TIMED ${sprintStyle.toUpperCase()}` : mode === 'drill' && sharedChallenge?.inputMode ? 'SAME CODE / NO TIMER' : mode === 'drill' && drillProfile.calibrating ? `LEARNING FROM ${practiceEvidence.totalAttempts} KEY ATTEMPTS` : MODE_HINTS[mode]}</span>
       </div>
 
       <div className="game-head">
@@ -465,23 +467,39 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
         {screen === 'test' && <div className="metrics" aria-label="Live typing statistics"><span><small>ACC</small>{accuracy}%</span><span><small>WPM</small>{wpm}</span><span><small>{timed ? 'LEFT' : 'DONE'}</small>{timeValue}{timed ? '' : '%'}</span></div>}
       </div>
 
-      <textarea ref={inputRef} className="demo-input" onInput={(event) => { const value = (event.nativeEvent as InputEvent).data || ''; event.currentTarget.value = ''; if (value) addCharacters(value); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+      {practiceSession && !result && <div className="practice-session-bar"><span>{practiceSession.stage === 'drill' ? '2 / 3 · Focused practice' : '3 / 3 · Retest your original passage'}</span><span>Baseline: {practiceSession.baseline.wpm} WPM · {practiceSession.baseline.accuracy}% accuracy</span></div>}
+      <textarea ref={inputRef} className="demo-input" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={event => { composingRef.current = false; event.currentTarget.value = ''; if (event.data) addCharacters(event.data.normalize('NFC')); }} onInput={(event) => { if (composingRef.current || (event.nativeEvent as InputEvent).isComposing) return; const value = event.currentTarget.value; event.currentTarget.value = ''; if (value) addCharacters(value.normalize('NFC')); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
 
       {screen === 'history' ? (
-        <div className="web-game-history" onClick={(event) => event.stopPropagation()}>
-          <div className="web-game-history-head"><div><span>LOCAL RUN HISTORY</span><strong>{history.length} RUNS</strong></div>{history.length > 0 && <button type="button" onClick={() => { setHistory([]); localStorage.removeItem('typearchy.web.runs.v1'); }}>CLEAR</button>}</div>
-          {history.length ? <div className="web-game-history-list">{history.map((run) => <button type="button" key={run.id} onClick={() => { setSharedChallenge(null); setMode(run.mode === 'words' ? 'sprint' : run.mode === 'focus' ? 'drill' : run.mode); if (run.sprintStyle) setSprintStyle(run.sprintStyle); setScreen('test'); reset(false); }}><span>{new Date(run.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}</span><strong>{run.mode.toUpperCase()} / {run.target}</strong><b>{run.wpm} WPM</b><i>{run.accuracy}%</i></button>)}</div> : <div className="web-game-empty">FINISH A TEST TO START LOCAL HISTORY.</div>}
-        </div>
+        <PracticeHistory history={history} canRetest={run => !!sharedChallengeFromKey(run.challengeKey) || (run.mode === 'custom' && run.challengeKey === customIdentity.key)} onImport={incoming => {
+          const merged = mergePracticeHistory(history, incoming);
+          localStorage.setItem('typearchy.web.runs.v1', JSON.stringify(merged)); setHistory(merged);
+        }} onClear={() => { setHistory([]); try { localStorage.removeItem('typearchy.web.runs.v1'); } catch {} }} onRetest={run => {
+          const previous = sharedChallengeFromKey(run.challengeKey);
+          setSharedChallenge(previous); setMode(run.mode === 'words' ? 'sprint' : run.mode === 'focus' ? 'drill' : run.mode);
+          if (previous) { setDuration(previous.duration); setLanguage(previous.language); }
+          if (run.sprintStyle) setSprintStyle(run.sprintStyle); setScreen('test'); reset(false);
+        }} />
       ) : editingCustom ? (
-        <div className="web-game-custom" onClick={(event) => event.stopPropagation()}><label htmlFor={`custom-passage-${compact ? 'compact' : 'full'}`}>CUSTOM PASSAGE</label><textarea id={`custom-passage-${compact ? 'compact' : 'full'}`} value={customText} onChange={(event) => setCustomText(event.target.value)} spellCheck={false} /><div><span>{customText.trim().length} CHARACTERS / STORED FOR THIS SESSION</span><button type="button" disabled={!customText.trim()} onClick={() => { setEditingCustom(false); reset(); }}>APPLY PASSAGE</button></div></div>
+        <div className="web-game-custom" onClick={(event) => event.stopPropagation()}><label htmlFor={`custom-passage-${compact ? 'compact' : 'full'}`}>CUSTOM PASSAGE</label><textarea id={`custom-passage-${compact ? 'compact' : 'full'}`} value={customText} onChange={(event) => setCustomText(event.target.value)} spellCheck={false} /><div><span>{customText.trim().length} CHARACTERS / STORED FOR THIS SESSION</span><button type="button" disabled={!customText.trim() || customIdentity.text !== customText.trim()} onClick={() => { setEditingCustom(false); reset(); }}>APPLY PASSAGE</button></div></div>
       ) : result ? (
         <div className="demo-result-card web-game-result" aria-live="polite" onClick={(event) => event.stopPropagation()}>
           <div className="demo-result-head"><strong>TYPEARCHY</strong><span>{result.mode.toUpperCase()} / {result.target}</span></div>
-          <div className="demo-result-score"><div><b>{result.wpm}</b><small>WPM</small></div><span><small>{bestForMode <= result.wpm ? 'PERSONAL BEST' : 'MODE BEST'}</small><strong>{bestForMode || result.wpm} WPM</strong></span></div>
+          <div className="demo-result-score"><div><b>{result.wpm}</b><small>WPM</small></div><span><small>{bestForMode <= result.wpm ? 'PERSONAL BEST' : 'COMPARABLE BEST'}</small><strong>{bestForMode || result.wpm} WPM</strong></span></div>
           <div className="demo-result-metrics"><span><small>ACCURACY</small>{result.accuracy}%</span><span><small>RAW</small>{result.raw} WPM</span><span><small>CONSISTENCY</small>{result.consistency}%</span><span><small>ERRORS</small>{result.errors}</span></div>
           <div className="demo-result-pace"><div><span>WPM OVER TIME</span><b>FINISH {result.wpm}</b></div><section>{result.pace.map((sample, index) => <i key={`${sample}-${index}`} style={{ height: `${Math.max(8, (sample / paceMaximum) * 100)}%` }} />)}</section></div>
-          <div className="demo-result-insight"><span>{result.mode === 'drill' ? `TARGET ERRORS  ${result.targetErrors || 0}  /  ${result.target}` : result.weakKeys.length ? `DRILL NEXT  ${result.weakKeys.join('  ')}` : 'NO RECORDED WEAK KEYS'}</span><span>SAVED IN THIS BROWSER</span></div>
-          <div className="demo-result-actions"><button type="button" onClick={() => reset()}>RETRY&nbsp;&nbsp;CTRL+R</button><button type="button" onClick={() => reset(true, true)}>NEW TEST</button><button type="button" onClick={copyResult}>{copied ? 'COPIED' : 'COPY RESULT'}</button></div>
+          <section className="practice-feedback" aria-label="Practice feedback">
+            <h3>{result.accuracy < 95 ? 'Give accuracy your attention.' : practiceEvidence.keys.length ? 'A useful next practice.' : 'Keep your rhythm.'}</h3>
+            <p>{result.accuracy < 95 ? 'Ease the pace and aim for clean keystrokes. Speed is easier to build on a steady, accurate run.' : practiceEvidence.keys.length ? 'Repeated trouble spots from recent practice, accounting for how often each key appeared.' : 'There is no clear repeated trouble spot yet. Try another passage or a longer test.'}</p>
+            {practiceEvidence.keys.length > 0 && <ul>{practiceEvidence.keys.slice(0,3).map(row => <li key={row.key}><kbd>{row.key === 'space' ? 'Space' : row.key === 'enter' ? 'Enter' : row.key}</kbd><span>{row.errors} misses in {row.attempts} attempts</span></li>)}</ul>}
+            <p className="practice-evidence-note">{practiceEvidence.sampledRuns} measured {practiceEvidence.sampledRuns === 1 ? 'run' : 'runs'} · Corrections count as new attempts. {practiceEvidence.calibrating ? 'Suggestions will become more useful as you practice.' : 'Recent practice only.'}</p>
+            {practiceSession?.stage === 'drill' ? <button type="button" onClick={retestBaseline}>Retest the original passage</button>
+              : practiceSession?.stage === 'retest' ? <div className="practice-retest"><h3>Your retest</h3><p>Same passage and rules as your baseline.</p><dl><div><dt>Speed</dt><dd>{practiceSession.baseline.wpm} → {result.wpm} WPM</dd></div><div><dt>Accuracy</dt><dd>{practiceSession.baseline.accuracy}% → {result.accuracy}%</dd></div></dl><p>This is one comparison. Repeat across several sessions to see a lasting trend.</p><button type="button" onClick={() => { setPracticeSession(null); reset(true,true); }}>Finish session · New passage</button></div>
+                : (drillProfile.personalized || ((mode === 'code' || mode === 'shell') && result.errors > 0)) && result.mode !== 'drill' && <button type="button" onClick={startFocusedPractice}>{mode === 'code' || mode === 'shell' ? 'Practice this code, then retest' : 'Practice letter patterns, then retest'}</button>}
+          </section>
+          {shareError && <p role="alert">{shareError}</p>}{needsProfile && <p><a href="/account" target="_blank" rel="noopener">Connect your profile</a>, then share this result.</p>}
+          {result.mode === 'custom' && <p>Custom practice stays local. <a href="/challenges/new">Create a reviewed challenge</a> to share a passage for others to race.</p>}
+          <div className="demo-result-actions"><button type="button" onClick={() => reset()}>RETRY&nbsp;&nbsp;CTRL+R</button><button type="button" onClick={() => reset(true, true)}>NEW TEST</button>{result.mode !== 'custom' && <button type="button" disabled={shareBusy} onClick={copyResult}>{shareBusy ? 'SHARING…' : copied ? 'LINK COPIED' : result.publicSlug ? 'COPY LINK' : 'SHARE RESULT'}</button>}{result.publicSlug && <a href={`/r/${result.publicSlug}`}>VIEW RESULT ↗</a>}</div>
         </div>
       ) : (
         <><div ref={promptRef} className={`live-prompt ${technical ? 'technical' : ''}`} aria-label={prompt}>{renderedRuns.map((run) => <span className={run.state} key={`${run.start}-${run.state}`}>{run.text}</span>)}</div><div className="demo-callout">{startedAt ? 'KEEP THE PACE' : prompt ? 'CLICK HERE, THEN START TYPING' : 'ADD A CUSTOM PASSAGE'}</div></>
