@@ -14,10 +14,12 @@ try {
     .replace(/readonly property string cloudHelper: [^\n]+/, 'readonly property string cloudHelper: "/bin/false"');
   writeFileSync(join(directory, 'Overlay.qml'), overlay);
   writeFileSync(join(directory, 'shell.qml'), `import QtQuick
+import QtQuick.Window
 import Quickshell
 import QtTest
 ShellRoot {
   TestCase { id: keys; when: false }
+  FloatingWindow { id: otherWindow; visible: false; implicitWidth: 100; implicitHeight: 100; Item { id: otherInput; focus: true } }
   Overlay { id: game; standalone: true; onQuitRequested: { console.log("STANDALONE_PASSED"); Qt.quit() } }
   function check(value, description) { if (!value) throw new Error(description) }
   Timer { interval: 200; running: true; onTriggered: {
@@ -32,7 +34,10 @@ ShellRoot {
       game.prompt = "red red"; game.phase = "ready"; game.testInput.forceActiveFocus()
       keys.keyClick("r"); keys.wait(50)
       check(game.phase === "running", "typing starts practice")
-      game.pausePractice(); keys.wait(50)
+      otherWindow.visible = true; keys.wait(50)
+      otherInput.Window.window.requestActivate(); keys.wait(50)
+      check(game.paused, "switching to another window automatically pauses practice")
+      otherWindow.visible = false; game.testInput.Window.window.requestActivate(); keys.wait(50)
       var elapsed = game.elapsedMs
       keys.keyClick("x"); keys.wait(100)
       check(game.typedText === "r" && game.elapsedMs === elapsed, "paused input and timer remain unchanged")
