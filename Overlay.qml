@@ -1350,7 +1350,7 @@ Item {
               width: parent.width
               // Show whole lines only. A half-visible fourth line reads as clipping.
               height: Math.min(promptText.contentHeight,
-                Math.round(promptText.contentHeight / Math.max(1, promptText.lineCount)) * 3 + Style.space(2))
+                Math.round(promptText.contentHeight / Math.max(1, promptText.lineCount)) * (root.mode === "code" || root.mode === "shell" ? 4 : 3) + Style.space(2))
               contentWidth: width
               contentHeight: promptText.contentHeight
               clip: true
