@@ -768,6 +768,19 @@ Item {
     return "start typing  /  tab changes mode  /  h shows stats"
   }
 
+  function trendAverage(runs) {
+    if (!runs || !runs.length) return 0
+    var total = 0
+    for (var i = 0; i < runs.length; i++) total += Number(runs[i].wpm) || 0
+    return total / runs.length
+  }
+
+  function trendHeader(runs) {
+    if (!runs || !runs.length) return "RECENT WPM"
+    return "RECENT WPM  /  LAST " + runs.length + "  /  PEAK " + Math.round(root.trendMaximum(runs))
+      + "  /  AVG " + Math.round(root.trendAverage(runs)) + "  /  LATEST " + Math.round(runs[runs.length - 1].wpm)
+  }
+
   function trendMaximum(runs) {
     var maximum = 1
     for (var i = 0; i < runs.length; i++) maximum = Math.max(maximum, Number(runs[i].wpm) || 0)
@@ -1666,7 +1679,7 @@ Item {
             Column {
               id: statsContent
               width: statsFlick.width
-              spacing: Style.space(10)
+              spacing: Style.space(statsPanel.compact ? 8 : 14)
 
               Row {
                 width: parent.width
@@ -1702,12 +1715,12 @@ Item {
               Item {
                 visible: !statsPanel.compact
                 width: parent.width
-                height: Style.space(58)
+                height: Style.space(76)
 
                 Text {
                   anchors.left: parent.left
                   anchors.top: parent.top
-                  text: "RECENT WPM"
+                  text: root.trendHeader(root.trendRuns)
                   color: root.muted
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -1715,11 +1728,23 @@ Item {
                   font.letterSpacing: 1
                 }
 
+                // Average line so the bars read as numbers, not just a shape.
+                Rectangle {
+                  visible: root.trendRuns.length > 1
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.bottom: parent.bottom
+                  anchors.bottomMargin: Style.space(52) * root.trendAverage(root.trendRuns) / root.trendMaximum(root.trendRuns)
+                  height: 1
+                  color: root.foreground
+                  opacity: 0.35
+                }
+
                 Row {
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.bottom: parent.bottom
-                  height: Style.space(48)
+                  height: Style.space(52)
                   spacing: Style.space(3)
 
                   Repeater {
@@ -2082,8 +2107,7 @@ Item {
           Text {
             anchors.left: parent.left
             anchors.top: parent.top
-              text: "RECENT WPM  /  LAST " + root.trendRuns.length
-                + (root.trendRuns.length ? "  /  PEAK " + Math.round(root.trendMaximum(root.trendRuns)) : "")
+              text: root.trendHeader(root.trendRuns)
             color: root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
