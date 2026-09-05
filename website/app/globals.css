@@ -66,6 +66,9 @@
 .competition-prompt .correct { color: var(--ink); }
 .competition-prompt .incorrect { color: var(--urgent); background: color-mix(in srgb, var(--urgent) 12%, transparent); text-decoration: underline; }
 .competition-prompt .caret { color: var(--ink); background: color-mix(in srgb, var(--accent) 15%, transparent); border-left: 2px solid var(--accent); margin-left: -2px; }
+.competition-return { color: var(--muted); font-size: .8em; }
+.competition-prompt .incorrect .competition-return { color: var(--urgent); }
+.competition-prompt .caret .competition-return { color: var(--accent); }
 .competition-input { position: absolute; width: 1px; height: 1px; left: 0; bottom: 0; padding: 0; opacity: .01; border: 0; resize: none; }
 .competition-prompt-wrap:focus-within { border-bottom-color: var(--accent); }
 .competition-start { display: flex; align-items: center; gap: 24px; min-height: 76px; padding: 0 0 20px; }
