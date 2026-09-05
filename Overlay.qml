@@ -371,6 +371,7 @@ Item {
   function toggleStats() {
     if (root.phase === "running") return
     root.statsOpen = !root.statsOpen
+    Qt.callLater(function() { if (root.windowedStats) statsKeyCatcher.forceActiveFocus(); else keyCatcher.forceActiveFocus() })
   }
 
   function openRunResult(run) {
@@ -972,7 +973,7 @@ Item {
       visible: root.standalone
       anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 8
       spacing: 8; z: 50
-      Button { text: "History"; enabled: root.phase !== "running" && !root.competitionOpen; onClicked: root.toggleStats() }
+      Button { id: historyButton; text: "History"; enabled: root.phase !== "running" && !root.competitionOpen; onClicked: root.toggleStats() }
       Button { text: window.fullscreen ? "Windowed · F11" : "Fullscreen · F11"; onClicked: { window.fullscreen = !window.fullscreen; if (root.competitionOpen) nativeChallenge.refocus(); else keyCatcher.forceActiveFocus() } }
       Button { text: "Close"; onClicked: root.requestClose() }
     }
@@ -1257,7 +1258,7 @@ Item {
               Choice { text: "DAILY"; selected: root.mode === "daily"; onClicked: root.setMode("daily") }
               Choice { text: "QUOTE"; selected: root.mode === "quote"; onClicked: root.setMode("quote") }
               Choice { text: "SHELL"; selected: root.mode === "shell"; onClicked: root.setMode("shell") }
-              Choice { text: "CODE"; selected: root.mode === "code"; onClicked: root.setMode("code") }
+              Choice { id: codeChoice; text: "CODE"; selected: root.mode === "code"; onClicked: root.setMode("code") }
               Choice { text: "DRILL"; selected: root.mode === "drill"; onClicked: root.setMode("drill") }
               Choice { text: "CHALLENGES"; selected: false; onClicked: { root.competitionOpen = true; nativeChallenge.open("", "") } }
               Choice { text: "CUSTOM"; selected: root.mode === "custom"; onClicked: root.setMode("custom") }

@@ -12,6 +12,9 @@ Controls.Button {
   horizontalPadding: 12
   verticalPadding: 8
   hoverEnabled: true
+  // Mouse clicks must not take keyboard focus away from the game, or every shortcut
+  // (Escape, Ctrl+R, typing itself) dies until the player clicks the background.
+  focusPolicy: Qt.TabFocus
   leftPadding: horizontalPadding; rightPadding: horizontalPadding
   topPadding: verticalPadding; bottomPadding: verticalPadding
   font.family: Style.font.family
