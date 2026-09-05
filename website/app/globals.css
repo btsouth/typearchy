@@ -779,7 +779,9 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 .challenge-filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:20px; margin:0 0 32px; }
 .challenge-filters label { display:flex; flex-direction:column; gap:8px; font-size:13px; color:var(--muted); }
 .challenge-filters label:first-child { flex:1; min-width:220px; }
-.challenge-filters input,.challenge-filters select { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--faint); border-radius:0; padding:12px; min-height:44px; }
+.competition-page .challenge-filters input,.competition-page .challenge-filters select { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--faint); border-radius:0; padding:0 14px; height:48px; margin:0; }
+.competition-page .challenge-filters select { text-align:center; text-align-last:center; min-width:190px; }
+.challenge-filter-status { flex-basis:100%; color:var(--muted); font-size:12px; min-height:18px; }
 .challenge-filters > a { padding-block:12px; font-size:13px; }
 .practice-feedback { border-top:1px solid var(--demo-panel); padding:20px 0; }
 .practice-feedback h3 { color:var(--demo-ink); font-size:16px; margin:0 0 8px; }

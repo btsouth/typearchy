@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { db } from '../lib/db';
 import { CHALLENGE_LANGUAGES } from '../lib/challengeContract';
 import ChallengeNav from './ChallengeNav';
+import ChallengeFilters from './ChallengeFilters';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Challenges | Typearchy', alternates: { canonical: '/challenges' } };
@@ -31,11 +32,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
   if (entries.length) next.set('after', `${entries.at(-1)!.created_at}.${entries.at(-1)!.slug}`);
   return <main className="competition-page"><ChallengeNav /><section className="challenge-shell">
     <header className="challenge-heading"><div><p className="challenge-kicker">SAME PASSAGE. YOUR BEST RUN.</p><h1>Challenges</h1><p>Choose a challenge. Race its creator. Set a time worth chasing.</p></div><a className="competition-button primary" href="/challenges/new">Create a challenge</a></header>
-    <form className="challenge-filters" action="/challenges" method="get">
-      <label>Find a passage or player<input type="search" name="q" defaultValue={search} maxLength={80} placeholder="Title or handle" /></label>
-      <label>Language<select name="language" defaultValue={language}><option value="">All languages</option>{CHALLENGE_LANGUAGES.map(value => <option key={value} value={value}>{{ prose:'Prose', ruby:'Ruby', javascript:'JavaScript', typescript:'TypeScript', python:'Python', rust:'Rust', bash:'Bash', go:'Go', text:'Plain text' }[value]}</option>)}</select></label>
-      <button className="competition-button" type="submit">Find challenges</button>{(search || language || cursor) && <a href="/challenges">Clear filters</a>}
-    </form>
+    <ChallengeFilters search={search} language={language} hasCursor={!!cursor} />
     {entries.length ? <div className="challenge-grid">{entries.map(row => <a className="challenge-tile" href={`/c/${row.slug}`} key={row.slug}>
       <span className="challenge-kicker">{row.language} <span>by @{row.handle}</span></span><h2>{row.title}</h2>
       <pre>{row.passage.slice(0, 160)}</pre><p className="competition-note">{Array.from(row.passage).length} characters · {row.passage.split('\n').length} {row.passage.includes('\n') ? 'lines' : 'line'}</p><footer><span>{row.players} {row.players === 1 ? 'player' : 'players'}</span><strong>Take the challenge ↗</strong></footer>
