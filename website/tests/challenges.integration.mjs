@@ -84,7 +84,7 @@ try {
   assert.equal(csrf.response.status, 403);
   const token = 'tpy_' + randomBytes(32).toString('hex');
   const connection = await request('/api/connect/start', { method: 'POST', body: { token, label: 'Native integration', kind: 'connect' } });
-  assert.equal(connection.response.status, 201);
+  assert.equal(connection.response.status, 201, JSON.stringify(connection.data));
   const link = await request('/api/session/link', { method: 'POST', cookie: creator, body: { code: connection.data.code } });
   assert.equal(link.response.status, 200);
   assert.equal((await request('/api/session/link', { method: 'POST', cookie: creator, body: { code: connection.data.code } })).response.status, 200);
