@@ -44,7 +44,7 @@ jobs:
         run: |
           printf '%s\n' 'TYPEARCHY_MODERATOR_PROFILE_IDS=local-moderation-test' > .dev.vars
           npx wrangler d1 migrations apply DB --local --config wrangler.local.json
-          npx wrangler dev --config dist/server/wrangler.json --local --port 5178 --persist-to "$PWD/.wrangler/state" --var TYPEARCHY_MODERATOR_PROFILE_IDS:local-moderation-test > /tmp/typearchy-worker.log 2>&1 &
+          node scripts/local-integration-worker.mjs > /tmp/typearchy-worker.log 2>&1 &
           typearchy_worker_pid=$!
           trap 'typearchy_status=$?; kill "$typearchy_worker_pid" 2>/dev/null || true; if [ "$typearchy_status" -ne 0 ]; then tail -n 100 /tmp/typearchy-worker.log; fi; exit "$typearchy_status"' EXIT
           node scripts/wait-for-local-worker.mjs
