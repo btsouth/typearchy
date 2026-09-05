@@ -77,14 +77,9 @@ function advanceLineBreaks(mode, prompt, typed, character) {
   return next
 }
 
-function wordsPerMinute(correctChars, elapsedMs) {
+function wordsPerMinute(characters, elapsedMs) {
   if (!(elapsedMs > 0)) return 0
-  return round((correctChars / 5) / (elapsedMs / 60000), 1)
-}
-
-function rawWordsPerMinute(keypresses, elapsedMs) {
-  if (!(elapsedMs > 0)) return 0
-  return round((keypresses / 5) / (elapsedMs / 60000), 1)
+  return round((characters / 5) / (elapsedMs / 60000), 1)
 }
 
 function accuracy(keypresses, incorrectKeypresses) {

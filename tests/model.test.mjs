@@ -150,7 +150,7 @@ assert.match(model.renderedPrompt("one\ntwo", "one\u0001", {
   normal: "#ffffff", dim: "#777777", error: "#ff0000", cursor: "#ffffff", background: "#000000"
 }), /color:#ffffff/)
 assert.equal(model.wordsPerMinute(150, 30000), 60)
-assert.equal(model.rawWordsPerMinute(175, 30000), 70)
+assert.equal(model.wordsPerMinute(175, 30000), 70)
 assert.equal(model.accuracy(100, 3), 97)
 assert.equal(model.consistency([60, 60, 60]), 100)
 assert.equal(model.eraseWordIndex("one two"), 4)

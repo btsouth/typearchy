@@ -383,7 +383,7 @@ Item {
       targetErrors: Model.drillTargetErrors(root.challenge, root.keyMistakes, root.bigramMistakes),
       characters: root.correctChars,
       wpm: finalWpm,
-      rawWpm: Model.rawWordsPerMinute(root.totalKeypresses, root.elapsedMs),
+      rawWpm: Model.wordsPerMinute(root.totalKeypresses, root.elapsedMs),
       accuracy: Model.accuracy(root.totalKeypresses, root.incorrectKeypresses),
       consistency: Model.consistency(root.paceSamples),
       errors: root.incorrectKeypresses,
