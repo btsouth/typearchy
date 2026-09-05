@@ -26,14 +26,16 @@ try {
   const created = await request('/api/challenges','POST',{title:'Community review fixture',passage:'Clear feedback makes deliberate practice useful.',language:'prose',autoIndent:false,visibility:'public'});
   assert.equal(created.response.status,201,JSON.stringify(created.data));
   const slug = created.data.slug;
-  assert.equal((await fetch(origin+'/api/challenges/'+slug)).status,404);
-  assert.equal((await fetch(origin+'/og/challenge/'+slug)).status,404);
+  assert.equal((await fetch(origin+'/api/challenges/'+slug)).status,200,'Unreviewed passages are reachable by link');
+  assert.equal((await fetch(origin+'/og/challenge/'+slug)).status,200);
+  assert.ok(!(await (await fetch(origin+'/challenges')).text()).includes('Community review fixture'),'Unreviewed passages stay out of the library');
   const queue = await request('/api/moderation');
   assert.equal(queue.response.status,200,JSON.stringify(queue.data));
   assert.ok(queue.data.challenges.some(challenge=>challenge.slug===slug));
   const approve = await request('/api/moderation','PATCH',{slug,status:'approved',note:'Reviewed local test passage'});
   assert.equal(approve.response.status,200,JSON.stringify(approve.data));
   assert.equal((await fetch(origin+'/api/challenges/'+slug)).status,200);
+  assert.ok((await (await fetch(origin+'/challenges')).text()).includes('Community review fixture'),'Approval lists the passage');
   const report = await request('/api/challenges/'+slug+'/report','POST',{reason:'other',detail:'Local report fixture'});
   assert.equal(report.response.status,201);
   assert.ok((await request('/api/moderation')).data.reports.some(report=>report.slug===slug));
@@ -67,7 +69,7 @@ try {
     assert.equal((await asPlayer('/api/profile','PATCH',{visibility:'public'})).status,200);
     assert.equal((await fetch(origin+'/u/'+playerAccount.handle)).status,200);
   } finally { assert.equal((await asPlayer('/api/profile','DELETE')).status,200); }
-  console.log('Local moderation passed: pending isolation, approval, reporting, rejection, social-card removal, review feedback, report resolution, profile restriction, and restoration.');
+  console.log('Local moderation passed: link access before review, library listing after approval, approval, reporting, rejection, social-card removal, review feedback, report resolution, profile restriction, and restoration.');
 } finally {
   sql("DELETE FROM profiles WHERE id = 'local-moderation-test'");
   rmSync(directory,{recursive:true,force:true});

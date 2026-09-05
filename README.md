@@ -30,7 +30,7 @@ use the shared service to validate completed attempts and race other players.
 - Shareable result URLs with theme-matched social previews and interactive playback
 - Optional PNG result cards saved locally and copied to the clipboard
 - Reviewed prose and Rails challenges with recorded opponents and shared standings
-- Custom challenges saved for review before other players can see them
+- Custom challenges shareable by link right away, with review before library listing
 - Optional public handles with three pinned runs and replayable pace ghosts
 - Automatic Omarchy theme colors and typography
 
@@ -111,7 +111,8 @@ stats, `G` to toggle the pace ghost, or `F` to cycle the prompt size.
 ## Shared challenges
 
 Open Challenges in the browser or desktop app. Pick a reviewed passage,
-including attributed Ruby on Rails excerpts, or submit your own text for review.
+including attributed Ruby on Rails excerpts, or paste your own text and share the
+link.
 The passage and correction rules stay fixed so everyone races the same test.
 
 Guests can play. Connect a profile to publish a result and enter the standings.
@@ -124,8 +125,10 @@ calculate the score. The server keeps sanitized passage progress, not incorrect
 keystrokes. These checks establish consistent scores; they do not prove a player
 is human. Old practice results remain separate from challenge standings.
 
-Custom submissions are private to their creator until reviewed. Reports go to the
-moderation queue. Profile visibility and per-result publishing remain explicit.
+Custom passages work by link as soon as they are saved. They join the public
+library, profile pages, and search only after a moderator approves them. Reports
+go to the moderation queue, and a rejected passage disappears from public view
+along with any results on it. Profile visibility and per-result publishing remain explicit.
 Recovery codes and linked devices are managed under Account.
 
 ## Local data

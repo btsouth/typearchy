@@ -17,12 +17,29 @@ export type Standing = {
   errors: number; created_at: number;
 };
 
+// Visibility has two levels. Every query that exposes a challenge or one of its
+// attempts must use one of these fragments so the rule cannot drift.
+//
+// Link access: anyone holding the URL can view and race the challenge, publish a
+// result to its standings, and open that result page. Unreviewed custom passages
+// qualify, so a creator can share with friends before a moderator looks at it.
+export function linkVisibleSql(challenge = 'c', creator = 'p') {
+  return `${challenge}.visibility != 'hidden' AND ${challenge}.moderation != 'rejected' AND ${creator}.visibility = 'public'`;
+}
+// Listing: the catalog, profile pages, and search indexing only include passages
+// the creator marked public and a moderator approved.
+export function listedSql(challenge = 'c', creator = 'p') {
+  return `${challenge}.visibility = 'public' AND ${challenge}.moderation = 'approved' AND ${creator}.visibility = 'public'`;
+}
+export function isListed(row: Pick<ChallengeRow, 'visibility' | 'moderation'>) {
+  return row.visibility === 'public' && row.moderation === 'approved';
+}
+
 export async function findChallenge(slug: string, viewerId?: string) {
   if (!/^[A-Za-z0-9_-]{8,40}$/.test(slug)) return null;
   return db().prepare(`SELECT c.*, p.handle FROM challenges c
     JOIN profiles p ON p.id = c.creator_id
-    WHERE c.slug = ? AND ((c.visibility != 'hidden' AND c.moderation = 'approved' AND p.visibility = 'public')
-      OR c.creator_id = ?)`)
+    WHERE c.slug = ? AND ((${linkVisibleSql()}) OR c.creator_id = ?)`)
     .bind(slug, viewerId || null).first<ChallengeRow>();
 }
 

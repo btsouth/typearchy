@@ -13,6 +13,10 @@ test('published challenges freeze normalized content and complete rules', () => 
   assert.throws(() => parseChallenge({ ...input, passage: '<x>' }), /40/);
   assert.throws(() => parseChallenge({ ...input, autoIndent: 'yes' }), /indentation/);
   assert.throws(() => parseChallenge({ ...input, visibility: 'private' }), /public or unlisted/);
+  assert.throws(() => parseChallenge({ ...input, title: 'Free WPM at typing-boost.xyz' }), /links out of the title/);
+  assert.throws(() => parseChallenge({ ...input, title: 'See https://example.org' }), /links out of the title/);
+  assert.equal(parseChallenge({ ...input, title: 'Rails 8.1 release notes' }).title, 'Rails 8.1 release notes');
+  assert.equal(parseChallenge({ ...input, attribution: 'DHH. Rails (MIT). https://github.com/rails/rails' }).attribution, 'DHH. Rails (MIT). https://github.com/rails/rails');
 });
 
 test('recordings retain only known input fields and cannot report a future finish', () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { db } from '../lib/db';
 import { CHALLENGE_LANGUAGES } from '../lib/challengeContract';
+import { listedSql } from '../lib/challenges';
 import ChallengeNav from './ChallengeNav';
 import ChallengeFilters from './ChallengeFilters';
 
@@ -18,7 +19,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
     (SELECT COUNT(DISTINCT a.profile_id) FROM challenge_attempts a JOIN profiles ap ON ap.id = a.profile_id
       WHERE a.challenge_id = c.id AND a.published = 1 AND ap.visibility = 'public') AS players
     FROM challenges c JOIN profiles p ON p.id = c.creator_id
-    WHERE c.visibility = 'public' AND c.moderation = 'approved' AND p.visibility = 'public'
+    WHERE ${listedSql()}
       AND (? = '' OR c.language = ?)
       AND (? = '' OR c.title LIKE ? ESCAPE '\\' OR p.handle LIKE ? ESCAPE '\\')
       AND (? = 0 OR c.created_at < ? OR (c.created_at = ? AND c.slug < ?))

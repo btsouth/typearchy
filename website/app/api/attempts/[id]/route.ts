@@ -2,6 +2,7 @@ import { db, errorResponse, json, randomCode, sha256 } from '../../../lib/db';
 import { parseResultTheme } from '../../../lib/resultTheme';
 import { ClientError } from '../../../lib/clientError';
 import { parseRecording, validateAttempt, type ChallengeRules } from '../../../lib/challengeContract';
+import { linkVisibleSql } from '../../../lib/challenges';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +12,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!/^[a-f0-9]{64}$/.test(token)) return json({ error: 'Attempt session is missing' }, 401);
     const session = await db().prepare(`SELECT s.*, c.passage, c.rules_json FROM attempt_sessions s
       JOIN challenges c ON c.id = s.challenge_id JOIN profiles p ON p.id = c.creator_id
-      WHERE s.id = ? AND s.token_hash = ? AND ((c.visibility != 'hidden' AND p.visibility = 'public' AND c.moderation = 'approved')
-          OR s.profile_id = c.creator_id)`)
+      WHERE s.id = ? AND s.token_hash = ? AND ((${linkVisibleSql()}) OR s.profile_id = c.creator_id)`)
       .bind((await params).id, await sha256(token)).first<{
         id: string; challenge_id: string; profile_id: string | null; created_at: number;
         expires_at: number; completed_at: number | null; passage: string; rules_json: string;

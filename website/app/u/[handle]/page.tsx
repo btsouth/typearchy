@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, profileRuns, publicProfile, type RunRow } from '../../lib/db';
 import { profileSummary } from '../../lib/profileContract';
+import { listedSql } from '../../lib/challenges';
 import PinnedGhost from './PinnedGhost';
 import ProfileActions from './ProfileActions';
 import ReportChallenge from '../../c/[slug]/ReportChallenge';
@@ -48,10 +49,10 @@ export default async function ProfilePage({ params }: PageProps) {
   const profile = demo ? { id: 'demo', handle: 'demo' } : await publicProfile(requestedHandle);
   if (!profile) notFound();
   const [challenges, attempts] = demo ? [[], []] : await Promise.all([
-    db().prepare(`SELECT slug, title, language FROM challenges WHERE creator_id = ? AND visibility = 'public' AND moderation = 'approved' ORDER BY created_at DESC LIMIT 12`).bind(profile.id).all<{ slug: string; title: string; language: string }>().then(result => result.results),
+    db().prepare(`SELECT c.slug, c.title, c.language FROM challenges c JOIN profiles p ON p.id = c.creator_id WHERE c.creator_id = ? AND ${listedSql()} ORDER BY c.created_at DESC LIMIT 12`).bind(profile.id).all<{ slug: string; title: string; language: string }>().then(result => result.results),
     db().prepare(`SELECT a.slug, a.duration_ms, a.wpm, c.title FROM challenge_attempts a
       JOIN challenges c ON c.id = a.challenge_id JOIN profiles creator ON creator.id = c.creator_id
-      WHERE a.profile_id = ? AND a.published = 1 AND c.visibility = 'public' AND c.moderation = 'approved' AND creator.visibility = 'public'
+      WHERE a.profile_id = ? AND a.published = 1 AND ${listedSql('c', 'creator')}
       ORDER BY a.created_at DESC LIMIT 12`).bind(profile.id).all<{ slug: string; duration_ms: number; wpm: number; title: string }>().then(result => result.results),
   ]);
   const runs = demo ? demoRuns : await profileRuns(profile.id, 50);
