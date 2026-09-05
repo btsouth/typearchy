@@ -52,3 +52,12 @@ deduplication, malformed backups, and excluding paused imports from bests.
 
 Human review is for typing feel and visual judgment. Routine mode coverage,
 connection behavior, and data preservation belong in the automated checks.
+
+## History and progress acceptance
+
+`website/tests/history.browser.mjs` checks migration with more than 500 runs,
+simultaneous tabs, reload, exact passage retry, pagination, backup and restore,
+blocked storage, and recovery from malformed original data. Challenge integration
+checks private result retrieval and pagination across more than 100 tied attempts.
+Browser history now uses IndexedDB; the original localStorage archive is retained
+as a recovery backup. The profile does not automatically sync local practice.

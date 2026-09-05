@@ -50,7 +50,10 @@ try {
     await page.getByRole('button', { name: 'Restart practice', exact: true }).click();
     await expect(page.locator('.demo-callout')).toHaveText('CLICK HERE, THEN START TYPING');
     if (['DAILY', 'QUOTE', 'DRILL', 'CUSTOM'].includes(mode)) {
-      await input.pressSequentially(text.replace(/\n/g, ''));
+      const passage = text.replace(/\n/g, '');
+      await input.pressSequentially(passage.slice(0, 1));
+      await page.clock.runFor(30000);
+      await input.pressSequentially(passage.slice(1));
       await expect(page.locator('.web-game-result')).toBeVisible();
       await expect(page.locator('.practice-feedback')).not.toHaveAttribute('open');
       await page.getByText('Practice tips & mistype drills', { exact: true }).click();

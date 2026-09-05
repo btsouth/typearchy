@@ -6,12 +6,16 @@ export async function GET(request: Request) {
   try {
     const identity = await authenticateDevice(request);
     if (!identity) return json({ error: 'Connect your profile first' }, 401);
-    const attempts = await db().prepare(`SELECT a.id, a.slug, a.duration_ms, a.wpm, a.accuracy, a.published,
+    const cursor = new URL(request.url).searchParams.get('cursor');
+    let before = Number.MAX_SAFE_INTEGER; let beforeId = '\uffff';
+    if (cursor) { try { const values = JSON.parse(cursor); if (!Array.isArray(values) || !Number.isSafeInteger(values[0]) || values[0] < 0 || typeof values[1] !== 'string' || values[1].length > 100) throw new Error(); before = values[0]; beforeId = values[1]; } catch { return json({error:'Invalid history cursor'},400); } }
+    const attempts = await db().prepare(`SELECT a.id, a.slug, a.duration_ms, a.wpm, a.accuracy, a.published, a.created_at,
       c.slug AS challenge_slug, c.title, c.moderation, c.visibility, creator.visibility AS creator_visibility
       FROM challenge_attempts a JOIN challenges c ON c.id = a.challenge_id
       JOIN profiles creator ON creator.id = c.creator_id
-      WHERE a.profile_id = ? ORDER BY a.created_at DESC LIMIT 100`).bind(identity.profileId).all();
-    return json({ attempts: attempts.results });
+      WHERE a.profile_id = ? AND (a.created_at < ? OR (a.created_at = ? AND a.id < ?)) ORDER BY a.created_at DESC, a.id DESC LIMIT 101`).bind(identity.profileId, before, before, beforeId).all();
+    const rows = attempts.results.slice(0,100); const last = rows.at(-1);
+    return json({ attempts: rows, nextCursor: attempts.results.length > 100 && last ? JSON.stringify([last.created_at,last.id]) : null });
   } catch (error) { return errorResponse(error); }
 }
 export async function PATCH(request: Request) {

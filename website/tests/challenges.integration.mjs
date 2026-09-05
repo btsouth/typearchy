@@ -91,6 +91,31 @@ try {
   result = await request(`/api/attempts/${session.id}`, { method: 'POST', headers: { 'X-Attempt-Token': session.token }, body: { events, theme: tokyoTheme, wpm: 999 } });
   assert.equal(result.response.status, 201, JSON.stringify(result.data));
   const attempt = result.data.slug;
+  const privateResult = await request(`/api/account/attempts/${session.id}`, {cookie:racer});
+  assert.equal(privateResult.response.status,200);
+  assert.equal(privateResult.data.result.passage,passage);
+  const privateList = await request('/api/account/attempts',{cookie:racer});
+  assert.ok(privateList.data.attempts.some(row=>row.id===session.id));
+  const malformedCursor = await request('/api/account/attempts?cursor=broken',{cookie:racer});
+  assert.equal(malformedCursor.response.status,400);
+  // More than one page of tied timestamps in the disposable local database.
+  assert.match(session.id,/^[a-zA-Z0-9_-]+$/);
+  const paginationSql = `WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<105)
+    INSERT INTO attempt_sessions(id,challenge_id,profile_id,token_hash,created_at,expires_at,completed_at)
+    SELECT 'history_${suffix}_'||x,s.challenge_id,s.profile_id,lower(hex(randomblob(32))),s.created_at,s.expires_at,s.completed_at FROM n,attempt_sessions s WHERE s.id='${session.id}';
+    WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<105)
+    INSERT INTO challenge_attempts(id,slug,challenge_id,profile_id,duration_ms,wpm,raw_wpm,accuracy,errors,characters,progress_json,recording_hash,published,created_at,theme_json)
+    SELECT 'history_${suffix}_'||x,lower(hex(randomblob(6))),a.challenge_id,a.profile_id,a.duration_ms,a.wpm,a.raw_wpm,a.accuracy,a.errors,a.characters,a.progress_json,a.recording_hash,0,a.created_at,a.theme_json FROM n,challenge_attempts a WHERE a.id='${session.id}';`;
+  execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','d1','execute','DB','--local','--config','wrangler.local.json','--command',paginationSql],{stdio:'pipe'});
+  const firstPage=await request('/api/account/attempts',{cookie:racer});
+  assert.equal(firstPage.data.attempts.length,100);assert.ok(firstPage.data.nextCursor);
+  const secondPage=await request('/api/account/attempts?cursor='+encodeURIComponent(firstPage.data.nextCursor),{cookie:racer});
+  const allAttempts=[...firstPage.data.attempts,...secondPage.data.attempts];
+  assert.equal(new Set(allAttempts.map(row=>row.id)).size,allAttempts.length);
+  assert.equal(allAttempts.filter(row=>row.id.startsWith('history_'+suffix+'_')).length,105);
+  assert.equal(secondPage.data.nextCursor,null);
+
+
   const retry = await request(`/api/attempts/${session.id}`, { method: 'POST', headers: { 'X-Attempt-Token': session.token }, body: { events } });
   assert.equal(retry.response.status, 200); assert.equal(retry.data.slug, attempt);
   const beforePublish = await request(`/a/${attempt}`);

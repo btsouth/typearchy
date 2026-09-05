@@ -12,7 +12,7 @@ export type ResultCardData = {
   validated: boolean; bestTimeMs?: number;
 };
 
-export default function ResultCard({ result }: { result: ResultCardData }) {
+export default function ResultCard({ result, privateResult = false }: { result: ResultCardData; privateResult?: boolean }) {
   const [elapsed, setElapsed] = useState(0); const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); const [copied, setCopied] = useState(false); const [message, setMessage] = useState('');
   const elapsedRef = useRef(0); const passageRef = useRef<HTMLDivElement>(null);
@@ -58,7 +58,7 @@ export default function ResultCard({ result }: { result: ResultCardData }) {
     <div className="live-result-title"><p>{result.category} · <a href={`/u/${result.handle}`}>@{result.handle}</a></p><h1>{result.title}</h1></div>
     <div className="live-result-score"><div><strong>{result.wpm}</strong><span>WPM</span></div><div className="live-result-time"><strong>{(result.durationMs/1000).toFixed(2)}<span>s</span></strong><span>{result.validated ? 'Complete passage' : 'Practice result'}</span></div></div>
     <dl className="live-result-metrics"><div><dt>Accuracy</dt><dd>{result.accuracy}<small>%</small></dd></div><div><dt>Raw speed</dt><dd>{result.rawWpm}<small>WPM</small></dd></div><div><dt>Mistakes</dt><dd>{result.errors}</dd></div><div><dt>{result.validated ? 'Rule' : 'Consistency'}</dt><dd className={result.validated ? 'metric-rule' : ''}>{result.validated ? 'Correct every error' : `${result.consistency ?? 0}%`}</dd></div></dl>
-    <div className="live-result-actions"><a className="result-race-button" href={result.challengeUrl}>Race this run <span>↗</span></a><button type="button" onClick={()=>void share()}>Share result</button><button type="button" onClick={()=>void copyLink()}>{copied ? 'Link copied' : 'Copy link'}</button>{result.standingsUrl && <a href={result.standingsUrl}>Standings</a>}</div>
+    <div className="live-result-actions"><a className="result-race-button" href={result.challengeUrl}>{privateResult ? 'Try this challenge' : 'Race this run'} <span>↗</span></a>{!privateResult && <><button type="button" onClick={()=>void share()}>Share result</button><button type="button" onClick={()=>void copyLink()}>{copied ? 'Link copied' : 'Copy link'}</button></>}{result.standingsUrl && <a href={result.standingsUrl}>Standings</a>}</div>
     {!!points.length && <section className="live-result-chart" aria-label={result.progress ? 'Passage progress replay' : 'Words per minute over time'}>
       <header><span>{result.progress ? 'Passage progress' : 'Pace'}</span><span>{result.progress ? `${(elapsed/1000).toFixed(2)} / ${(result.durationMs/1000).toFixed(2)}s` : `${result.pace?.length || 0} pace samples`}</span></header>
       <svg viewBox="0 0 1000 160" role="img" aria-label={result.progress ? 'Recorded passage progress from start to finish' : `WPM samples: ${result.pace?.join(', ')}`}><path d="M20 20H980 M20 80H980 M20 140H980" className="result-chart-grid"/><polyline points={chart} className="result-chart-line" />
@@ -70,6 +70,6 @@ export default function ResultCard({ result }: { result: ResultCardData }) {
     {result.bestTimeMs !== undefined && <p className="live-result-comparison">{result.durationMs<=result.bestTimeMs ? 'This run matches the leading time.' : `${((result.durationMs-result.bestTimeMs)/1000).toFixed(2)}s behind the leading time.`}</p>}
 
     <footer className="live-result-footer"><span>{result.validated ? 'Score calculated from recorded input' : 'Score reported by the player’s device'}</span>{result.createdAt && <time dateTime={new Date(result.createdAt).toISOString()}>{new Date(result.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}</time>}</footer>
-    {message && <p role="status">{message}</p>}<a className="live-result-url" href={result.url}>{result.url.replace('https://','')}</a>
+    {message && <p role="status">{message}</p>}{privateResult ? <p>Only you can open this result. Manage sharing in your challenge history.</p> : <a className="live-result-url" href={result.url}>{result.url.replace('https://','')}</a>}
   </article>;
 }

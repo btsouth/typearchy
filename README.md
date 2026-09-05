@@ -183,8 +183,8 @@ The opt-in result URL and privacy boundary are documented in
 [SHARING_CONTRACT.md](SHARING_CONTRACT.md).
 
 Personal streaks use the machine's local calendar. The shared Daily challenge
-uses UTC so every player receives the same prompt. History is capped at the
-latest 500 tests. Ordinary practice shares scores and a pace series. Online
+uses UTC so every player receives the same prompt. Practice history stays on each device. Older runs remain available through
+history pagination. Ordinary practice shares scores and a pace series. Online
 challenges share an approved passage and sanitized progress replay; incorrect
 keystrokes never appear in public playback.
 

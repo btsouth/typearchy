@@ -9,7 +9,7 @@ export default function Home() {
       <a className="skip-link" href="#typing-demo">SKIP TO THE GAME</a>
       <nav className="site-nav" aria-label="Primary navigation">
         <a className="wordmark" href="#top" aria-label="Typearchy home"><span className="mark">T</span><span>TYPEARCHY</span></a>
-        <div className="nav-links"><a href="/play">PLAY</a><a href="/challenges">CHALLENGES</a><a href="/account">PROFILE</a><a href={GITHUB} target="_blank" rel="noopener noreferrer">GITHUB</a></div>
+        <div className="nav-links"><a href="/play">PLAY</a><a href="/history">HISTORY</a><a href="/challenges">CHALLENGES</a><a href="/account">PROFILE</a><a href={GITHUB} target="_blank" rel="noopener noreferrer">GITHUB</a></div>
         <div className="nav-meta"><span>BROWSER</span><span className="status-dot" /><span>LINUX APP</span></div>
       </nav>
 

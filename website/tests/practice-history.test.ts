@@ -18,7 +18,7 @@ test('personal bests never mix languages, durations, content versions, or custom
   for(const other of [{...run,target:'WORDS / 30 SEC'},{...run,target:'PROSE / 60 SEC'},{...run,engineVersion:'old'}]) assert.notEqual(practiceGroup(run),practiceGroup(other));
   const custom={...run,mode:'custom' as const};
   assert.notEqual(practiceGroup(custom),practiceGroup({...custom,challengeKey:'different passage'}));
-  assert.equal(normalizePracticeHistory(Array.from({length:600},(_,index)=>({...run,id:String(index)}))).length,500);
+  assert.equal(normalizePracticeHistory(Array.from({length:600},(_,index)=>({...run,id:String(index)}))).length,600);
 });
 
 test('desktop backups preserve paused runs, public links, and browser IDs across a round trip', () => {

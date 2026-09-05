@@ -110,7 +110,11 @@ Item {
   readonly property real remainingSeconds: Math.max(0, duration - elapsedMs / 1000)
   readonly property real ghostWpm: ghostEnabled ? Model.paceAt(ghostRun, elapsedMs) : 0
   readonly property real ghostDelta: liveWpm - ghostWpm
-  readonly property var historyRuns: Model.filteredRuns(stats, historyFilter, 500)
+  property int historyPage: 0
+  onHistoryFilterChanged: historyPage = 0
+  readonly property var allHistoryRuns: Model.filteredRuns(stats, historyFilter)
+  readonly property int historyPageCount: Math.max(1, Math.ceil(allHistoryRuns.length / 50))
+  readonly property var historyRuns: allHistoryRuns.slice(Math.min(historyPage, historyPageCount - 1) * 50, (Math.min(historyPage, historyPageCount - 1) + 1) * 50)
   readonly property var trendRuns: Model.recentTrend(stats, historyFilter, 20)
   readonly property var activeQuoteSegment: root.quoteSegmentAt(root.typedText.length)
   readonly property var dailyResult: mode === "daily" && challenge.challengeId
@@ -1935,6 +1939,8 @@ Item {
                     }
                   }
 
+                  HistoryPager {}
+
                   Text {
                     visible: root.historyRuns.length === 0
                     width: parent.width
@@ -2253,6 +2259,8 @@ Item {
               }
             }
 
+            HistoryPager {}
+
             Text {
               visible: root.historyRuns.length === 0
               width: parent.width
@@ -2535,6 +2543,14 @@ Item {
         ctx.fill()
       }
     }
+  }
+
+  component HistoryPager: Row {
+    visible: root.historyPageCount > 1
+    spacing: Style.space(12)
+    Button { text: "Newer"; enabled: root.historyPage > 0; onClicked: root.historyPage = Math.max(0, root.historyPage - 1) }
+    Text { text: (Math.min(root.historyPage, root.historyPageCount - 1) + 1) + " / " + root.historyPageCount; color: root.muted; font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+    Button { text: "Older"; enabled: root.historyPage < root.historyPageCount - 1; onClicked: root.historyPage++ }
   }
 
   component HistoryChoice: Button {

@@ -1,5 +1,14 @@
 # Typearchy roadmap
 
+## Shipped in 1.5
+
+- Find practice and challenge results from one History page
+- See progress, practice time, and frequent mistypes without digging through settings
+- Reopen saved passages and view challenge results privately before sharing
+- Keep older runs, with paginated history and safer browser storage
+- Restore backups without duplicates and recover original data when an import fails
+
+
 ## Shipped in 1.4.1
 
 - Connect the app and browser together, or add another browser with a short code

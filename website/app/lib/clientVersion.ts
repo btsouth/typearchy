@@ -3,7 +3,7 @@ import { ClientError } from './clientError.ts';
 // The desktop app identifies itself with `X-Typearchy-Client: desktop/<version>`.
 // Raise MINIMUM_DESKTOP_CLIENT only when an API change breaks older apps; the
 // browser client always ships with the server and never sends the header.
-export const LATEST_DESKTOP_CLIENT = '1.4.1';
+export const LATEST_DESKTOP_CLIENT = '1.5.0';
 export const MINIMUM_DESKTOP_CLIENT = '1.0.0';
 
 export function compareVersions(left: string, right: string) {

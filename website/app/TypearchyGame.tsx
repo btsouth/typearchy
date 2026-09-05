@@ -1,5 +1,7 @@
 'use client';
 
+import { loadHistory, saveHistoryRuns, clearHistory, subscribeHistory } from './lib/historyStore';
+import { savedPractice } from './lib/savedPractice';
 import BrowserAccount from './account/BrowserAccount';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +9,7 @@ import { generateCode, generateProse, generateQuoteRelay, generateShell, generat
 import PracticeHistory from './PracticeHistory';
 import { sharedChallengeFromKey, type SharedChallenge } from './lib/sharedPractice';
 import { learningState, learningRecord, learningProfile } from './learningEngine';
-import { HISTORY_LIMIT, normalizePracticeHistory, mergePracticeHistory, practiceGroup, type PracticeRun as WebRun } from './lib/practiceHistory';
+import { practiceGroup, type PracticeRun as WebRun } from './lib/practiceHistory';
 import { THEMES, selectedResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
@@ -89,10 +91,10 @@ function promptRuns(prompt: string, typed: string) {
   return runs;
 }
 
-export default function TypearchyGame({ compact = false, initialChallengeKey = '' }: { compact?: boolean; initialChallengeKey?: string }) {
+export default function TypearchyGame({ compact = false, initialChallengeKey = '', initialRunId = '', initialPractice = '' }: { compact?: boolean; initialChallengeKey?: string; initialRunId?: string; initialPractice?: string }) {
   const initialShared = sharedChallengeFromKey(initialChallengeKey);
   const [sharedChallenge, setSharedChallenge] = useState<SharedChallenge | null>(initialShared);
-  const [mode, setMode] = useState<ModeKey>(initialShared?.mode || 'sprint');
+  const [mode, setMode] = useState<ModeKey>(initialShared?.mode || (MODES.some(item=>item.key===initialPractice) ? initialPractice as ModeKey : 'sprint'));
   const [screen, setScreen] = useState<Screen>('test');
   const [duration, setDuration] = useState(initialShared?.duration || 30);
   const [sprintStyle, setSprintStyle] = useState<SprintStyle>(initialShared?.sprintStyle || 'prose');
@@ -126,6 +128,8 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const [needsProfile, setNeedsProfile] = useState(false);
   const [history, setHistory] = useState<WebRun[]>([]);
   const [storageError, setStorageError] = useState(false);
+  const pendingRuns = useRef(new Map<string,WebRun>());
+  function mergeLoaded(runs: WebRun[]) { return [...pendingRuns.current.values(), ...runs.filter(run => !pendingRuns.current.has(run.id))].sort((a,b)=>Date.parse(b.timestamp)-Date.parse(a.timestamp)); }
   const [result, setResult] = useState<WebRun | null>(null);
   const [practiceSession, setPracticeSession] = useState<{ baseline: WebRun; challenge: SharedChallenge; stage: 'drill' | 'retest' } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -148,15 +152,23 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const storedRuns = JSON.parse(localStorage.getItem('typearchy.web.runs.v1') || '[]');
-        setHistory(normalizePracticeHistory(storedRuns));
+        void loadHistory().then(runs => { setHistory(mergeLoaded(runs)); if (initialRunId) { const run = runs.find(item => item.id === initialRunId); if (run) { const saved = savedPractice(run); setSharedChallenge(saved); setMode(run.mode); if(saved){setDuration(saved.duration);setLanguage(saved.language);setSprintStyle(saved.sprintStyle);} setResult(run); completedRef.current = true; } else setShareError('This run is not stored in this browser. Open it on the device where you practiced.'); } }).catch(() => setStorageError(true));
+        if (!initialChallengeKey && !initialRunId && !initialPractice) {
+          try {
+            const preferences = JSON.parse(localStorage.getItem('typearchy.web.practice.v1') || '{}');
+            if (MODES.some(item=>item.key===preferences.mode) && preferences.mode!=='custom') setMode(preferences.mode);
+            if ([15,30,60].includes(preferences.duration)) setDuration(preferences.duration);
+            if (['bash','python','javascript','rust','ruby'].includes(preferences.language)) setLanguage(preferences.language);
+          } catch { /* Invalid preferences use defaults; history is separate. */ }
+        }
         const storedTheme = Number(localStorage.getItem('typearchy.web.theme.v1'));
         if (storedTheme >= 0 && storedTheme < THEMES.length) setThemeIndex(storedTheme);
         if (localStorage.getItem('typearchy.web.sprint-style.v1') === 'words') setSprintStyle('words');
       } catch { setStorageError(true); }
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const unsubscribe = subscribeHistory(() => { void loadHistory().then(runs=>setHistory(mergeLoaded(runs))).catch(() => setStorageError(true)); });
+    return () => { window.clearTimeout(timer); unsubscribe(); };
+  }, [initialRunId,initialChallengeKey,initialPractice]);
 
   const practiceEvidence = useMemo(() => learningProfile(history), [history]);
   const drillProfile = useMemo(() => {
@@ -259,6 +271,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       drillKeys: mode === 'drill' ? drillProfile.keys : undefined,
       drillBigrams: mode === 'drill' ? drillProfile.bigrams : undefined,
       targetErrors: mode === 'drill' ? mistakeEventsRef.current.reduce((total, event) => total + (drillProfile.keys.includes(event.key) ? 1 : 0) + (drillProfile.bigrams.includes(event.pair) ? 1 : 0), 0) : undefined,
+      passage: prompt,
       challengeKey: challenge.key,
       engineVersion: challenge.version || 'unknown',
       sprintStyle: mode === 'sprint' ? sprintStyle : undefined,
@@ -266,11 +279,9 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     setNow(endedAt);
     setCompletedAt(endedAt);
     setResult(run);
-    setHistory((runs) => {
-      const next = [run, ...runs].slice(0, HISTORY_LIMIT);
-      try { localStorage.setItem('typearchy.web.runs.v1', JSON.stringify(next)); } catch { setStorageError(true); }
-      return next;
-    });
+    pendingRuns.current.set(run.id, run);
+    setHistory(runs => [run, ...runs]);
+    void saveHistoryRuns([run]).then(()=>pendingRuns.current.delete(run.id)).catch(() => setStorageError(true));
   }, [mode, prompt, target, challenge, sprintStyle, drillProfile]);
 
   useEffect(() => {
@@ -322,10 +333,14 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     container.scrollTo({ top: nextScrollTop, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }, [typed, prompt]);
 
+  function rememberPractice(values: {mode?: ModeKey; duration?: number; language?: Language}) {
+    try { const previous = JSON.parse(localStorage.getItem('typearchy.web.practice.v1') || '{}'); localStorage.setItem('typearchy.web.practice.v1',JSON.stringify({...previous,...values})); } catch { /* Preferences are optional; run storage reports failures separately. */ }
+  }
   const chooseMode = (next: ModeKey, focus = true) => {
     setPracticeSession(null);
     setSharedChallenge(null);
     setMode(next);
+    if(next!=='custom') rememberPractice({mode:next});
     setScreen('test');
     setEditingCustom(next === 'custom');
     reset(false, true);
@@ -333,7 +348,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   };
 
   function startFocusedPractice() {
-    if (!result || !sharedChallengeFromKey(result.challengeKey)) return;
+    if (!result || !savedPractice(result)) return;
     const baseline = result;
     const original: SharedChallenge = { mode, duration, sprintStyle, language, target, prompt, key: challenge.key, version: challenge.version || 'unknown' };
     chooseMode('drill');
@@ -464,7 +479,9 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
         if(!response.ok) throw new Error(data.error || 'Could not share this result');
         slug=data.slug; const updated={...result,publicSlug:slug};
         if (isCurrent()) setResult(current => current?.id === result.id ? updated : current);
-        setHistory(runs=>{const next=runs.map(run=>run.id===result.id ? updated : run);try{localStorage.setItem('typearchy.web.runs.v1',JSON.stringify(next));}catch{}return next;});
+        setHistory(runs=>runs.map(run=>run.id===result.id ? updated : run));
+        pendingRuns.current.set(updated.id,updated);
+        await saveHistoryRuns([updated]).then(()=>pendingRuns.current.delete(updated.id)).catch(() => { setStorageError(true); });
       }
       if (!isCurrent()) return;
       try { await navigator.clipboard.writeText(`https://typearchy.com/r/${slug}`); if (isCurrent()) setCopied(true); }
@@ -474,6 +491,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   };
 
   const bestForMode = history.filter((run) => !run.interrupted && run.completed !== false && (result ? practiceGroup(run) === practiceGroup(result) : run.mode === mode && run.target === target && run.engineVersion === challenge.version)).reduce((best, run) => Math.max(best, run.wpm), 0);
+  const resultEvidence = result ? learningProfile([result]) : practiceEvidence;
   const paceMaximum = Math.max(1, ...(result?.pace || pace));
   const technical = inputMode === 'shell' || inputMode === 'code' || mode === 'quote';
 
@@ -488,9 +506,9 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       {screen === 'test' && !result && <><div inert={!!startedAt} className="web-game-modes" onClick={event => event.stopPropagation()}><label className="game-mode-picker">Practice<select aria-label="Practice mode" value={mode} onChange={event => chooseMode(event.target.value as ModeKey, false)}>{MODES.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label></div>
 
       <div inert={!!startedAt} className="web-game-settings" onClick={(event) => event.stopPropagation()}>
-        {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setSharedChallenge(null); setDuration(seconds); reset(false, true); }}>{seconds}s</button>)}</div>}
+        {timed && <div className="demo-duration-tabs" aria-label="Test duration">{[15, 30, 60].map((seconds) => <button type="button" aria-pressed={duration === seconds} key={seconds} onClick={() => { setSharedChallenge(null); setDuration(seconds); rememberPractice({duration:seconds}); reset(false, true); }}>{seconds}s</button>)}</div>}
         {mode === 'sprint' && <div className="web-game-language sprint-style" aria-label="Sprint content"><button type="button" className={sprintStyle === 'words' ? 'active' : ''} onClick={() => chooseSprintStyle('words')}>Words</button><button type="button" className={sprintStyle === 'prose' ? 'active' : ''} onClick={() => chooseSprintStyle('prose')}>Passages</button></div>}
-        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust', 'ruby'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
+        {mode === 'code' && <div className="web-game-language">{(['bash', 'python', 'javascript', 'rust', 'ruby'] as Language[]).map((item) => <button type="button" className={language === item ? 'active' : ''} key={item} onClick={() => { setSharedChallenge(null); setLanguage(item); rememberPractice({language:item}); reset(false, true); }}>{item === 'javascript' ? 'JS' : item.toUpperCase()}</button>)}</div>}
         {mode === 'custom' && <button className="web-game-edit" type="button" onClick={() => setEditingCustom(true)}>EDIT PASSAGE</button>}
         <span>{mode === 'sprint' ? 'Choose a duration and start typing' : mode === 'drill' && sharedChallenge?.inputMode ? 'The same code, without a timer' : mode === 'drill' && drillProfile.calibrating ? 'Type a few runs to personalize your drills' : MODE_HINTS[mode]}</span>
       </div>
@@ -504,13 +522,11 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       {practiceSession && !result && <div className="practice-session-bar"><span>{practiceSession.stage === 'drill' ? '2 / 3 · Focused practice' : '3 / 3 · Retest your original passage'}</span><span>Baseline: {practiceSession.baseline.wpm} WPM · {practiceSession.baseline.accuracy}% accuracy</span></div>}
       <textarea ref={inputRef} className="demo-input" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={event => { composingRef.current = false; event.currentTarget.value = ''; if (event.data) addCharacters(event.data.normalize('NFC')); }} onInput={(event) => { if (composingRef.current || (event.nativeEvent as InputEvent).isComposing) return; const value = event.currentTarget.value; event.currentTarget.value = ''; if (value) addCharacters(value.normalize('NFC')); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
 
-      {storageError && <p role="alert">Browser storage is unavailable. Runs are kept in this tab only. Export your history before closing it.</p>}
+      {initialRunId && !result && shareError && <p role="status">{shareError}</p>}
+      {storageError && <div role="alert"><p>History could not be saved or loaded. Keep this tab open. Previous stored data has not been removed.</p><button type="button" onClick={event=>{event.stopPropagation();const url=URL.createObjectURL(new Blob([JSON.stringify({format:'typearchy-practice',version:1,runs:history})],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='typearchy-recovery.json';link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export available runs</button></div>}
       {screen === 'history' ? (
-        <PracticeHistory history={history} canRetest={run => !!sharedChallengeFromKey(run.challengeKey) || (run.mode === 'custom' && run.challengeKey === customIdentity.key)} onImport={incoming => {
-          const merged = mergePracticeHistory(history, incoming);
-          localStorage.setItem('typearchy.web.runs.v1', JSON.stringify(merged)); setHistory(merged);
-        }} onClear={() => { setHistory([]); try { localStorage.removeItem('typearchy.web.runs.v1'); } catch {} }} onRetest={run => {
-          const previous = sharedChallengeFromKey(run.challengeKey);
+        <PracticeHistory history={history} canRetest={run => !!savedPractice(run) || (run.mode === 'custom' && run.challengeKey === customIdentity.key)} onImport={async incoming => { await saveHistoryRuns(incoming, false); setHistory(await loadHistory()); }} onClear={async () => { await clearHistory(); pendingRuns.current.clear(); setHistory([]); }} onRetest={run => {
+          const previous = savedPractice(run);
           setSharedChallenge(previous); setMode(run.mode === 'words' ? 'sprint' : run.mode === 'focus' ? 'drill' : run.mode);
           if (previous) { setDuration(previous.duration); setLanguage(previous.language); }
           if (run.sprintStyle) setSprintStyle(run.sprintStyle); setEditingCustom(false); setPracticeSession(null); setScreen('test'); reset(false); setResult(run); completedRef.current = true;
@@ -523,12 +539,13 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
           <div className="demo-result-score"><div><b>{result.wpm}</b><small>WPM</small></div><span><small>{result.interrupted ? 'PAUSED PRACTICE' : result.completed === false ? 'INCOMPLETE' : bestForMode <= result.wpm ? 'PERSONAL BEST' : 'COMPARABLE BEST'}</small><strong>{result.interrupted || result.completed === false ? 'Not compared' : `${bestForMode || result.wpm} WPM`}</strong></span></div>
           <div className="demo-result-metrics"><span><small>ACCURACY</small>{result.accuracy}%</span><span><small>RAW</small>{result.raw} WPM</span><span><small>CONSISTENCY</small>{result.consistency}%</span><span><small>ERRORS</small>{result.errors}</span></div>
           <div className="demo-result-pace"><div><span>WPM OVER TIME</span><b>FINISH {result.wpm}</b></div><section>{result.pace.map((sample, index) => <i key={`${sample}-${index}`} style={{ height: `${Math.max(8, (sample / paceMaximum) * 100)}%` }} />)}</section></div>
-          <div className="demo-result-actions"><button type="button" disabled={!sharedChallengeFromKey(result.challengeKey) && !(result.mode === 'custom' && result.challengeKey === customIdentity.key)} onClick={() => reset()}>RETRY&nbsp;&nbsp;CTRL+R</button><button type="button" onClick={() => reset(true, true)}>NEW TEST</button>{result.mode !== 'custom' && !result.interrupted && result.completed !== false && <button type="button" disabled={shareBusy || needsProfile} onClick={copyResult}>{shareBusy ? 'SHARING…' : copied ? 'LINK COPIED' : result.publicSlug ? 'COPY LINK' : 'SHARE RESULT'}</button>}{result.publicSlug && <a href={`/r/${result.publicSlug}`}>VIEW RESULT ↗</a>}</div>
+          {!savedPractice(result) && !(result.mode === 'custom' && result.challengeKey === customIdentity.key) && <p>The original passage is unavailable for this older run. Your statistics are still saved; choose New test to keep practicing.</p>}
+          <div className="demo-result-actions"><button type="button" disabled={!savedPractice(result) && !(result.mode === 'custom' && result.challengeKey === customIdentity.key)} onClick={() => reset()}>RETRY&nbsp;&nbsp;CTRL+R</button><button type="button" onClick={() => reset(true, true)}>NEW TEST</button>{result.mode !== 'custom' && !result.interrupted && result.completed !== false && <button type="button" disabled={shareBusy || needsProfile} onClick={copyResult}>{shareBusy ? 'SHARING…' : copied ? 'LINK COPIED' : result.publicSlug ? 'COPY LINK' : 'SHARE RESULT'}</button>}{result.publicSlug && <a href={`/r/${result.publicSlug}`}>VIEW RESULT ↗</a>}</div>
           <details className="practice-feedback" open={practiceSession ? true : undefined}><summary>Practice tips &amp; mistype drills</summary>
-            <h3>{result.accuracy < 95 ? 'Give accuracy your attention.' : practiceEvidence.keys.length ? 'A useful next practice.' : 'Keep your rhythm.'}</h3>
-            <p>{result.accuracy < 95 ? 'Ease the pace and aim for clean keystrokes. Speed is easier to build on a steady, accurate run.' : practiceEvidence.keys.length ? 'Repeated trouble spots from recent practice, accounting for how often each key appeared.' : 'There is no clear repeated trouble spot yet. Try another passage or a longer test.'}</p>
-            {practiceEvidence.keys.length > 0 && <ul>{practiceEvidence.keys.slice(0,3).map(row => <li key={row.key}><kbd>{row.key === 'space' ? 'Space' : row.key === 'enter' ? 'Enter' : row.key}</kbd><span>{row.errors} misses in {row.attempts} attempts</span></li>)}</ul>}
-            <p className="practice-evidence-note">{practiceEvidence.sampledRuns} measured {practiceEvidence.sampledRuns === 1 ? 'run' : 'runs'} · Corrections count as new attempts. {practiceEvidence.calibrating ? 'Suggestions will become more useful as you practice.' : 'Recent practice only.'}</p>
+            <h3>{result.accuracy < 95 ? 'Give accuracy your attention.' : resultEvidence.keys.length ? 'A useful next practice.' : 'Keep your rhythm.'}</h3>
+            <p>{result.accuracy < 95 ? 'Ease the pace and aim for clean keystrokes. Speed is easier to build on a steady, accurate run.' : resultEvidence.keys.length ? 'Repeated trouble spots from this run, accounting for how often each key appeared.' : 'There is no clear repeated trouble spot yet. Try another passage or a longer test.'}</p>
+            {resultEvidence.keys.length > 0 && <ul>{resultEvidence.keys.slice(0,3).map(row => <li key={row.key}><kbd>{row.key === 'space' ? 'Space' : row.key === 'enter' ? 'Enter' : row.key}</kbd><span>{row.errors} misses in {row.attempts} attempts</span></li>)}</ul>}
+            <p className="practice-evidence-note">{resultEvidence.sampledRuns} measured {resultEvidence.sampledRuns === 1 ? 'run' : 'runs'} · Corrections count as new attempts. {resultEvidence.calibrating ? 'Suggestions will become more useful as you practice.' : 'This run only.'}</p>
             {practiceSession?.stage === 'drill' ? <button type="button" onClick={retestBaseline}>Retest the original passage</button>
               : practiceSession?.stage === 'retest' ? <div className="practice-retest"><h3>Your retest</h3><p>Same passage and rules as your baseline.</p><dl><div><dt>Speed</dt><dd>{practiceSession.baseline.wpm} → {result.wpm} WPM</dd></div><div><dt>Accuracy</dt><dd>{practiceSession.baseline.accuracy}% → {result.accuracy}%</dd></div></dl><p>This is one comparison. Repeat across several sessions to see a lasting trend.</p><button type="button" onClick={() => { setPracticeSession(null); reset(true,true); }}>Finish session · New passage</button></div>
                 : (drillProfile.personalized || ((mode === 'code' || mode === 'shell') && result.errors > 0)) && result.mode !== 'drill' && <button type="button" onClick={startFocusedPractice}>{mode === 'code' || mode === 'shell' ? 'Practice this code, then retest' : 'Practice letter patterns, then retest'}</button>}

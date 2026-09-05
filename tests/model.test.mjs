@@ -380,6 +380,7 @@ const migratedFocusMode = model.parseState(JSON.stringify({
 }))
 assert.equal(migratedFocusMode.settings.defaultMode, "drill")
 
+const retainedBefore = state.runs.length
 for (let index = 0; index < 505; index++) {
   state = model.recordRun(state, {
     timestamp: `2026-09-03T12:00:${String(index % 60).padStart(2, "0")}Z`,
@@ -395,7 +396,7 @@ for (let index = 0; index < 505; index++) {
     errors: 1
   })
 }
-assert.equal(state.runs.length, 500)
+assert.equal(state.runs.length, retainedBefore + 505)
 
 const builtRelay = content.buildQuoteRelay(content.QUOTE_RELAYS[0])
 assert.equal(builtRelay.segments[0].index, 1)
@@ -484,3 +485,11 @@ assert.equal(model.mergeHistory(fromBrowser.state, JSON.stringify(browserBackup)
 assert.ok(model.mergeHistory(local, JSON.stringify({...browserBackup,runs:[...browserBackup.runs,{}]})).error)
 assert.ok(model.mergeHistory(local, JSON.stringify({...browserBackup,runs:[browserBackup.runs[0],browserBackup.runs[0]]})).error)
 console.log("Browser history imports preserve scores, interruption state, and identity")
+
+const archiveBackup = {...browserBackup,runs:Array.from({length:605},(_,index)=>({...browserBackup.runs[0],id:`archive-${index}`,timestamp:new Date(Date.UTC(2026,8,5,12,0,index)).toISOString(),passage:"A saved passage."}))}
+const archived = model.mergeHistory(model.emptyState(),JSON.stringify(archiveBackup))
+assert.equal(archived.error, "")
+assert.equal(archived.state.runs.length,605)
+assert.equal(archived.state.runs[0].passage,"A saved passage.")
+assert.equal(model.parseState(JSON.stringify(archived.state)).runs.length,605)
+console.log("Desktop archive retains more than 500 runs and browser passage snapshots")

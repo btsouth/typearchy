@@ -167,6 +167,7 @@ function normalizeRun(run) {
   var value = run || {}
   var normalized = {
     id: String(value.id || ""),
+    passage: typeof value.passage === "string" && value.passage.length <= 50000 ? value.passage : undefined,
     timestamp: String(value.timestamp || ""),
     date: String(value.date || ""),
     mode: normalizedMode(value.mode),
@@ -218,7 +219,7 @@ function parseState(raw) {
   try { parsed = JSON.parse(String(raw || "")) } catch (error) { return emptyState() }
   if (!parsed || [1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0) return emptyState()
   var state = emptyState()
-  state.runs = Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun).slice(0, 500) : []
+  state.runs = Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun) : []
   state.bestWpm = Math.max(0, Number(parsed.bestWpm) || 0)
   for (var i = 0; i < state.runs.length; i++) if (!state.runs[i].interrupted) state.bestWpm = Math.max(state.bestWpm, state.runs[i].wpm)
   state.totalTests = Math.max(state.runs.length, Math.floor(Number(parsed.totalTests) || 0))
@@ -253,7 +254,6 @@ function recordRun(state, run) {
   var next = parseState(JSON.stringify(state || emptyState()))
   var normalized = normalizeRun(run)
   next.runs.unshift(normalized)
-  next.runs = next.runs.slice(0, 500)
   next.totalTests += 1
   if (!normalized.interrupted) next.bestWpm = Math.max(next.bestWpm, normalized.wpm)
 
@@ -542,7 +542,7 @@ function mergeHistory(state, raw) {
   try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { state: state, added: 0, error: "That file is not a Typearchy history backup." } }
   if (!parsed || typeof parsed !== "object") return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
   if (parsed.format === "typearchy-practice") {
-    if (parsed.version !== 1 || !Array.isArray(parsed.runs) || parsed.runs.length > 500)
+    if (parsed.version !== 1 || !Array.isArray(parsed.runs))
       return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
     var browserRuns = []
     var ids = {}
@@ -557,7 +557,7 @@ function mergeHistory(state, raw) {
           || !validBackupNumber(item.errors, 100000))
         return { state: state, added: 0, error: "This backup contains invalid or duplicate runs. Nothing was imported." }
       ids[item.id] = true
-      browserRuns.push({ id: item.id, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
+      browserRuns.push({ id: item.id, passage: item.passage, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
         mode: item.mode, target: item.target, challengeKey: item.challengeKey, contentVersion: item.engineVersion,
         duration: validBackupNumber(item.durationMs, 3600000) ? item.durationMs / 1000 : 0,
         interrupted: item.interrupted === true, completed: item.completed !== false,
@@ -588,7 +588,6 @@ function mergeHistory(state, raw) {
     added++
   }
   next.runs.sort(function(a, b) { return a.timestamp < b.timestamp ? 1 : (a.timestamp > b.timestamp ? -1 : 0) })
-  next.runs = next.runs.slice(0, 500)
   next.bestWpm = 0
   for (var k = 0; k < next.runs.length; k++) if (!next.runs[k].interrupted) next.bestWpm = Math.max(next.bestWpm, next.runs[k].wpm)
   next.totalTests = Math.max(next.runs.length, next.totalTests, incoming.totalTests)
