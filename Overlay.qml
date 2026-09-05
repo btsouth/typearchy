@@ -351,9 +351,15 @@ Item {
       : "Imported " + merged.added + (merged.added === 1 ? " run" : " runs") + "  /  " + root.stats.totalTests + " local tests"
   }
 
+  function scrollHistory(amount) {
+    var target = statsFlick.contentHeight > statsFlick.height ? statsFlick : historyFlick
+    target.contentY = Math.max(0, Math.min(Math.max(0, target.contentHeight - target.height), target.contentY + amount))
+  }
+
   function setHistoryFilter(filter) {
     root.historyFilter = filter === "all" || filter === "words" ? filter : Content.validMode(filter)
     historyFlick.contentY = 0
+    statsFlick.contentY = 0
   }
 
   function setMode(nextMode) {
@@ -1105,11 +1111,9 @@ Item {
           var filters = ["all", "sprint", "words", "daily", "quote", "shell", "code", "drill", "custom"]
           var filterIndex = Number(event.text)
           if (event.key === Qt.Key_Down || event.key === Qt.Key_PageDown)
-            historyFlick.contentY = Math.min(Math.max(0, historyFlick.contentHeight - historyFlick.height),
-              historyFlick.contentY + Style.space(event.key === Qt.Key_PageDown ? 140 : 36))
+            root.scrollHistory(Style.space(event.key === Qt.Key_PageDown ? 140 : 36))
           else if (event.key === Qt.Key_Up || event.key === Qt.Key_PageUp)
-            historyFlick.contentY = Math.max(0,
-              historyFlick.contentY - Style.space(event.key === Qt.Key_PageUp ? 140 : 36))
+            root.scrollHistory(-Style.space(event.key === Qt.Key_PageUp ? 140 : 36))
           else if (event.text >= "0" && event.text <= "8") root.setHistoryFilter(filters[filterIndex])
           else if (event.text === "l" || event.text === "L") root.toggleLiveStats()
           else if (event.text === "g" || event.text === "G") root.toggleGhost()
@@ -1641,11 +1645,21 @@ Item {
             border.width: Math.max(1, Style.normalBorderWidth)
             border.color: Color.popups.border
 
-            Column {
-              id: statsContent
-              clip: true
+            // Tiled windows can be shorter than the app's minimum size. Scroll the
+            // whole panel instead of clipping the profile row and history off the bottom.
+            Flickable {
+              id: statsFlick
               anchors.fill: parent
               anchors.margins: Style.space(28)
+              contentWidth: width
+              contentHeight: statsContent.implicitHeight
+              clip: true
+              interactive: contentHeight > height
+              boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+              id: statsContent
+              width: statsFlick.width
               spacing: Style.space(10)
 
               Row {
@@ -1891,6 +1905,7 @@ Item {
                   }
                 }
               }
+            }
             }
           }
         }
@@ -2281,21 +2296,24 @@ Item {
   }
 
   component ProfileSettings: Rectangle {
-    height: Style.space(42)
+    implicitHeight: profileLayout.implicitHeight + Style.space(16)
+    height: implicitHeight
     radius: Math.max(2, Style.cornerRadius / 2)
     color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.028)
     border.width: 1
     border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
 
-    Row {
-      anchors.fill: parent
+    Column {
+      id: profileLayout
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.margins: Style.space(8)
       anchors.leftMargin: Style.space(10)
-      anchors.rightMargin: Style.space(8)
-      spacing: Style.space(7)
+      spacing: Style.space(6)
 
       Text {
-        width: Math.max(Style.space(210), parent.width - actionButtons.width - parent.spacing)
-        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width
         text: "PUBLIC PROFILE  /  " + (root.profileMessage || (root.profileStatus === "connected" ? "@" + root.profileHandle : "CREATE A HANDLE TO SHARE RESULTS"))
         color: root.profileStatus === "connected" ? root.accent : root.muted
         font.family: root.fontFamily
@@ -2305,9 +2323,9 @@ Item {
         elide: Text.ElideRight
       }
 
-      Row {
+      Flow {
         id: actionButtons
-        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width
         spacing: Style.space(4)
         HistoryChoice {
           visible: root.profileStatus === "connected"
