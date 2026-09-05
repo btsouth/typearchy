@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Install a standalone user application, preserving the previous installation."""
+import json
+import os
+import re
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import time
+
+os.umask(0o077)
+root = Path(__file__).resolve().parent.parent
+data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+state = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'typearchy'
+config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+base = data / 'typearchy/application'
+applications = data / 'applications'
+launcher = Path.home() / '.local/bin/typearchy'
+current = base / 'current'
+desktop = applications / 'dev.typearchy.App.desktop'
+icon = data / 'icons/hicolor/scalable/apps/dev.typearchy.App.svg'
+for command in ['quickshell', 'python3', 'jq', 'curl', 'xdg-mime']:
+    if not shutil.which(command):
+        raise SystemExit(f'Missing required command: {command}')
+if launcher.exists() or launcher.is_symlink():
+    if not launcher.is_symlink() or launcher.readlink() != current / 'bin/typearchy':
+        raise SystemExit(f'An unrelated launcher exists at {launcher}; it was not overwritten.')
+if current.exists() and not current.is_symlink():
+    raise SystemExit(f'Unexpected installation at {current}; it was not changed.')
+if current.exists():
+    active = subprocess.run(['quickshell', 'ipc', '--path', str(current.resolve() / 'Desktop.qml'), 'call', 'typearchy', 'status'], capture_output=True, timeout=5)
+    if active.returncode == 0:
+        raise SystemExit('Close the running Typearchy app before updating. Your run has not been interrupted.')
+version = json.loads((root / 'manifest.json').read_text())['version']
+identifier = str(time.time_ns())
+release = base / ('release-' + version + '-' + identifier)
+backup = state / 'install-backups' / identifier
+backup.mkdir(parents=True, mode=0o700)
+# Back up registrations and shell preferences before making any desktop changes.
+legacy_desktop = applications / 'typearchy-challenge.desktop'
+paths = [current, launcher, desktop, icon, legacy_desktop, config / 'mimeapps.list', applications / 'mimeapps.list', config / 'omarchy/shell.json']
+snapshots = {}
+for index, path in enumerate(paths):
+    if path.is_symlink():
+        snapshots[path] = ('link', path.readlink())
+    elif path.is_file():
+        saved = backup / str(index)
+        shutil.copy2(path, saved)
+        snapshots[path] = ('file', saved)
+    else:
+        snapshots[path] = ('absent', None)
+(backup / 'paths.json').write_text(json.dumps({str(path): [kind, str(value) if value else None] for path, (kind, value) in snapshots.items()}, indent=2))
+release.mkdir(parents=True)
+try:
+    for name in ['app', 'bin', 'Commons', 'Ui', 'LICENSES']:
+        shutil.copytree(root / name, release / name, ignore=shutil.ignore_patterns('__pycache__'))
+    for source in root.iterdir():
+        if source.suffix in ('.qml', '.js') or source.name in ('manifest.json', 'LICENSE', 'QUOTE_SOURCES.md'):
+            shutil.copy2(source, release / source.name)
+    escaped = str(launcher).replace('%', '%%')
+    for character in ('\\', '"', '`', '$'):
+        escaped = escaped.replace(character, '\\' + character)
+    # xdg-open's generic handler treats unnecessary executable quotes literally.
+    # Use a bare path when safe; retain spec-compliant quoting for special paths.
+    executable = str(launcher) if re.fullmatch(r"[/A-Za-z0-9_.+-]+", str(launcher)) else '"' + escaped + '"'
+    content = ('[Desktop Entry]\nType=Application\nName=Typearchy\nGenericName=Typing game\n'
+               'Comment=Practice typing and race shared coding challenges\n'
+               f'Exec={executable} %u\nIcon={icon}\nTerminal=false\n'
+               'Categories=Game;\nKeywords=typing;practice;code;Ruby;\n'
+               'StartupWMClass=dev.typearchy.App\nMimeType=x-scheme-handler/typearchy;\n')
+    with tempfile.TemporaryDirectory(prefix='typearchy-install-') as directory:
+        staged = Path(directory) / desktop.name
+        staged.write_text(content)
+        if shutil.which('desktop-file-validate'):
+            subprocess.run(['desktop-file-validate', str(staged)], check=True)
+        for path in [launcher, desktop, icon]:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = base / ('next-' + identifier)
+        temporary.symlink_to(release)
+        temporary.replace(current)
+        launcher.unlink(missing_ok=True)
+        launcher.symlink_to(current / 'bin/typearchy')
+        shutil.copy2(staged, desktop)
+        shutil.copy2(root / 'app/typearchy.svg', icon)
+    subprocess.run(['xdg-mime', 'default', desktop.name, 'x-scheme-handler/typearchy'], check=True, timeout=10)
+    registered = subprocess.run(['xdg-mime', 'query', 'default', 'x-scheme-handler/typearchy'], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+    if registered != desktop.name:
+        raise RuntimeError('Desktop did not register Typearchy challenge links.')
+    # Remove our retired handler so desktop choosers offer one Typearchy app.
+    if legacy_desktop.is_file() and 'typearchy-open' in legacy_desktop.read_text():
+        legacy_desktop.unlink()
+    if shutil.which('update-desktop-database'):
+        subprocess.run(['update-desktop-database', str(applications)], check=True, timeout=10)
+    # The plugin's files and player data remain available. Only disable its UI.
+    if (config / 'omarchy/plugins/dev.typearchy.game').exists():
+        result = subprocess.run(['omarchy-shell', 'shell', 'setPluginEnabled', 'dev.typearchy.game', 'false'], capture_output=True, text=True, timeout=10)
+        if result.returncode != 0 or result.stdout.strip() not in ('ok', 'unknown'):
+            raise RuntimeError('Could not disable the old Typearchy plugin. The installation was rolled back.')
+except Exception:
+    for path, (kind, value) in snapshots.items():
+        if kind == 'absent':
+            path.unlink(missing_ok=True)
+        elif kind == 'link':
+            path.unlink(missing_ok=True)
+            path.symlink_to(value)
+        else:
+            shutil.copy2(value, path)
+    shutil.rmtree(release)
+    raise
+print(f'Installed Typearchy {version}. Launch Typearchy from your application launcher.')
+print(f'Previous desktop settings are preserved in {backup}. Player history and account data are unchanged.')

@@ -407,3 +407,17 @@ assert.ok(astralPassages[0].includes("keeps focus sharp"))
 assert.ok(astralPassages[0].indexOf("\uD83D") === -1, "astral characters are filtered from custom passages")
 
 console.log("Typearchy model and content tests passed")
+
+// Pausing preserves learning/history, without inflating uninterrupted comparisons.
+const uninterrupted = { timestamp: '2026-09-04T12:00:00Z', date: '2026-09-04', mode: 'sprint', wpm: 60, accuracy: 98, completed: true, challengeKey: 'pause:test' };
+const beforePause = model.recordRun(model.emptyState(), uninterrupted);
+const withPause = model.recordRun(beforePause, { ...uninterrupted, timestamp: '2026-09-05T12:00:00Z', date: '2026-09-05', wpm: 120, interrupted: true });
+const afterReload = model.parseState(JSON.stringify(withPause));
+assert.equal(afterReload.runs.length, 2);
+assert.equal(afterReload.runs[0].interrupted, true);
+assert.equal(afterReload.bestWpm, 60);
+assert.equal(afterReload.lastPlayedDate, '2026-09-04');
+assert.equal(model.modeBest(afterReload, 'sprint'), 60);
+assert.equal(model.recentAverage(afterReload, 'wpm', 10, 'sprint'), 60);
+assert.equal(model.recentTrend(afterReload, 'sprint', 20).length, 1);
+assert.equal(model.bestComparableRun(afterReload, { challengeKey: 'pause:test' }).wpm, 60);

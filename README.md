@@ -4,9 +4,9 @@
 
 ![Typearchy](website/public/og.png)
 
-Typearchy is a local-first typing game for the Omarchy shell. It adds a compact
-bar launcher, a focused fullscreen typing experience, and a movable, resizable
-History window that follows the current Omarchy theme.
+Typearchy is a local-first typing game. Launch it from your application launcher
+in a normal desktop window, with optional fullscreen and colors from your
+Omarchy theme. The desktop app runs independently of the shell.
 
 Practice works without an account or network connection. Practice results and
 insights stay on the device unless you explicitly share a result. Online challenges
@@ -26,7 +26,7 @@ use the shared service to validate completed attempts and race other players.
 - Per-key and bigram mistake tracking with readable, targeted drills
 - Filtered local history, recent trends, personal bests, and streak tracking
 - Optional live stats, a personal-best pace ghost, and three type sizes
-- A keyboard-and-bolt bar widget with a quick-launch panel
+- A normal application window with optional fullscreen and automatic practice pause on focus loss
 - Shareable result URLs with theme-matched social previews and interactive playback
 - Optional PNG result cards saved locally and copied to the clipboard
 - Reviewed prose and Rails challenges with recorded opponents and shared standings
@@ -36,17 +36,32 @@ use the shared service to validate completed attempts and race other players.
 
 ## Install
 
-```bash
-omarchy plugin add https://github.com/btsouth/typearchy.git --enable
-```
-
-For local development, run these commands from the repository's parent directory:
+On Omarchy, install from a terminal:
 
 ```bash
-omarchy plugin validate ./typearchy
-cp -R ./typearchy ~/.config/omarchy/plugins/dev.typearchy.game
-omarchy plugin enable dev.typearchy.game
+git clone https://github.com/btsouth/typearchy.git
+./typearchy/bin/typearchy-install
 ```
+
+Launch **Typearchy** from your application launcher. No bar plugin is required.
+Challenge links open the same app window.
+
+On another Linux desktop, install Python 3.11+, Quickshell 0.3.1+, `curl`, `jq`,
+and `xdg-utils` first. `wl-clipboard` enables copying links and cards on Wayland.
+
+To update, close Typearchy and run:
+
+```bash
+git -C typearchy pull --ff-only
+./typearchy/bin/typearchy-install
+```
+
+Upgrading from the plugin disables its bar entry, removes its duplicate link
+handler, and preserves your account and history. Original history and desktop
+settings are backed up under `~/.local/state/typearchy/`.
+
+For development, run `./bin/typearchy` directly. Set `TYPEARCHY_STATE_DIR` to a
+private directory to keep tests separate from your real account and history.
 
 ## Website
 
@@ -62,12 +77,13 @@ Production builds target Cloudflare Workers through Vinext.
 
 ## Use
 
-- Left-click the bar widget to open quick actions and local stats.
-- Right-click the bar widget to start the saved Sprint duration immediately.
-- Open History from the bar panel for a normal desktop window. In Omarchy,
-  `Super+T` toggles that window between tiled and floating.
+- Open Typearchy from your application launcher. History is available in the app.
+- Press `F11` for fullscreen. Windowed mode keeps other applications accessible.
 - Start typing to begin the timer.
-- Press `Backspace` to correct, or `Escape` to close.
+- Press `Backspace` to correct. `Escape` pauses local practice.
+- Switching away pauses local practice. Resumed runs stay in history but do not
+  count toward uninterrupted personal bests or shared results. Online races keep
+  their clock running when you switch away.
 - Press `Ctrl+Backspace` to erase the current word.
 - Press `Ctrl+R` to restart immediately.
 - Type `Enter` at visible return markers in Shell and Code modes.
@@ -94,7 +110,7 @@ stats, `G` to toggle the pace ghost, or `F` to cycle the prompt size.
 
 ## Shared challenges
 
-Open Challenges in the browser or the Omarchy game. Pick a reviewed passage,
+Open Challenges in the browser or desktop app. Pick a reviewed passage,
 including attributed Ruby on Rails excerpts, or submit your own text for review.
 The passage and correction rules stay fixed so everyone races the same test.
 
@@ -117,7 +133,7 @@ Recovery codes and linked devices are managed under Account.
 Statistics:
 
 ```text
-~/.local/state/typearchy/stats.json
+~/.local/state/typearchy/desktop/stats.json
 ```
 
 Custom passages:
@@ -158,5 +174,14 @@ keystrokes never appear in public playback.
 ```bash
 node tests/model.test.mjs
 node tests/content-engine.test.mjs
-omarchy plugin validate .
+node tests/native-practice-smoke.mjs
+node tests/native-challenge-smoke.mjs
+node tests/standalone-smoke.mjs
+python3 tests/desktop-install.py
+cd website
+npm ci
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
 ```

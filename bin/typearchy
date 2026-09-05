@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Launch the standalone Typearchy app, or hand an intent to its existing window."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+import tomllib
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def intent(argument):
+    if not argument:
+        return {}
+    if argument == '--history':
+        return {'view': 'stats'}
+    match = re.fullmatch(r'(?:typearchy://challenge/|https://typearchy\.com/c/)([a-z0-9]{12})(?:\?race=([a-z0-9]{12}))?/?', argument)
+    if not match:
+        raise ValueError('Use a Typearchy challenge link or --history.')
+    return {'challenge': match[1], 'ghost': match[2] or ''}
+
+
+def atomic_json(path, data):
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(data, ensure_ascii=False) + '\n')
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def prepare_data(state):
+    desktop = state / 'desktop'
+    desktop.mkdir(parents=True, exist_ok=True, mode=0o700)
+    legacy, destination = state / 'stats.json', desktop / 'stats.json'
+    if not destination.exists() and legacy.exists():
+        raw = legacy.read_text()
+        data = json.loads(raw)
+        if not isinstance(data, dict) or data.get('version') not in range(1, 7) or not isinstance(data.get('runs'), list):
+            raise ValueError('Existing history could not be imported. Your original files have been preserved.')
+        backup = desktop / 'legacy-stats-backup.json'
+        if not backup.exists():
+            backup.write_text(raw)
+            backup.chmod(0o600)
+        atomic_json(destination, data)
+    # Theme inputs are data only. Never source shell or execute theme contents.
+    theme = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'omarchy/current/theme/colors.toml'
+    palette = {}
+    try:
+        colors = tomllib.loads(theme.read_text())
+        palette = {key: value for key, value in colors.items() if isinstance(value, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', value)}
+    except (OSError, ValueError):
+        pass
+    if shutil.which('fc-match'):
+        font = subprocess.run(['fc-match', 'monospace', '-f', '%{family}'], capture_output=True, text=True, timeout=5)
+        if font.returncode == 0:
+            palette['font'] = font.stdout.split(',')[0].strip()
+    atomic_json(desktop / 'theme.json', palette)
+
+
+def main():
+    if len(sys.argv) > 2:
+        raise ValueError('Pass one challenge link at a time.')
+    if sys.argv[1:] == ['--help']:
+        print('Usage: typearchy [--history | typearchy://challenge/SLUG | https://typearchy.com/c/SLUG]')
+        return
+    payload = intent(sys.argv[1] if len(sys.argv) > 1 else '')
+    if not shutil.which('quickshell'):
+        raise ValueError('Typearchy needs Quickshell 0.3.1 or newer. Install the quickshell package.')
+    os.umask(0o077)
+    state = Path(os.environ.get('TYPEARCHY_STATE_DIR', str(Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'typearchy')))
+    (state / 'desktop').mkdir(parents=True, exist_ok=True, mode=0o700)
+    qml = str(ROOT / 'Desktop.qml')
+    ipc = ['quickshell', 'ipc', '--path', qml, 'call', 'typearchy', 'open', json.dumps(payload)]
+    with (state / 'desktop/launch.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        existing = subprocess.run(ipc, capture_output=True, text=True, timeout=5)
+        if existing.returncode == 0:
+            return
+        prepare_data(state)
+        env = {**os.environ, 'TYPEARCHY_STATE_DIR': str(state), 'TYPEARCHY_LAUNCH_PAYLOAD': json.dumps(payload), 'QS_APP_ID': 'dev.typearchy.App'}
+        with (state / 'desktop/app.log').open('w') as log:
+            process = subprocess.Popen(['quickshell', '--no-duplicate', '--no-color', '--path', qml], env=env, stdout=log, stderr=log, start_new_session=True)
+        for _ in range(50):
+            if process.poll() is not None:
+                raise ValueError(f'Typearchy could not start. See {state / "desktop/app.log"}.')
+            ready = subprocess.run(['quickshell', 'ipc', '--path', qml, 'call', 'typearchy', 'status'], capture_output=True, text=True, timeout=5)
+            if ready.returncode == 0:
+                return
+            time.sleep(.1)
+        raise ValueError('Typearchy is taking longer than expected to open. Check its app log.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
+        print(f'Typearchy: {error}', file=sys.stderr)
+        if os.environ.get('QT_QPA_PLATFORM') != 'offscreen' and os.environ.get('TYPEARCHY_QUIET') != '1' and shutil.which('notify-send'):
+            subprocess.run(['notify-send', '--app-name=Typearchy', 'Typearchy could not open', str(error)], check=False)
+        sys.exit(1)

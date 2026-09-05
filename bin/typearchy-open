@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-value="${1:-}"
-slug=""; ghost=""
-if [[ "$value" =~ ^typearchy://challenge/([a-z0-9]{12})(\?race=([a-z0-9]{12}))?/?$ ]]; then
-  slug="${BASH_REMATCH[1]}"; ghost="${BASH_REMATCH[3]:-}"
-elif [[ "$value" =~ ^https://typearchy\.com/c/([a-z0-9]{12})(\?race=([a-z0-9]{12}))?/?$ ]]; then
-  slug="${BASH_REMATCH[1]}"; ghost="${BASH_REMATCH[3]:-}"
-else
-  printf 'Not a Typearchy challenge link.\n' >&2
-  exit 1
+# Compatibility for existing desktop registrations. All new launches use the app.
+installed="$HOME/.local/bin/typearchy"
+if [[ -x "$installed" ]]; then
+  exec "$installed" "$@"
 fi
-payload="$(jq -cn --arg challenge "$slug" --arg ghost "$ghost" '{challenge:$challenge,ghost:$ghost}')"
-exec omarchy-shell shell summon dev.typearchy.game "$payload"
+exec "$(dirname "$(readlink -f "$0")")/typearchy" "$@"
