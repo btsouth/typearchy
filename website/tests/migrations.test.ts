@@ -29,7 +29,7 @@ test('upgrading an existing profile preserves old runs and deletion clears compe
     database.exec("INSERT INTO profile_reports (id,profile_id,reason,created_at) VALUES ('profile-report','player','other',1)");
     database.exec("INSERT INTO profile_reviews (id,profile_id,outcome,note,created_at) VALUES ('profile-review','player','suspend','fixture',1)");
     database.exec("DELETE FROM profiles WHERE id = 'player'");
-    for (const table of ['runs','challenges','content_reports','profile_reports','profile_reviews']) assert.equal(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count,0);
+    for (const table of ['runs','challenges','content_reports','profile_reports','profile_reviews','account_runs']) assert.equal(database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count,0);
     assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { database.close(); }
 });

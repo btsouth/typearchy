@@ -28,5 +28,8 @@ export const schemaStatements = [
   "CREATE TABLE IF NOT EXISTS profile_reports (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  reporter_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  reason TEXT NOT NULL CHECK (reason IN ('vulgar', 'hateful', 'impersonation', 'spam', 'other')),\n  detail TEXT NOT NULL DEFAULT '',\n  created_at INTEGER NOT NULL,\n  resolved_at INTEGER\n)",
   "CREATE INDEX IF NOT EXISTS idx_profile_reports_pending ON profile_reports(resolved_at, created_at)",
   "CREATE TABLE IF NOT EXISTS profile_reviews (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  reviewer_id TEXT REFERENCES profiles(id) ON DELETE SET NULL,\n  outcome TEXT NOT NULL CHECK (outcome IN ('suspend', 'restore', 'dismiss')),\n  note TEXT NOT NULL,\n  created_at INTEGER NOT NULL\n)",
-  "CREATE INDEX IF NOT EXISTS idx_profile_reviews_profile ON profile_reviews(profile_id, created_at DESC)"
+  "CREATE INDEX IF NOT EXISTS idx_profile_reviews_profile ON profile_reviews(profile_id, created_at DESC)",
+  "CREATE TABLE IF NOT EXISTS account_runs (\n  id TEXT PRIMARY KEY,\n  profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,\n  client_id TEXT NOT NULL,\n  schema_version INTEGER NOT NULL,\n  content_version TEXT NOT NULL,\n  mode TEXT NOT NULL,\n  challenge_key TEXT NOT NULL,\n  target TEXT NOT NULL,\n  duration INTEGER NOT NULL,\n  wpm REAL NOT NULL,\n  raw_wpm REAL NOT NULL,\n  accuracy REAL NOT NULL,\n  consistency REAL NOT NULL,\n  errors INTEGER NOT NULL,\n  pace_json TEXT NOT NULL,\n  interrupted INTEGER NOT NULL DEFAULT 0,\n  completed INTEGER NOT NULL DEFAULT 1,\n  public_slug TEXT,\n  created_at TEXT NOT NULL\n)",
+  "CREATE UNIQUE INDEX idx_account_runs_client_identity ON account_runs(profile_id, client_id)",
+  "CREATE INDEX IF NOT EXISTS idx_account_runs_profile_created ON account_runs(profile_id, created_at DESC)"
 ];
