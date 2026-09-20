@@ -61,6 +61,31 @@ const recordForDocument = (run: PracticeRun) => ({
 export function practiceHistoryDocument(runs: PracticeRun[]) {
   return historyDocumentText({ runs: runs.map(recordForDocument) });
 }
+
+// The rows a device offers to keep on its account: the same aggregate fields, named the way the
+// sync endpoint accepts them, plus the id this device recorded each run under. Nothing else travels,
+// so there is nothing here for a prompt, typed text, or keystrokes to hide in.
+export function practiceRunsForSync(runs: PracticeRun[]) {
+  return runs.map((run) => ({
+    clientId: run.id,
+    schemaVersion: 1,
+    contentVersion: run.engineVersion,
+    mode: run.mode,
+    challengeKey: run.challengeKey,
+    target: run.target,
+    duration: typeof run.durationMs === 'number' ? Math.round(run.durationMs / 1000) : 0,
+    wpm: run.wpm,
+    rawWpm: run.raw,
+    accuracy: run.accuracy,
+    consistency: run.consistency,
+    errors: run.errors,
+    pace: run.pace,
+    interrupted: run.interrupted === true,
+    completed: run.completed !== false,
+    publicSlug: run.publicSlug ?? null,
+    createdAt: run.timestamp,
+  }));
+}
 type HistoryRead = { error?: string; document?: { runs?: unknown[] } | null };
 // And back again, for the shape this browser stores. A record that is not an object stays null so
 // the caller can see it was dropped.

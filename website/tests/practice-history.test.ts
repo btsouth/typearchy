@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizePracticeHistory, parsePracticeBackup, practiceHistoryDocument, mergePracticeHistory, practiceGroup, type PracticeRun } from '../app/lib/practiceHistory.ts';
+import { normalizePracticeHistory, parsePracticeBackup, practiceHistoryDocument, practiceRunsForSync, mergePracticeHistory, practiceGroup, type PracticeRun } from '../app/lib/practiceHistory.ts';
 import { historyDocumentText, readHistoryDocument } from '../app/practiceModel.js';
 const run: PracticeRun = {id:'one',timestamp:'2026-09-04T12:00:00Z',mode:'sprint',target:'PROSE / 30 SEC',wpm:70,raw:74,accuracy:97,consistency:90,errors:2,pace:[60,70],weakKeys:['r'],challengeKey:'sprint:prose:30:generated:prose:one',engineVersion:'2026.08.2'};
 test('history migration preserves valid runs while rejecting broken storage',()=>{
@@ -58,6 +58,23 @@ test('the browser exports one document, and reads it back with everything intact
   const shared = readHistoryDocument(practiceHistoryDocument([timed])) as { error?: string; document?: { runs?: unknown[] } };
   assert.equal(shared.error, '');
   assert.equal(shared.document?.runs?.length, 1);
+});
+
+test('the rows offered for the account carry the aggregate fields in the synced units', () => {
+  const [row] = practiceRunsForSync([{ ...run, durationMs: 30000, publicSlug: 'ABCDEFGH' } as PracticeRun]);
+  assert.deepEqual(Object.keys(row).sort(), [
+    'accuracy', 'challengeKey', 'clientId', 'completed', 'consistency', 'contentVersion', 'createdAt',
+    'duration', 'errors', 'interrupted', 'mode', 'pace', 'publicSlug', 'rawWpm', 'schemaVersion', 'target', 'wpm',
+  ]);
+  assert.equal(row.clientId, run.id);
+  assert.equal(row.duration, 30, 'milliseconds become the seconds the service speaks');
+  assert.equal(row.rawWpm, run.raw);
+  assert.equal(row.contentVersion, run.engineVersion);
+  assert.equal(row.createdAt, run.timestamp);
+  assert.equal(row.publicSlug, 'ABCDEFGH');
+  const [untimed] = practiceRunsForSync([{ ...run, durationMs: undefined } as PracticeRun]);
+  assert.equal(untimed.duration, 0, 'an untimed run reports no duration');
+  assert.equal(untimed.publicSlug, null);
 });
 
 test('a document the desktop wrote imports with its identifiers, links, and trouble spots', () => {

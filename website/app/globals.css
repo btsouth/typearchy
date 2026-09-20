@@ -624,6 +624,10 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 .moderation-queue > p { max-width: 70ch; line-height: 1.7; }
 .moderation-queue h2 { margin: 32px 0 16px; }
 .moderation-entry { padding: 24px 0; border-top: 1px solid var(--faint); }
+.account-history-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 8px; }
+.account-history-list li { display: flex; gap: 12px; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--faint); color: var(--muted); font-size: 14px; }
+.account-history-list li span:first-child { color: var(--ink); flex: 1; }
+.account-history-list li time { margin-left: auto; }
 .moderation-entry pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; padding: 20px; background: var(--bg); }
 .moderation-entry p { overflow-wrap: anywhere; }
 .moderation-entry .competition-actions { margin-top: 16px; }
