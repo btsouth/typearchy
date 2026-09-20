@@ -66,4 +66,5 @@ jobs:
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/history-sync.browser.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/accessibility.browser.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/keyboard.browser.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/links.browser.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/pwa.browser.mjs

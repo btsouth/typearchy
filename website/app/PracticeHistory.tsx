@@ -26,7 +26,7 @@ export default function PracticeHistory({ history, onImport, onRetest, onClear, 
     window.setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   return <div className="web-game-history" onClick={event=>event.stopPropagation()}>
-    <header className="history-heading"><div><h2>Your practice</h2><p>Saved in this browser. Your profile does not sync this history.</p></div><details><summary>Manage history</summary><div className="history-management"><button type="button" onClick={exportHistory} disabled={!history.length}>Export backup</button><button type="button" disabled={busy} onClick={()=>file.current?.click()}>Import backup</button>{history.length > 0 && <button type="button" disabled={busy} onClick={()=>setClearArmed(true)}>Clear history</button>}</div></details></header>
+    <header className="history-heading"><div><h2>Your practice</h2><p>Saved in this browser. Keeping it on your account is a separate step, below.</p></div><details><summary>Manage history</summary><div className="history-management"><button type="button" onClick={exportHistory} disabled={!history.length}>Export backup</button><button type="button" disabled={busy} onClick={()=>file.current?.click()}>Import backup</button>{history.length > 0 && <button type="button" disabled={busy} onClick={()=>setClearArmed(true)}>Clear history</button>}</div></details></header>
     <input ref={file} type="file" accept="application/json,.json" hidden onChange={async event=>{
       const selected=event.target.files?.[0]; event.target.value=''; if (!selected) return;
       setError(''); setNotice(''); setBusy(true);
