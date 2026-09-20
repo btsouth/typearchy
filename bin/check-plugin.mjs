@@ -28,10 +28,21 @@ for (const [kind, entry] of Object.entries(manifest.entryPoints)) {
 // 3. The version that the shell shows, the package the website builds, and the newest tag.
 const websitePackage = JSON.parse(readFileSync(join(root, 'website', 'package.json'), 'utf8'));
 assert.equal(manifest.version, websitePackage.version, `manifest.json says ${manifest.version} and website/package.json says ${websitePackage.version}`);
-const tags = git('tag', '--list', 'v*').split('\n').map((value) => value.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+const tags = git('tag', '--list', 'v*').split('\n').map((value) => value.trim()).filter(Boolean);
 if (tags.length) {
-  const newest = tags.at(-1);
-  assert.ok(manifest.version === newest.replace(/^v/, '') || manifest.version > newest.replace(/^v/, ''),
+  // Compare as numbers, not as strings: "1.10.0" sorts before "1.9.0" as text, which would have flagged a
+  // correct future version as unreleased.
+  const parts = (value) => value.replace(/^v/, '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const atLeast = (one, two) => {
+    const a = parts(one), b = parts(two);
+    for (let index = 0; index < Math.max(a.length, b.length); index++) {
+      const left = a[index] || 0, right = b[index] || 0;
+      if (left !== right) return left > right;
+    }
+    return true;
+  };
+  const newest = tags.reduce((highest, tag) => (atLeast(tag, highest) ? tag : highest), 'v0.0.0');
+  assert.ok(atLeast(manifest.version, newest),
     `manifest.json is at ${manifest.version} but the newest release tag is ${newest}: the shell would show a version that was never released`);
 }
 
