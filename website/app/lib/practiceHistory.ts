@@ -1,4 +1,5 @@
 import { learningNormalize } from '../learningEngine.js';
+import { historyDocumentText, readHistoryDocument } from '../practiceModel.js';
 export type PracticeRun = {
   id: string; timestamp: string;
   mode: 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
@@ -46,21 +47,49 @@ export function mergePracticeHistory(current: PracticeRun[], incoming: unknown) 
     seen.add(key); return true;
   }));
 }
+// The document both clients read and write. Its records speak seconds and rawWpm, which is what the
+// service and the desktop use, so a browser run converts at this boundary and nothing else changes.
+const recordForDocument = (run: PracticeRun) => ({
+  id: run.id, timestamp: run.timestamp, mode: run.mode, target: run.target, challengeKey: run.challengeKey,
+  contentVersion: run.engineVersion, duration: typeof run.durationMs === 'number' ? run.durationMs / 1000 : 0,
+  wpm: run.wpm, rawWpm: run.raw, accuracy: run.accuracy, consistency: run.consistency, errors: run.errors,
+  pace: run.pace, interrupted: run.interrupted, completed: run.completed, publicSlug: run.publicSlug,
+  publicPinned: run.publicPinned, weakKeys: run.weakKeys, weakPairs: run.weakPairs, learning: run.learning,
+  passage: run.passage, sprintStyle: run.sprintStyle, drillKeys: run.drillKeys, drillBigrams: run.drillBigrams,
+  targetErrors: run.targetErrors,
+});
+export function practiceHistoryDocument(runs: PracticeRun[]) {
+  return historyDocumentText({ runs: runs.map(recordForDocument) });
+}
+type HistoryRead = { error?: string; document?: { runs?: unknown[] } | null };
+// And back again, for the shape this browser stores. A record that is not an object stays null so
+// the caller can see it was dropped.
+const runForStorage = (record: Record<string, unknown> | null) => record && ({
+  id: typeof record.id === 'string' && record.id ? record.id : `desktop:${String(record.timestamp)}:${String(record.mode)}`,
+  timestamp: record.timestamp, mode: record.mode, target: record.target,
+  wpm: record.wpm, raw: record.rawWpm, accuracy: record.accuracy, consistency: record.consistency,
+  errors: record.errors, pace: record.pace, weakKeys: record.weakKeys, weakPairs: record.weakPairs,
+  challengeKey: record.challengeKey, engineVersion: record.contentVersion,
+  durationMs: typeof record.duration === 'number' ? record.duration * 1000 : undefined,
+  publicSlug: record.publicSlug, publicPinned: record.publicPinned, interrupted: record.interrupted,
+  completed: record.completed, learning: record.learning, passage: record.passage,
+  sprintStyle: record.sprintStyle, drillKeys: record.drillKeys, drillBigrams: record.drillBigrams,
+  targetErrors: record.targetErrors,
+});
 export function parsePracticeBackup(contents: string) {
   if (contents.length > 50_000_000) throw new Error('Choose a Typearchy backup under 50 MB');
-  let backup: { format?: string; version?: number; runs?: unknown };
-  try { backup = JSON.parse(contents); } catch { throw new Error('This file is not valid JSON'); }
-  if (backup && !backup.format && [1,2,3,4,5,6].includes(Number(backup.version)) && Array.isArray(backup.runs)) {
-    backup = { format:'typearchy-practice', version:1, runs:backup.runs.map((run: Record<string, unknown> | null) => run && ({
-      ...run, id:run.id || `desktop:${run.timestamp}:${run.mode}`,
-      raw:run.rawWpm, engineVersion:run.contentVersion || '',
-      durationMs:typeof run.duration === 'number' ? run.duration * 1000 : undefined,
-      weakKeys:[], weakPairs:[],
-    })) };
+  try { JSON.parse(contents); } catch { throw new Error('This file is not valid JSON'); }
+  // The shared reader owns what a document may be: the current format, a browser backup, or a bare
+  // desktop state. The copy stays this client's, the rules do not.
+  const read = readHistoryDocument(contents) as HistoryRead;
+  if (read.error) {
+    throw new Error(read.error.includes('invalid or duplicate')
+      ? 'This backup contains invalid or duplicate runs. Nothing was imported.'
+      : 'Choose a Typearchy history backup from the app or browser');
   }
-  if (backup?.format !== 'typearchy-practice' || backup.version !== 1 || !Array.isArray(backup.runs)) throw new Error('Choose a Typearchy history backup from the app or browser');
-  const runs = normalizePracticeHistory(backup.runs);
-  if (runs.length !== backup.runs.length) throw new Error('This backup contains invalid or duplicate runs. Nothing was imported.');
+  const records = (read.document?.runs ?? []) as (Record<string, unknown> | null)[];
+  const runs = normalizePracticeHistory(records.map(runForStorage));
+  if (runs.length !== records.length) throw new Error('This backup contains invalid or duplicate runs. Nothing was imported.');
   return runs;
 }
 export function practiceGroup(run: PracticeRun) {

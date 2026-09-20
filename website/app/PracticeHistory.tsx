@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
-import { parsePracticeBackup, practiceGroup, type PracticeRun } from './lib/practiceHistory';
+import { parsePracticeBackup, practiceGroup, practiceHistoryDocument, type PracticeRun } from './lib/practiceHistory';
 import { learningProfile } from './learningEngine';
 import { practiceLabel } from './lib/savedPractice';
 
@@ -21,8 +21,8 @@ export default function PracticeHistory({ history, onImport, onRetest, onClear, 
   const trend = comparable.slice(0,30).reverse(); const max = Math.max(1,...trend.map(run => run.wpm));
   const mean = (runs: PracticeRun[], key: 'wpm' | 'accuracy') => runs.length ? Math.round(runs.reduce((total, run) => total + run[key],0)/runs.length*10)/10 : 0;
   function exportHistory() {
-    const blob = new Blob([JSON.stringify({format:'typearchy-practice',version:1,runs:history},null,2)],{type:'application/json'});
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href=url; link.download='typearchy-practice.json'; link.click();
+    const blob = new Blob([practiceHistoryDocument(history)],{type:'application/json'});
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href=url; link.download='typearchy-history.json'; link.click();
     window.setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   return <div className="web-game-history" onClick={event=>event.stopPropagation()}>

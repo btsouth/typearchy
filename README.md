@@ -106,8 +106,10 @@ Production builds target Cloudflare Workers through Vinext.
   **Connect another browser** on your profile and enter its one-time code under
   **Use an existing profile** in the other browser.
 - Press `E` in History to export your history to `~/Documents/Typearchy`, or
-  `I` to import a backup from another machine. Imports merge without duplicates. Browser and desktop backups work in either
-  client. Connecting a profile does not automatically sync practice history.
+  `I` to import a backup from another machine. Imports merge without duplicates.
+  The app and the browser write the same document, and files from either client,
+  including older exports, import into either one. Connecting a profile does not
+  automatically sync practice history.
 - Both browser and desktop practice pause when you switch away. Resume where
   you left off, or restart for a run that counts toward personal bests. Online
   races keep their clock running.

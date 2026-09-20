@@ -62,12 +62,15 @@ ShellRoot {
       check(game.phase === "results" && game.currentResult.interrupted, "completed interrupted practice is labelled")
       check(!game.currentResult.personalBest, "paused practice cannot set a best")
       check(!game.statsWriting, "history write completes")
+      // The export is the shared document, not a copy of the local state file.
+      game.exportHistory(); keys.wait(600)
+      check(game.historyMessage.indexOf("Exported") === 0, "exporting history writes the shared document")
       game.requestClose()
     } catch (error) { console.error(error); Qt.exit(1) }
   } }
 }`);
   const result = spawnSync('quickshell', ['--no-color', '--path', join(directory, 'shell.qml')], {
-    env: { ...process.env, TYPEARCHY_STATE_DIR: join(directory, 'state'), XDG_DATA_HOME: join(directory, 'data'), QT_QPA_PLATFORM: 'offscreen', QSG_RHI_BACKEND: 'software', TYPEARCHY_QUIET: '1' }, encoding: 'utf8', timeout: 15000
+    env: { ...process.env, HOME: join(directory, 'home'), TYPEARCHY_STATE_DIR: join(directory, 'state'), XDG_DATA_HOME: join(directory, 'data'), QT_QPA_PLATFORM: 'offscreen', QSG_RHI_BACKEND: 'software', TYPEARCHY_QUIET: '1' }, encoding: 'utf8', timeout: 15000
   });
   const output = result.stdout + result.stderr;
   assert.equal(result.status, 0, output);
@@ -75,5 +78,18 @@ ShellRoot {
   assert.doesNotMatch(output, /ReferenceError|TypeError|Unable to load|Cannot assign|not a type|Binding loop/i);
   const stats = JSON.parse(readFileSync(join(directory, 'state/desktop/stats.json'), 'utf8'));
   assert.equal(stats.runs.length, 1); assert.equal(stats.runs[0].interrupted, true);
-  console.log('Standalone production UI: launch, keyboard pause/resume, close confirmation, completion, persistence, and quit passed.');
+  const exportDirectory = join(directory, 'home/Documents/Typearchy');
+  const exported = readdirSync(exportDirectory).filter((name) => name.endsWith('.json'));
+  assert.equal(exported.length, 1, 'exporting writes exactly one document');
+  const document = JSON.parse(readFileSync(join(exportDirectory, exported[0]), 'utf8'));
+  assert.equal(document.format, 'typearchy-history', 'the export is the shared document format');
+  assert.equal(document.version, 1);
+  assert.equal(document.runs.length, 1);
+  assert.equal(document.runs[0].interrupted, true, 'a paused run travels as a paused run');
+  assert.equal(document.runs[0].wpm, stats.runs[0].wpm);
+  assert.equal(document.runs[0].duration, stats.runs[0].duration, 'the document keeps the run duration');
+  assert.equal(document.runs[0].durationMs, undefined, 'the document speaks seconds, not milliseconds');
+  assert.equal(document.runs[0].rawWpm, stats.runs[0].rawWpm, 'the document speaks rawWpm');
+  assert.equal(document.totalTests, 1);
+  console.log('Standalone production UI: launch, keyboard pause/resume, close confirmation, completion, persistence, shared document export, and quit passed.');
 } finally { rmSync(directory, { recursive: true, force: true }); }

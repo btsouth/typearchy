@@ -10,7 +10,7 @@ import { generateCode, generateProse, generateQuoteRelay, generateShell, generat
 import PracticeHistory from './PracticeHistory';
 import { sharedChallengeFromKey, type SharedChallenge } from './lib/sharedPractice';
 import { learningState, learningRecord, learningProfile } from './learningEngine';
-import { practiceGroup, type PracticeRun as WebRun } from './lib/practiceHistory';
+import { practiceGroup, practiceHistoryDocument, type PracticeRun as WebRun } from './lib/practiceHistory';
 import { THEMES, selectedResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
@@ -525,7 +525,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       <textarea disabled={!clientReady} ref={inputRef} className="demo-input" onCompositionStart={() => { composingRef.current = true; }} onCompositionEnd={event => { composingRef.current = false; event.currentTarget.value = ''; if (event.data) addCharacters(event.data.normalize('NFC')); }} onInput={(event) => { if (composingRef.current || (event.nativeEvent as InputEvent).isComposing) return; const value = event.currentTarget.value; event.currentTarget.value = ''; if (value) addCharacters(value.normalize('NFC')); }} onKeyDown={handleKey} onPaste={(event) => event.preventDefault()} aria-label={`Typearchy ${mode} test input`} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
 
       {initialRunId && !result && shareError && <p role="status">{shareError}</p>}
-      {storageError && <div role="alert"><p>History could not be saved or loaded. Keep this tab open. Previous stored data has not been removed.</p><button type="button" onClick={event=>{event.stopPropagation();const url=URL.createObjectURL(new Blob([JSON.stringify({format:'typearchy-practice',version:1,runs:history})],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='typearchy-recovery.json';link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export available runs</button></div>}
+      {storageError && <div role="alert"><p>History could not be saved or loaded. Keep this tab open. Previous stored data has not been removed.</p><button type="button" onClick={event=>{event.stopPropagation();const url=URL.createObjectURL(new Blob([practiceHistoryDocument(history)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='typearchy-recovery.json';link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export available runs</button></div>}
       {screen === 'history' ? (
         <PracticeHistory history={history} canRetest={run => !!savedPractice(run) || (run.mode === 'custom' && run.challengeKey === customIdentity.key)} onImport={async incoming => { await saveHistoryRuns(incoming, false); setHistory(await loadHistory()); }} onClear={async () => { await clearHistory(); pendingRuns.current.clear(); setHistory([]); }} onRetest={run => {
           const previous = savedPractice(run);
