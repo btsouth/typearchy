@@ -50,6 +50,17 @@ try {
   assert.equal(JSON.stringify(listed.runs[0]).includes('red blue'), false, 'the typed passage never reaches the account copy');
   assert.equal(await page.locator('.account-history-list li').count(), 1);
 
+  // One page with three labelled sources, and the deep link private results use still lands right.
+  await expect(page.getByRole('button', { name: 'Everything' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'On this device' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your challenge results' })).toBeVisible();
+  await page.getByRole('button', { name: 'Your account' }).click();
+  await expect(page.getByRole('heading', { name: 'On this device' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Kept on your account' })).toBeVisible();
+  await page.goto(origin + '/history?view=challenges');
+  await expect(page.getByRole('button', { name: 'Challenge results' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Kept on your account' })).toHaveCount(0);
+
   assert.equal((await context.request.delete(origin + '/api/profile')).status(), 200);
   console.log('Account history page passed: a local run, an explicit sync, the account copy read back, a second press adding nothing, and no prompt or keystroke fields in the stored row.');
 } finally {

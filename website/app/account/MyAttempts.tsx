@@ -5,7 +5,7 @@ type Attempt = { id: string; slug: string; created_at: number; duration_ms: numb
 export default function MyAttempts() {
   const requestRevision=useRef(0); const mutating=useRef(false);
   const [cursor,setCursor]=useState<string|null>(null); const [loading,setLoading]=useState(false);
-  const [attempts, setAttempts] = useState<Attempt[] | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState('');
+  const [attempts, setAttempts] = useState<Attempt[] | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(''); const [connected,setConnected]=useState(true);
   const load = useCallback(async (next?: string) => {
     if(mutating.current)return;
     const revision=++requestRevision.current;
@@ -13,7 +13,8 @@ export default function MyAttempts() {
     try {
     const response = await fetch('/api/account/attempts' + (next ? `?cursor=${encodeURIComponent(next)}` : '')); const data = await response.json() as { attempts: Attempt[]; error?: string; nextCursor?: string };
     if(revision!==requestRevision.current)return;
-    if (!response.ok) { if(response.status===401)setAttempts(null); throw new Error(data.error || 'Could not load your results'); }
+    if (!response.ok) { if(response.status===401){setAttempts(null);setConnected(false);setError('');return;} throw new Error(data.error || 'Could not load your results'); }
+    setConnected(true);
     setAttempts(current=>next ? [...(current || []),...data.attempts.filter(row=>!current?.some(old=>old.id===row.id))] : data.attempts); setCursor(data.nextCursor || null); setError('');
     } catch(error) { if(revision===requestRevision.current)throw error; } finally {if(revision===requestRevision.current)setLoading(false);}
   }, []);
@@ -35,7 +36,8 @@ export default function MyAttempts() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update result'); }
     finally { mutating.current=false;setBusy(''); }
   }
-  return <section className="my-challenges"><h2>Your challenge results</h2><p>Completed while connected to this profile. Only shared results appear in the standings.</p>
+  return <section className="my-challenges"><h2>Your challenge results</h2>
+    {!connected ? <p>Connect a profile in <a href="/account">your account</a> to see results you completed while signed in.</p> : <><p>Completed while connected to this profile. Only shared results appear in the standings.</p>
     {error && <div className="competition-error" role="alert"><p>{error}</p><button onClick={()=>void load().catch(cause=>setError(cause.message))}>Retry</button><a href="/account">Open profile</a></div>}{loading && <p role="status">Loading results…</p>}
     {attempts?.map(attempt => <article className="moderation-entry" key={attempt.id}><h3>{attempt.title}</h3>
       <p>{new Date(attempt.created_at).toLocaleString()} · {(attempt.duration_ms / 1000).toFixed(2)}s · {attempt.wpm} WPM · {attempt.accuracy}% accuracy</p>
@@ -47,6 +49,6 @@ export default function MyAttempts() {
         : attempt.moderation === 'pending' ? <p className="competition-note">Shareable by link. It stays off your public profile until the passage is reviewed.</p> : null}
     </article>)}
     {cursor && <button disabled={loading} onClick={()=>void load(cursor).catch(cause=>setError(cause.message))}>Load older results</button>}
-    {attempts?.length === 0 && <p>No completed challenges yet.</p>}
+    {attempts?.length === 0 && <p>No completed challenges yet.</p>}</>}
   </section>;
 }
