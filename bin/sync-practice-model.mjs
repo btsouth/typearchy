@@ -21,8 +21,8 @@ const contents = renderModule({
     'paceSparkline', 'shareText', 'runBadge', 'resultStatus', 'comparison', 'nextAction',
     'validBackupNumber', 'plausibleRun', 'browserBackupRuns', 'readHistoryDocument', 'historyDocument',
     'historyDocumentText', 'mergeHistory', 'compareVersions', 'colorString', 'escapeHtml',
-    'renderedPrompt', 'STATE_VERSION', 'HISTORY_FORMAT', 'HISTORY_VERSION', 'MODES',
-    'MISSING_CHARACTER', 'ASSISTED_CHARACTER',
+    'renderedPrompt', 'STATE_VERSION', 'HISTORY_FORMAT', 'HISTORY_VERSION', 'PACE_SAMPLE_LIMIT',
+    'PACE_CEILING', 'MODES', 'MISSING_CHARACTER', 'ASSISTED_CHARACTER',
   ],
 });
 writeGenerated('website/app/practiceModel.js', contents, parseArguments(process.argv));

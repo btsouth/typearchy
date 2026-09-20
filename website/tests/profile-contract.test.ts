@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { constantTimeEqual, parsePublishedRun, profileSummary, validateConnectionCode, validateHandle, validateToken } from '../app/lib/profileContract.ts';
+import { PACE_CEILING, PACE_SAMPLE_LIMIT } from '../app/practiceModel.js';
 
 const run = {
   timestamp: '2026-08-28T20:00:00.000Z', contentVersion: '2026.08.2', mode: 'sprint',
@@ -39,7 +40,14 @@ test('a slow run with few correct characters is publishable, and junk is not', (
   assert.equal(parsePublishedRun(slow).rawWpm, 0.6);
   assert.throws(() => parsePublishedRun({ ...slow, wpm: -0.5 }), /Invalid WPM/);
   assert.throws(() => parsePublishedRun({ ...slow, wpm: Number.NaN }), /Invalid WPM/);
-  assert.throws(() => parsePublishedRun({ ...slow, pace: [600] }), /Invalid pace sample/);
+});
+
+test('pace samples are bounded by the shared ceiling and the shared count', () => {
+  const paced = { ...run, pace: [0.5, PACE_CEILING] };
+  assert.deepEqual(parsePublishedRun(paced).pace, [0.5, PACE_CEILING]);
+  assert.throws(() => parsePublishedRun({ ...run, pace: [PACE_CEILING + 1] }), /Invalid pace sample/);
+  assert.throws(() => parsePublishedRun({ ...run, pace: [-1] }), /Invalid pace sample/);
+  assert.equal(parsePublishedRun({ ...run, pace: Array.from({ length: 300 }, () => 20) }).pace.length, PACE_SAMPLE_LIMIT);
 });
 
 test('profile summaries use only public runs', () => {

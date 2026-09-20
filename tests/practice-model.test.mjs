@@ -180,6 +180,18 @@ assert.deepEqual(
   plain(desktopModel.readHistoryDocument(desktopModel.historyDocumentText(built))),
 );
 
+// The pace bounds both clients clamp to, and the service accepts the same ones.
+assert.equal(browserModel.PACE_CEILING, desktopModel.PACE_CEILING);
+assert.equal(browserModel.PACE_SAMPLE_LIMIT, 180);
+assert.deepEqual(
+  plain(browserModel.normalizeRun({ timestamp: '2026-09-05T10:00:00Z', pace: [1, 99999, -5, 250.5] }).pace),
+  [1, 1000, 0, 250.5],
+);
+assert.equal(
+  browserModel.normalizeRun({ timestamp: '2026-09-05T10:00:00Z', pace: Array.from({ length: 300 }, (_, index) => index) }).pace.length,
+  180,
+);
+
 parity('recordRun', desktopModel.emptyState(), run);
 parity('recordRun', built, { ...run, timestamp: '2026-08-30T12:00:00Z', date: '2026-08-30', wpm: 88 });
 for (const [keyCounts, bigramCounts, expected, previous] of [

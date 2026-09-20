@@ -1,4 +1,6 @@
 import { ClientError } from './clientError.ts';
+// The pace bounds both clients clamp to, so anything they record can be published.
+import { PACE_CEILING, PACE_SAMPLE_LIMIT } from '../practiceModel.js';
 
 export const PUBLIC_MODES = ['sprint', 'daily', 'quote', 'shell', 'code', 'drill'] as const;
 
@@ -68,7 +70,7 @@ export function parsePublishedRun(input: unknown): PublishedRunInput {
   const mode = String(value.mode ?? '') as PublishedRunInput['mode'];
   if (!PUBLIC_MODES.includes(mode)) throw new ClientError('This mode cannot be published');
   const pace = Array.isArray(value.pace)
-    ? value.pace.slice(0, 180).map((sample) => finiteNumber(sample, 0, 500, 'pace sample'))
+    ? value.pace.slice(0, PACE_SAMPLE_LIMIT).map((sample) => finiteNumber(sample, 0, PACE_CEILING, 'pace sample'))
     : [];
   if (!pace.length) throw new ClientError('A pace series is required');
   const timestamp = boundedString(value.timestamp, 40, 'timestamp');

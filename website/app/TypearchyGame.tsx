@@ -16,7 +16,7 @@ import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
 import {
   advanceLineBreaks, alignCharacter, correctCharacters, eraseInput, isCorrectCharacter,
-  wordsPerMinute, accuracy as accuracyOf, consistency as consistencyOf,
+  wordsPerMinute, accuracy as accuracyOf, consistency as consistencyOf, PACE_CEILING, PACE_SAMPLE_LIMIT,
 } from './practiceModel.js';
 
 type ModeKey = 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
@@ -249,7 +249,10 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     const correctCount = correctCharacters(prompt, typedRef.current);
     const finalWpm = wordsPerMinute(correctCount, elapsedMs);
     const finalRaw = wordsPerMinute(keystrokesRef.current, elapsedMs);
-    const finalPace = paceRef.current.length ? [...paceRef.current, finalWpm].slice(-20) : [finalWpm];
+    const finalPaceSample = Math.min(PACE_CEILING, finalWpm);
+    const finalPace = paceRef.current.length
+      ? [...paceRef.current, finalPaceSample].slice(0, PACE_SAMPLE_LIMIT)
+      : [finalPaceSample];
     const run: WebRun = {
       id: crypto.randomUUID(),
       interrupted: interrupted.current,
@@ -289,10 +292,12 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       const current = performance.now();
       setNow(current);
       // One sample per second, like the app, over a window of at least 750 ms so the first sample of
-      // a run cannot spike, and stated in the shared metric so a pace series means the same thing.
+      // a run cannot spike. Samples stay inside the shared ceiling and the series stays as long as the
+      // app's, so a shared pace series covers the whole run.
       const liveCorrect = correctCharacters(prompt, typedRef.current);
-      const sample = wordsPerMinute(liveCorrect, Math.max(750, current - startedRef.current));
-      paceRef.current = [...paceRef.current, sample].slice(-19);
+      const sample = Math.min(PACE_CEILING, wordsPerMinute(liveCorrect, Math.max(750, current - startedRef.current)));
+      // The app keeps the first 180 samples of a run, so this does too rather than rolling the window.
+      if (paceRef.current.length < PACE_SAMPLE_LIMIT) paceRef.current = [...paceRef.current, sample];
       setPace(paceRef.current);
       if (timed && current - startedRef.current >= duration * 1000) finishTest(startedRef.current + duration * 1000);
     }, 1000);
