@@ -200,6 +200,7 @@ node bin/sync-mirrors.mjs --check
 node tests/model.test.mjs
 node tests/content-engine.test.mjs
 node tests/practice-model.test.mjs
+node tests/history-document.test.mjs
 node tests/native-practice-smoke.mjs
 node tests/native-challenge-smoke.mjs
 node tests/standalone-smoke.mjs

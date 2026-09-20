@@ -28,7 +28,7 @@ check or a written script run on a clean machine against the deployed worker.
 
 ## Checks
 
-- Run the engine mirror check, then the model, content, and practice model parity tests.
+- Run the engine mirror check, then the model, content, practice model parity, and history document tests.
 - Run native practice, challenge, and standalone UI tests with isolated state.
 - Test installation in a private home: migration, launcher, links, and updates.
 - Verify the actual desktop launcher and a challenge URL on Omarchy.
