@@ -336,8 +336,14 @@ Item {
     var stamp = Model.localDateKey(new Date())
     root.exportTarget = root.exportDir + "/typearchy-history-" + stamp + ".json"
     root.historyMessage = "Exporting history..."
-    exportProc.command = ["bash", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$3\"", "--", root.statePath, root.exportDir, root.exportTarget]
+    exportProc.command = ["bash", "-c", "mkdir -p \"$1\"", "--", root.exportDir]
     exportProc.running = true
+  }
+
+  function writeHistoryExport() {
+    exportFile.path = root.exportTarget
+    // The export is the versioned document both clients read, not a copy of the local state file.
+    exportFile.setText(Model.historyDocumentText(root.stats))
   }
 
   function importHistory() {
@@ -352,8 +358,11 @@ Item {
     if (merged.error) { root.historyMessage = merged.error; return }
     root.stats = merged.state
     root.writeStats()
-    root.historyMessage = merged.added === 0 ? "Nothing new to import  /  every run was already in your history"
-      : "Imported " + merged.added + (merged.added === 1 ? " run" : " runs") + "  /  " + root.stats.totalTests + " local tests"
+    var counts = []
+    if (merged.added) counts.push("Imported " + merged.added + (merged.added === 1 ? " run" : " runs"))
+    if (merged.skipped) counts.push(merged.skipped + (merged.skipped === 1 ? " entry left out" : " entries left out"))
+    root.historyMessage = counts.length === 0 ? "Nothing new to import  /  every run was already in your history"
+      : counts.join("  /  ") + "  /  " + root.stats.totalTests + " local tests"
   }
 
   function scrollHistory(amount) {
@@ -850,8 +859,8 @@ Item {
 
   Process {
     id: initProc
-    command: ["bash", "-c", "mkdir -p \"$1\" \"$2\" \"$3\" && touch \"$4\"", "--",
-      root.standalone ? root.stateDir + "/desktop" : root.stateDir, root.shareDir, root.customDir, root.customPath]
+    command: ["bash", "-c", "mkdir -p \"$1\" \"$2\" \"$3\" \"$4\" && touch \"$5\"", "--",
+      root.standalone ? root.stateDir + "/desktop" : root.stateDir, root.shareDir, root.customDir, root.exportDir, root.customPath]
     onExited: {
       statsFile.reload()
       customFile.reload()
@@ -882,7 +891,8 @@ Item {
   Process {
     id: exportProc
     onExited: function(exitCode) {
-      root.historyMessage = exitCode === 0 ? "Exported  /  " + root.exportTarget : "Export failed  /  check that " + root.exportDir + " is writable"
+      if (exitCode !== 0) { root.historyMessage = "Export failed  /  check that " + root.exportDir + " is writable"; return }
+      root.writeHistoryExport()
     }
   }
   Process {
@@ -935,6 +945,15 @@ Item {
     path: root.publishPath
     atomicWrites: true
     printErrors: false
+  }
+
+  FileView {
+    id: exportFile
+    atomicWrites: true
+    printErrors: false
+    onSaved: root.historyMessage = "Exported " + root.stats.runs.length
+      + (root.stats.runs.length === 1 ? " run  /  " : " runs  /  ") + root.exportTarget
+    onSaveFailed: root.historyMessage = "Could not write the export  /  check that " + root.exportDir + " is writable"
   }
 
   Timer {
