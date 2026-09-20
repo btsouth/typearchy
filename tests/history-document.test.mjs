@@ -121,4 +121,44 @@ const empty = model.readHistoryDocument(model.historyDocumentText(model.emptySta
 assert.equal(empty.error, '');
 assert.equal(empty.document.runs.length, 0);
 
-console.log(`history document: format ${model.HISTORY_FORMAT} ${model.HISTORY_VERSION}, ${rejected.length} rejected shapes, both legacy formats still read`);
+// A document that claims to be ours but is not, and runs that are not records, must never become
+// history. Shapes that cannot be records are rejected at read; a record-shaped run with no usable
+// timestamp is reported as skipped instead of being appended as a sprint:0 entry.
+const malformed = [
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: true, runs: [] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: '1', runs: [] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: 1, runs: [{}] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: 1, runs: [{ mode: 'sprint' }] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: 1, runs: [null] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: 1, runs: [[]] }),
+  JSON.stringify({ format: model.HISTORY_FORMAT, version: 1, runs: ['run'] }),
+];
+for (const raw of malformed) {
+  const read = model.readHistoryDocument(raw);
+  const merged = model.mergeHistory(model.emptyState(), raw);
+  assert.equal(merged.added, 0, `${raw.slice(0, 60)} must add nothing`);
+  assert.equal(merged.state.totalTests, 0, 'no phantom run may reach local history');
+  assert.equal(merged.state.runs.length, 0);
+  assert.equal(merged.state.bestWpm, 0);
+  if (!read.error) assert.ok(merged.skipped > 0, 'a run that is not a record is reported as skipped');
+}
+for (const raw of malformed.slice(0, 2).concat(malformed.slice(4))) {
+  const read = model.readHistoryDocument(raw);
+  assert.ok(read.error, `${raw.slice(0, 60)} must be rejected at read`);
+  assert.equal(read.document, null);
+}
+
+// A run with no usable timestamp can never be ordered or matched, so it is reported and left out
+// instead of being appended as a sprint:0 entry.
+const timestampLess = model.mergeHistory(model.emptyState(), JSON.stringify({
+  version: 6,
+  runs: [run(), { mode: 'sprint', challengeKey: 'sprint:0' }],
+}));
+assert.equal(timestampLess.error, '');
+assert.equal(timestampLess.added, 1);
+assert.equal(timestampLess.skipped, 1);
+assert.equal(timestampLess.state.runs.length, 1);
+assert.equal(timestampLess.state.totalTests, 1);
+assert.deepEqual(timestampLess.state.runs.map((entry) => entry.challengeKey), ['sprint:30']);
+
+console.log(`history document: format ${model.HISTORY_FORMAT} ${model.HISTORY_VERSION}, ${rejected.length + malformed.length} rejected shapes, timestamp-less runs skipped, both legacy formats still read`);

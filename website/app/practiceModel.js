@@ -598,8 +598,13 @@ function readHistoryDocument(raw) {
   if (!parsed || typeof parsed !== "object") return { error: "That file is not a Typearchy history backup.", document: null }
   if (parsed.format === "typearchy-practice") return browserBackupRuns(parsed)
   if (parsed.format === HISTORY_FORMAT) {
-    if (Number(parsed.version) !== HISTORY_VERSION || !Array.isArray(parsed.runs))
+    if (parsed.version !== HISTORY_VERSION || !Array.isArray(parsed.runs))
       return { error: "That file is not a Typearchy history backup.", document: null }
+    for (var r = 0; r < parsed.runs.length; r++) {
+      var candidate = parsed.runs[r]
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+        return { error: "This backup contains invalid or duplicate runs. Nothing was imported.", document: null }
+    }
     return { error: "", document: { version: STATE_VERSION, runs: parsed.runs,
       bestWpm: parsed.bestWpm, totalTests: parsed.totalTests, streak: parsed.streak,
       lastPlayedDate: parsed.lastPlayedDate, keyMistakes: parsed.keyMistakes,
@@ -633,8 +638,22 @@ function historyDocumentText(state) {
 
 function mergeHistory(state, raw) {
   var read = readHistoryDocument(raw)
-  if (read.error) return { state: state, added: 0, error: read.error }
-  var incoming = parseState(JSON.stringify(read.document))
+  if (read.error) return { state: state, added: 0, skipped: 0, error: read.error }
+  // A run that is not a record, or has no usable timestamp, cannot be ordered or matched against
+  // local history. It is counted and left out before anything is read as a state, so a corrupt
+  // document can never inflate totals or append a phantom entry.
+  var usable = []
+  var skipped = 0
+  for (var n = 0; n < read.document.runs.length; n++) {
+    var candidate = read.document.runs[n]
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)
+        && typeof candidate.timestamp === "string" && isFinite(Date.parse(candidate.timestamp))) usable.push(candidate)
+    else skipped++
+  }
+  var incoming = parseState(JSON.stringify({ version: STATE_VERSION, runs: usable,
+    bestWpm: read.document.bestWpm, totalTests: read.document.totalTests, streak: read.document.streak,
+    lastPlayedDate: read.document.lastPlayedDate, keyMistakes: read.document.keyMistakes,
+    bigramMistakes: read.document.bigramMistakes, settings: read.document.settings }))
   var next = parseState(JSON.stringify(state || emptyState()))
   var seen = {}
   for (var i = 0; i < next.runs.length; i++) seen[next.runs[i].timestamp + "|" + next.runs[i].challengeKey] = i
@@ -661,7 +680,7 @@ function mergeHistory(state, raw) {
   next.bigramMistakes = capCounts(next.bigramMistakes, 128)
   next.streak = Math.max(next.streak, incoming.streak)
   if (incoming.lastPlayedDate > next.lastPlayedDate) next.lastPlayedDate = incoming.lastPlayedDate
-  return { state: next, added: added, error: "" }
+  return { state: next, added: added, skipped: skipped, error: "" }
 }
 
 function compareVersions(left, right) {
