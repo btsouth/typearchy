@@ -23,3 +23,14 @@ test('cards remain readable across dark, light, and low-contrast custom palettes
     assert.deepEqual(saved, snapshot, 'Rendering must not change the stored palette');
   }
 });
+
+test('every preset keeps headroom over the text minimum after correction', () => {
+  // A colour that lands exactly on 4.5:1 can measure under it where the text sits on a translucent
+  // panel, so the correction aims higher and this test holds that line.
+  for (const saved of THEMES) {
+    const rendered = readableResultTheme(saved);
+    for (const color of ['ink', 'muted', 'accent', 'error'] as const) {
+      assert.ok(contrastRatio(rendered[color], rendered.bg) >= 4.8, `${saved.name} ${color} is ${contrastRatio(rendered[color], rendered.bg).toFixed(2)}:1`);
+    }
+  }
+});

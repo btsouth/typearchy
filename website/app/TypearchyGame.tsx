@@ -12,7 +12,7 @@ import { sharedChallengeFromKey, type SharedChallenge } from './lib/sharedPracti
 import { installAvailable, promptInstall, subscribeInstall } from './lib/installPrompt';
 import { learningState, learningRecord, learningProfile } from './learningEngine';
 import { practiceGroup, practiceHistoryDocument, type PracticeRun as WebRun } from './lib/practiceHistory';
-import { THEMES, selectedResultTheme } from './lib/resultTheme';
+import { THEMES, selectedResultTheme, readableResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
 import {
@@ -197,6 +197,10 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const timed = mode === 'sprint' || mode === 'shell' || mode === 'code';
   const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? (mode === 'code' ? `${language.toUpperCase()} / ${duration} SEC` : `${duration} SEC`) : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'drill' ? `${!drillProfile.personalized ? 'GENERAL PRACTICE' : drillProfile.calibrating ? 'EARLY PRACTICE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
   const theme = THEMES[themeIndex];
+  // The game paints the same corrected palette the result card does. Three of the six presets have a
+  // muted colour that fails 4.5:1 on their own background, and every small label in here uses it:
+  // metrics, duration tabs, the footer hints. Correcting once here is what keeps them legible.
+  const palette = readableResultTheme(theme);
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
   const correct = correctCharacters(prompt, typed);
   // Practice scoring comes from the shared model, the same functions the app records with.
@@ -205,12 +209,12 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const timeValue = timed ? Math.max(0, Math.ceil(duration - elapsed)) : prompt.length ? Math.round((typed.length / prompt.length) * 100) : 0;
 
   const gameVars = {
-    '--demo-bg': theme.bg,
-    '--demo-panel': theme.panel,
-    '--demo-ink': theme.ink,
-    '--demo-muted': theme.muted,
-    '--demo-accent': theme.accent,
-    '--demo-error': theme.error,
+    '--demo-bg': palette.bg,
+    '--demo-panel': palette.panel,
+    '--demo-ink': palette.ink,
+    '--demo-muted': palette.muted,
+    '--demo-accent': palette.accent,
+    '--demo-error': palette.error,
   } as React.CSSProperties;
 
   const reset = useCallback((focus = true, advance = false) => {
