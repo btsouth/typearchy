@@ -37,14 +37,17 @@ export function contrastRatio(foreground: string, background: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-// Keep the saved palette intact. Adjust only rendered text that would be faint.
+// Keep the saved palette intact. Adjust only rendered text that would be faint, and aim above the
+// 4.5:1 minimum: some of this text sits on translucent panels, where the effective background is a
+// blend, so a colour that lands exactly on the line can measure under it on screen.
+const TEXT_MINIMUM = 4.8;
 function readableColor(color: string, background: string) {
-  if (contrastRatio(color, background) >= 4.5) return color;
+  if (contrastRatio(color, background) >= TEXT_MINIMUM) return color;
   const target = contrastRatio('#ffffff', background) > contrastRatio('#000000', background) ? 255 : 0;
   const original = channels(color);
   for (let step = 1; step <= 100; step++) {
     const candidate = '#' + original.map(value => Math.round(value + (target - value) * step / 100).toString(16).padStart(2, '0')).join('');
-    if (contrastRatio(candidate, background) >= 4.5) return candidate;
+    if (contrastRatio(candidate, background) >= TEXT_MINIMUM) return candidate;
   }
   return target ? '#ffffff' : '#000000';
 }
