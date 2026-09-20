@@ -2,6 +2,10 @@
 .import "LearningEngine.js" as Learning
 
 var STATE_VERSION = 6
+// The interchange document both clients export and import. Reading older shapes stays supported
+// forever; only this one is written.
+var HISTORY_FORMAT = "typearchy-history"
+var HISTORY_VERSION = 1
 var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
 var MISSING_CHARACTER = "\u0000"
 var ASSISTED_CHARACTER = "\u0001"
@@ -211,6 +215,10 @@ function normalizeRun(run) {
     pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
       return Math.max(0, Number(sample) || 0)
     }).slice(0, 180) : [],
+    // Trouble spots a run recorded for itself. The desktop derives these from keyMistakes, the
+    // browser stores them per run, and a document carries them so neither loses the other's data.
+    weakKeys: Array.isArray(value.weakKeys) ? value.weakKeys.map(String).slice(0, 6) : [],
+    weakPairs: Array.isArray(value.weakPairs) ? value.weakPairs.map(String).slice(0, 6) : [],
     publicSlug: /^[A-HJ-NP-Z2-9]{8}$/.test(String(value.publicSlug || "")) ? String(value.publicSlug) : "",
     publicPinned: value.publicPinned === true
   }
@@ -550,40 +558,83 @@ function validBackupNumber(value, max) {
   return typeof value === "number" && isFinite(value) && value >= 0 && value <= max
 }
 
-function mergeHistory(state, raw) {
+// Records from a browser backup, validated field by field. One invalid or duplicate run rejects the
+// whole file, so an import can never half-apply.
+function browserBackupRuns(parsed) {
+  if (parsed.version !== 1 || !Array.isArray(parsed.runs))
+    return { error: "That file is not a Typearchy history backup.", document: null }
+  var runs = []
+  var ids = {}
+  for (var b = 0; b < parsed.runs.length; b++) {
+    var item = parsed.runs[b]
+    if (!item || typeof item.id !== "string" || !item.id || ids[item.id]
+        || !isFinite(Date.parse(item.timestamp)) || MODES.concat(["words", "focus"]).indexOf(item.mode) < 0
+        || typeof item.challengeKey !== "string" || typeof item.target !== "string"
+        || typeof item.engineVersion !== "string"
+        || !validBackupNumber(item.wpm, 1000) || !validBackupNumber(item.raw, 2000)
+        || !validBackupNumber(item.accuracy, 100) || !validBackupNumber(item.consistency, 100)
+        || !validBackupNumber(item.errors, 100000))
+      return { error: "This backup contains invalid or duplicate runs. Nothing was imported.", document: null }
+    ids[item.id] = true
+    runs.push({ id: item.id, passage: item.passage, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
+      mode: item.mode, target: item.target, challengeKey: item.challengeKey, contentVersion: item.engineVersion,
+      duration: validBackupNumber(item.durationMs, 3600000) ? item.durationMs / 1000 : 0,
+      interrupted: item.interrupted === true, completed: item.completed !== false,
+      wpm: item.wpm, rawWpm: item.raw, accuracy: item.accuracy, consistency: item.consistency,
+      errors: item.errors, pace: item.pace, learning: item.learning, sprintStyle: item.sprintStyle,
+      weakKeys: item.weakKeys, weakPairs: item.weakPairs,
+      drillKeys: item.drillKeys, drillBigrams: item.drillBigrams, targetErrors: item.targetErrors,
+      publicSlug: item.publicSlug, publicPinned: item.publicPinned })
+  }
+  return { error: "", document: { version: STATE_VERSION, runs: runs } }
+}
+
+// Every history shape a client has ever written, read into one document: a browser backup, this
+// document, and a bare native state. Reading the old shapes stays supported forever; only
+// historyDocument writes.
+function readHistoryDocument(raw) {
   var parsed = null
-  try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { state: state, added: 0, error: "That file is not a Typearchy history backup." } }
-  if (!parsed || typeof parsed !== "object") return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
-  if (parsed.format === "typearchy-practice") {
-    if (parsed.version !== 1 || !Array.isArray(parsed.runs))
-      return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
-    var browserRuns = []
-    var ids = {}
-    for (var b = 0; b < parsed.runs.length; b++) {
-      var item = parsed.runs[b]
-      if (!item || typeof item.id !== "string" || !item.id || ids[item.id]
-          || !isFinite(Date.parse(item.timestamp)) || MODES.concat(["words", "focus"]).indexOf(item.mode) < 0
-          || typeof item.challengeKey !== "string" || typeof item.target !== "string"
-          || typeof item.engineVersion !== "string"
-          || !validBackupNumber(item.wpm, 1000) || !validBackupNumber(item.raw, 2000)
-          || !validBackupNumber(item.accuracy, 100) || !validBackupNumber(item.consistency, 100)
-          || !validBackupNumber(item.errors, 100000))
-        return { state: state, added: 0, error: "This backup contains invalid or duplicate runs. Nothing was imported." }
-      ids[item.id] = true
-      browserRuns.push({ id: item.id, passage: item.passage, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
-        mode: item.mode, target: item.target, challengeKey: item.challengeKey, contentVersion: item.engineVersion,
-        duration: validBackupNumber(item.durationMs, 3600000) ? item.durationMs / 1000 : 0,
-        interrupted: item.interrupted === true, completed: item.completed !== false,
-        wpm: item.wpm, rawWpm: item.raw, accuracy: item.accuracy, consistency: item.consistency,
-        errors: item.errors, pace: item.pace, learning: item.learning, sprintStyle: item.sprintStyle,
-        drillKeys: item.drillKeys, drillBigrams: item.drillBigrams, targetErrors: item.targetErrors,
-        publicSlug: item.publicSlug, publicPinned: item.publicPinned })
-    }
-    parsed = { version: STATE_VERSION, runs: browserRuns }
+  try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { error: "That file is not a Typearchy history backup.", document: null } }
+  if (!parsed || typeof parsed !== "object") return { error: "That file is not a Typearchy history backup.", document: null }
+  if (parsed.format === "typearchy-practice") return browserBackupRuns(parsed)
+  if (parsed.format === HISTORY_FORMAT) {
+    if (Number(parsed.version) !== HISTORY_VERSION || !Array.isArray(parsed.runs))
+      return { error: "That file is not a Typearchy history backup.", document: null }
+    return { error: "", document: { version: STATE_VERSION, runs: parsed.runs,
+      bestWpm: parsed.bestWpm, totalTests: parsed.totalTests, streak: parsed.streak,
+      lastPlayedDate: parsed.lastPlayedDate, keyMistakes: parsed.keyMistakes,
+      bigramMistakes: parsed.bigramMistakes, settings: parsed.settings } }
   }
   if ([1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0 || !Array.isArray(parsed.runs))
-    return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
-  var incoming = parseState(JSON.stringify(parsed))
+    return { error: "That file is not a Typearchy history backup.", document: null }
+  return { error: "", document: parsed }
+}
+
+// The document a client exports. Runs stay in the shape the service and the desktop already speak,
+// seconds and rawWpm, so a record means the same thing in the app, the browser, and on the server.
+// The aggregate counters ride along because they are the frequent-mistype and streak history; a
+// document that carried only runs would silently drop them on the way back in.
+function historyDocument(state) {
+  var source = state || emptyState()
+  return { format: HISTORY_FORMAT, version: HISTORY_VERSION, exportedAt: new Date().toISOString(),
+    bestWpm: Math.max(0, Number(source.bestWpm) || 0),
+    totalTests: Math.max(0, Math.floor(Number(source.totalTests) || 0)),
+    streak: Math.max(0, Math.floor(Number(source.streak) || 0)),
+    lastPlayedDate: String(source.lastPlayedDate || ""),
+    keyMistakes: normalizeCounts(source.keyMistakes),
+    bigramMistakes: normalizeCounts(source.bigramMistakes),
+    settings: source.settings || {},
+    runs: (source.runs || []).map(normalizeRun) }
+}
+
+function historyDocumentText(state) {
+  return JSON.stringify(historyDocument(state), null, 2) + "\n"
+}
+
+function mergeHistory(state, raw) {
+  var read = readHistoryDocument(raw)
+  if (read.error) return { state: state, added: 0, error: read.error }
+  var incoming = parseState(JSON.stringify(read.document))
   var next = parseState(JSON.stringify(state || emptyState()))
   var seen = {}
   for (var i = 0; i < next.runs.length; i++) seen[next.runs[i].timestamp + "|" + next.runs[i].challengeKey] = i

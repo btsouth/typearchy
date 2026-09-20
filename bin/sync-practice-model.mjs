@@ -19,8 +19,10 @@ const contents = renderModule({
     'latestRun', 'updateRunPublication', 'clearRunPublications', 'bestForDate', 'dailyRun',
     'filteredRuns', 'recentTrend', 'bestComparableRun', 'paceAt', 'eraseWordIndex', 'resultAction',
     'paceSparkline', 'shareText', 'runBadge', 'resultStatus', 'comparison', 'nextAction',
-    'validBackupNumber', 'mergeHistory', 'compareVersions', 'colorString', 'escapeHtml',
-    'renderedPrompt', 'STATE_VERSION', 'MODES', 'MISSING_CHARACTER', 'ASSISTED_CHARACTER',
+    'validBackupNumber', 'browserBackupRuns', 'readHistoryDocument', 'historyDocument',
+    'historyDocumentText', 'mergeHistory', 'compareVersions', 'colorString', 'escapeHtml',
+    'renderedPrompt', 'STATE_VERSION', 'HISTORY_FORMAT', 'HISTORY_VERSION', 'MODES',
+    'MISSING_CHARACTER', 'ASSISTED_CHARACTER',
   ],
 });
 writeGenerated('website/app/practiceModel.js', contents, parseArguments(process.argv));

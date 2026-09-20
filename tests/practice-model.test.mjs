@@ -169,6 +169,17 @@ const built = ((state) => {
   return next;
 })(desktopModel.emptyState());
 
+// The document a client exports is the interchange format, so both sides must produce the same one.
+assert.deepEqual(
+  { ...plain(browserModel.historyDocument(built)), exportedAt: '' },
+  { ...plain(desktopModel.historyDocument(built)), exportedAt: '' },
+  'both clients must export the same history document',
+);
+assert.deepEqual(
+  plain(browserModel.readHistoryDocument(desktopModel.historyDocumentText(built))),
+  plain(desktopModel.readHistoryDocument(desktopModel.historyDocumentText(built))),
+);
+
 parity('recordRun', desktopModel.emptyState(), run);
 parity('recordRun', built, { ...run, timestamp: '2026-08-30T12:00:00Z', date: '2026-08-30', wpm: 88 });
 for (const [keyCounts, bigramCounts, expected, previous] of [
@@ -275,8 +286,30 @@ const browserBackup = {
     wpm: 70, raw: 74, accuracy: 97, consistency: 90, errors: 2, pace: [60, 70], interrupted: true,
   }],
 };
+// A document carries an export timestamp, so parity strips it before comparing.
+const historyDocumentOf = (state) => ({ ...plain(desktopModel.historyDocument(state)), exportedAt: '' });
+const incomingRuns = () => [{
+  timestamp: '2026-09-05T12:00:00.000Z', mode: 'sprint', target: '30 seconds', challengeKey: 'sprint:30',
+  wpm: 80, rawWpm: 84, accuracy: 97, consistency: 92, errors: 2, duration: 30, contentVersion: '2026.08.2',
+}];
+const browserBackupWithWeakKeys = {
+  ...browserBackup,
+  runs: [{ ...browserBackup.runs[0], weakKeys: ['E', 'R'], weakPairs: ['E→X'] }],
+};
 parity('mergeHistory', desktopModel.emptyState(), JSON.stringify(browserBackup));
 parity('mergeHistory', localState, JSON.stringify(browserBackup));
+parity('mergeHistory', localState, JSON.stringify(historyDocumentOf(localState)));
+parity('readHistoryDocument', 'not json');
+parity('readHistoryDocument', JSON.stringify({ format: 'typearchy-history', version: 2, runs: [] }));
+parity('readHistoryDocument', JSON.stringify({ format: 'typearchy-history', version: 1, runs: incomingRuns() }));
+parity('readHistoryDocument', JSON.stringify(browserBackup));
+parity('readHistoryDocument', JSON.stringify(browserBackupWithWeakKeys));
+parity('readHistoryDocument', JSON.stringify({ version: 6, runs: incomingRuns() }));
+parity('readHistoryDocument', JSON.stringify({ version: 1, runs: incomingRuns() }));
+parity('readHistoryDocument', JSON.stringify({ version: 9, runs: [] }));
+parity('readHistoryDocument', JSON.stringify({ format: 'typearchy-practice', version: 2, runs: [] }));
+parity('browserBackupRuns', browserBackup);
+parity('browserBackupRuns', { version: 1, runs: [...browserBackup.runs, {}] });
 for (const broken of [
   { ...browserBackup, runs: [...browserBackup.runs, {}] },
   { ...browserBackup, runs: [browserBackup.runs[0], browserBackup.runs[0]] },
