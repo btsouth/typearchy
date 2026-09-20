@@ -25,9 +25,14 @@ for (const [kind, entry] of Object.entries(manifest.entryPoints)) {
   assert.ok(existsSync(join(root, entry)), `manifest entryPoints.${kind} points at ${entry}, which does not exist`);
 }
 
-// 3. The version that the shell shows, the package the website builds, and the newest tag.
+// 3. The version that the shell shows, the package the website builds, and the client version the site
+// advertises. These three have drifted apart before, so the check holds all of them to the release.
 const websitePackage = JSON.parse(readFileSync(join(root, 'website', 'package.json'), 'utf8'));
 assert.equal(manifest.version, websitePackage.version, `manifest.json says ${manifest.version} and website/package.json says ${websitePackage.version}`);
+const clientVersionSource = readFileSync(join(root, 'website', 'app', 'lib', 'clientVersion.ts'), 'utf8');
+const advertisedClient = /LATEST_DESKTOP_CLIENT = '([^']+)'/.exec(clientVersionSource)?.[1];
+assert.ok(advertisedClient, 'clientVersion.ts no longer declares LATEST_DESKTOP_CLIENT where this check can see it');
+assert.equal(advertisedClient, manifest.version, `clientVersion.ts tells desktop clients that ${advertisedClient} is the latest, but this release is ${manifest.version}`);
 const tags = git('tag', '--list', 'v*').split('\n').map((value) => value.trim()).filter(Boolean);
 if (tags.length) {
   // Compare as numbers, not as strings: "1.10.0" sorts before "1.9.0" as text, which would have flagged a
