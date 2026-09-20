@@ -558,6 +558,20 @@ function validBackupNumber(value, max) {
   return typeof value === "number" && isFinite(value) && value >= 0 && value <= max
 }
 
+// A record has to be a record: ordered in time, and inside the same bounds a browser backup is held
+// to. An implausible entry is left out and counted rather than written into personal bests, so one
+// bad row in an old file cannot cost the rest of its history.
+function plausibleRun(run) {
+  if (!run || typeof run !== "object" || Array.isArray(run)) return false
+  if (typeof run.timestamp !== "string" || !isFinite(Date.parse(run.timestamp))) return false
+  if (run.wpm !== undefined && !validBackupNumber(run.wpm, 1000)) return false
+  if (run.rawWpm !== undefined && !validBackupNumber(run.rawWpm, 2000)) return false
+  if (run.accuracy !== undefined && !validBackupNumber(run.accuracy, 100)) return false
+  if (run.consistency !== undefined && !validBackupNumber(run.consistency, 100)) return false
+  if (run.errors !== undefined && !validBackupNumber(run.errors, 100000)) return false
+  return true
+}
+
 // Records from a browser backup, validated field by field. One invalid or duplicate run rejects the
 // whole file, so an import can never half-apply.
 function browserBackupRuns(parsed) {
@@ -639,15 +653,14 @@ function historyDocumentText(state) {
 function mergeHistory(state, raw) {
   var read = readHistoryDocument(raw)
   if (read.error) return { state: state, added: 0, skipped: 0, error: read.error }
-  // A run that is not a record, or has no usable timestamp, cannot be ordered or matched against
-  // local history. It is counted and left out before anything is read as a state, so a corrupt
-  // document can never inflate totals or append a phantom entry.
+  // A run that is not a record, has no usable timestamp, or is outside the bounds a browser backup
+  // is held to cannot be ordered, matched, or trusted against local history. It is counted and left
+  // out before anything is read as a state, so a corrupt or implausible entry can never inflate
+  // totals, append a phantom run, or set a personal best.
   var usable = []
   var skipped = 0
   for (var n = 0; n < read.document.runs.length; n++) {
-    var candidate = read.document.runs[n]
-    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)
-        && typeof candidate.timestamp === "string" && isFinite(Date.parse(candidate.timestamp))) usable.push(candidate)
+    if (plausibleRun(read.document.runs[n])) usable.push(read.document.runs[n])
     else skipped++
   }
   var incoming = parseState(JSON.stringify({ version: STATE_VERSION, runs: usable,
@@ -730,4 +743,4 @@ function renderedPrompt(prompt, typed, colors) {
   return out.join("")
 }
 
-export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, isCorrectCharacter, eraseInput, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, browserBackupRuns, readHistoryDocument, historyDocument, historyDocumentText, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, HISTORY_FORMAT, HISTORY_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }
+export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, isCorrectCharacter, eraseInput, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, plausibleRun, browserBackupRuns, readHistoryDocument, historyDocument, historyDocumentText, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, HISTORY_FORMAT, HISTORY_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }

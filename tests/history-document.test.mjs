@@ -161,4 +161,26 @@ assert.equal(timestampLess.state.runs.length, 1);
 assert.equal(timestampLess.state.totalTests, 1);
 assert.deepEqual(timestampLess.state.runs.map((entry) => entry.challengeKey), ['sprint:30']);
 
-console.log(`history document: format ${model.HISTORY_FORMAT} ${model.HISTORY_VERSION}, ${rejected.length + malformed.length} rejected shapes, timestamp-less runs skipped, both legacy formats still read`);
+// An implausible run never becomes a personal best, and never costs the rest of the file.
+const mixed = model.mergeHistory(model.emptyState(), JSON.stringify({
+  version: 6,
+  runs: [
+    run({ timestamp: '2026-09-03T10:00:00Z', challengeKey: 'sprint:60', wpm: 900 }),
+    run({ timestamp: '2026-09-04T10:00:00Z', challengeKey: 'sprint:15', wpm: 1728 }),
+    run({ timestamp: '2026-09-05T10:00:00Z', challengeKey: 'sprint:120', wpm: 1000, rawWpm: 1200 }),
+  ],
+}));
+assert.equal(mixed.error, '');
+assert.equal(mixed.added, 2, 'the plausible runs are imported');
+assert.equal(mixed.skipped, 1, 'the implausible run is reported, not imported');
+assert.equal(mixed.state.bestWpm, 1000, 'a junk run never sets a personal best');
+assert.equal(mixed.state.totalTests, 2);
+assert.deepEqual(mixed.state.runs.map((entry) => entry.challengeKey), ['sprint:120', 'sprint:60']);
+assert.equal(model.plausibleRun({ timestamp: '2026-09-05T10:00:00Z', wpm: 1000 }), true);
+assert.equal(model.plausibleRun({ timestamp: '2026-09-05T10:00:00Z', wpm: 1000.5 }), false);
+assert.equal(model.plausibleRun({ timestamp: '2026-09-05T10:00:00Z', rawWpm: 2001 }), false);
+assert.equal(model.plausibleRun({ timestamp: '2026-09-05T10:00:00Z', accuracy: 101 }), false);
+assert.equal(model.plausibleRun({ timestamp: 'nope' }), false);
+assert.equal(model.plausibleRun({}), false);
+
+console.log(`history document: format ${model.HISTORY_FORMAT} ${model.HISTORY_VERSION}, ${rejected.length + malformed.length} rejected shapes, timestamp-less and implausible runs skipped, both legacy formats still read`);

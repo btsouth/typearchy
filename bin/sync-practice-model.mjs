@@ -19,7 +19,7 @@ const contents = renderModule({
     'latestRun', 'updateRunPublication', 'clearRunPublications', 'bestForDate', 'dailyRun',
     'filteredRuns', 'recentTrend', 'bestComparableRun', 'paceAt', 'eraseWordIndex', 'resultAction',
     'paceSparkline', 'shareText', 'runBadge', 'resultStatus', 'comparison', 'nextAction',
-    'validBackupNumber', 'browserBackupRuns', 'readHistoryDocument', 'historyDocument',
+    'validBackupNumber', 'plausibleRun', 'browserBackupRuns', 'readHistoryDocument', 'historyDocument',
     'historyDocumentText', 'mergeHistory', 'compareVersions', 'colorString', 'escapeHtml',
     'renderedPrompt', 'STATE_VERSION', 'HISTORY_FORMAT', 'HISTORY_VERSION', 'MODES',
     'MISSING_CHARACTER', 'ASSISTED_CHARACTER',
