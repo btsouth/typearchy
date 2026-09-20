@@ -14,7 +14,7 @@ import { practiceGroup, type PracticeRun as WebRun } from './lib/practiceHistory
 import { THEMES, selectedResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
-import { advanceLineBreaks, alignCharacter, countCorrectCharacters, eraseInput, isCorrectCharacter } from './typingEngine';
+import { advanceLineBreaks, alignCharacter, correctCharacters, eraseInput, isCorrectCharacter } from './practiceModel.js';
 
 type ModeKey = 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
 type Language = 'bash' | 'python' | 'javascript' | 'rust' | 'ruby';
@@ -201,7 +201,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const target = sharedChallenge?.target || (mode === 'sprint' ? `${sprintStyle.toUpperCase()} / ${duration} SEC` : timed ? (mode === 'code' ? `${language.toUpperCase()} / ${duration} SEC` : `${duration} SEC`) : mode === 'daily' ? `#${dailyIndex()}` : mode === 'quote' ? '4 EXCERPTS' : mode === 'drill' ? `${!drillProfile.personalized ? 'GENERAL PRACTICE' : drillProfile.calibrating ? 'EARLY PRACTICE' : 'TRAINING'} ${[...drillProfile.keys, ...drillProfile.bigrams.map((pair) => pair.replace('→', ''))].join(' / ').toUpperCase()}` : 'PASSAGE');
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
-  const correct = countCorrectCharacters(prompt, typed);
+  const correct = correctCharacters(prompt, typed);
   const accuracy = keystrokes ? Math.round(((keystrokes - mistakes) / keystrokes) * 100) : 100;
   const wpm = elapsed > 0.75 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
   const timeValue = timed ? Math.max(0, Math.ceil(duration - elapsed)) : prompt.length ? Math.round((typed.length / prompt.length) * 100) : 0;
@@ -250,8 +250,8 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     if (!startedRef.current || completedRef.current || pausedAt.current !== null) return;
     completedRef.current = true;
     const elapsedMs = Math.max(1000, endedAt - startedRef.current);
-    const correctCharacters = countCorrectCharacters(prompt, typedRef.current);
-    const finalWpm = Math.round(correctCharacters / 5 / (elapsedMs / 60000));
+    const correctCount = correctCharacters(prompt, typedRef.current);
+    const finalWpm = Math.round(correctCount / 5 / (elapsedMs / 60000));
     const finalRaw = Math.round(keystrokesRef.current / 5 / (elapsedMs / 60000));
     const finalPace = paceRef.current.length ? [...paceRef.current, finalWpm].slice(-20) : [finalWpm];
     const run: WebRun = {
@@ -293,7 +293,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       const current = performance.now();
       setNow(current);
       const seconds = Math.max(0.75, (current - startedRef.current) / 1000);
-      const liveCorrect = countCorrectCharacters(prompt, typedRef.current);
+      const liveCorrect = correctCharacters(prompt, typedRef.current);
       const sample = Math.round(liveCorrect / 5 / (seconds / 60));
       paceRef.current = [...paceRef.current, sample].slice(-19);
       setPace(paceRef.current);

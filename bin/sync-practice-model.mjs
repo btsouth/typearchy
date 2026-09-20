@@ -10,7 +10,8 @@ const contents = renderModule({
   generator: 'bin/sync-practice-model.mjs',
   imports: { Learning: './learningEngine.js' },
   exportNames: [
-    'clamp', 'round', 'pad2', 'dateKey', 'localDateKey', 'correctCharacters', 'documentPosition',
+    'clamp', 'round', 'pad2', 'dateKey', 'localDateKey', 'correctCharacters', 'isCorrectCharacter',
+    'eraseInput', 'documentPosition',
     'alignCharacter', 'advanceLineBreaks', 'wordsPerMinute', 'accuracy', 'consistency', 'emptyState',
     'normalizeCounts', 'capCounts', 'normalizedMode', 'fallbackChallengeKey', 'normalizeRun',
     'stateNeedsQuarantine', 'parseState', 'daysBetween', 'recordRun', 'mistakeLabel', 'addMistake',

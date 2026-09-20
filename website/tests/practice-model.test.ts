@@ -5,19 +5,22 @@ import {
   MISSING_CHARACTER,
   advanceLineBreaks,
   alignCharacter,
-  countCorrectCharacters,
+  correctCharacters,
   eraseInput,
   isCorrectCharacter,
-} from '../app/typingEngine.ts';
+} from '../app/practiceModel.js';
+
+// The browser types through the generated copy of the shared practice model, the same code the
+// desktop app loads from TypearchyModel.js. These are the input rules a player feels.
 
 test('a skipped space records one miss and immediately realigns', () => {
   const result = alignCharacter('one two', 'one', 't');
-  assert.deepEqual(result, { text: `one${MISSING_CHARACTER}t`, expected: ' ', correct: false });
+  assert.deepEqual(result, { text: `one${MISSING_CHARACTER}t`, expected: ' ', correct: false, recovered: true });
   assert.equal(alignCharacter('one two', result.text, 'w').correct, true);
 });
 
 test('an accidental duplicate key does not advance the prompt', () => {
-  assert.deepEqual(alignCharacter('hello', 'he', 'e'), { text: 'he', expected: 'l', correct: false });
+  assert.deepEqual(alignCharacter('hello', 'he', 'e'), { text: 'he', expected: 'l', correct: false, recovered: true });
 });
 
 test('normal modes automatically consume line breaks', () => {
@@ -50,10 +53,18 @@ test('technical modes auto-indent after a valid enter', () => {
 
 test('assisted breaks render complete without adding to WPM characters', () => {
   assert.equal(isCorrectCharacter('\n', ASSISTED_CHARACTER), true);
-  assert.equal(countCorrectCharacters('one\ntwo', `one${ASSISTED_CHARACTER}two`), 6);
+  assert.equal(correctCharacters('one\ntwo', `one${ASSISTED_CHARACTER}two`), 6);
+  assert.equal(isCorrectCharacter('o', 'o'), true);
+  assert.equal(isCorrectCharacter('o', 'x'), false);
+  assert.equal(isCorrectCharacter('o', ''), false);
 });
 
 test('backspace crosses an assisted break and removes the previous input', () => {
   assert.equal(eraseInput(`one${ASSISTED_CHARACTER}`, false), 'on');
   assert.equal(eraseInput(`one${ASSISTED_CHARACTER}`, true), '');
+  assert.equal(eraseInput('one two', false), 'one tw');
+  assert.equal(eraseInput('one two ', true), 'one ');
+  assert.equal(eraseInput(`one${ASSISTED_CHARACTER}two`, true), '');
+  assert.equal(eraseInput('', false), '');
+  assert.equal(eraseInput('', true), '');
 });
