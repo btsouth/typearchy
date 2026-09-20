@@ -20,13 +20,18 @@ export function parseArguments(argv) {
 }
 
 // `.import "LearningEngine.js" as Learning` becomes an import of the generated browser copy. The
-// caller names that copy, because the generated file is not always the source filename.
-export function toModuleBody(source, imports = {}) {
+// caller names that copy, because the generated file is not always the source filename. A missing
+// mapping is an error rather than a guess, so a new engine cannot generate a broken import.
+export function toModuleBody(source, imports = {}, sourceFile = 'engine') {
   const importLines = [];
   const body = source
     .replace(/^\.pragma library\s*/, '')
     .replace(/^\.import "([^"\n]+)" as (\w+)\s*$/gm, (_match, file, name) => {
-      importLines.push(`import * as ${name} from '${imports[name] || `./${file}`}';`);
+      const browserCopy = imports[name];
+      if (!browserCopy) {
+        throw new Error(`${sourceFile} imports "${file}" as ${name}: add the browser copy to its generator`);
+      }
+      importLines.push(`import * as ${name} from '${browserCopy}';`);
       return '';
     })
     .replace(/^\n+/, '');
@@ -34,7 +39,7 @@ export function toModuleBody(source, imports = {}) {
 }
 
 export function renderModule({ source, sourceFile, generator, exportNames, imports }) {
-  const { body, importLines } = toModuleBody(source, imports);
+  const { body, importLines } = toModuleBody(source, imports, sourceFile);
   if (!body.endsWith('\n')) throw new Error(`${sourceFile} must end with a newline`);
   const head = `// Generated from ${sourceFile} by ${generator}.\n` +
     (importLines.length ? `${importLines.join('\n')}\n\n` : '');
