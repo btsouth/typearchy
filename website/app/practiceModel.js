@@ -6,6 +6,11 @@ var STATE_VERSION = 6
 // forever; only this one is written.
 var HISTORY_FORMAT = "typearchy-history"
 var HISTORY_VERSION = 1
+// A published pace series carries at most this many samples, one per second, and no sample may claim
+// more than the ceiling. Both clients clamp to these, and the service accepts exactly these bounds,
+// so a run either client records can always be shared.
+var PACE_SAMPLE_LIMIT = 180
+var PACE_CEILING = 1000
 var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
 var MISSING_CHARACTER = "\u0000"
 var ASSISTED_CHARACTER = "\u0001"
@@ -215,8 +220,8 @@ function normalizeRun(run) {
     keyMistakes: normalizeCounts(value.keyMistakes),
     bigramMistakes: normalizeCounts(value.bigramMistakes),
     pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
-      return Math.max(0, Number(sample) || 0)
-    }).slice(0, 180) : [],
+      return clamp(Number(sample) || 0, 0, PACE_CEILING)
+    }).slice(0, PACE_SAMPLE_LIMIT) : [],
     // Trouble spots a run recorded for itself. The desktop derives these from keyMistakes, the
     // browser stores them per run, and a document carries them so neither loses the other's data.
     weakKeys: Array.isArray(value.weakKeys) ? value.weakKeys.map(String).slice(0, 6) : [],
@@ -745,4 +750,4 @@ function renderedPrompt(prompt, typed, colors) {
   return out.join("")
 }
 
-export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, isCorrectCharacter, eraseInput, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, plausibleRun, browserBackupRuns, readHistoryDocument, historyDocument, historyDocumentText, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, HISTORY_FORMAT, HISTORY_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }
+export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, isCorrectCharacter, eraseInput, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, plausibleRun, browserBackupRuns, readHistoryDocument, historyDocument, historyDocumentText, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, HISTORY_FORMAT, HISTORY_VERSION, PACE_SAMPLE_LIMIT, PACE_CEILING, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }

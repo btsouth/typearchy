@@ -6,6 +6,11 @@ var STATE_VERSION = 6
 // forever; only this one is written.
 var HISTORY_FORMAT = "typearchy-history"
 var HISTORY_VERSION = 1
+// A published pace series carries at most this many samples, one per second, and no sample may claim
+// more than the ceiling. Both clients clamp to these, and the service accepts exactly these bounds,
+// so a run either client records can always be shared.
+var PACE_SAMPLE_LIMIT = 180
+var PACE_CEILING = 1000
 var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
 var MISSING_CHARACTER = "\u0000"
 var ASSISTED_CHARACTER = "\u0001"
@@ -215,8 +220,8 @@ function normalizeRun(run) {
     keyMistakes: normalizeCounts(value.keyMistakes),
     bigramMistakes: normalizeCounts(value.bigramMistakes),
     pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
-      return Math.max(0, Number(sample) || 0)
-    }).slice(0, 180) : [],
+      return clamp(Number(sample) || 0, 0, PACE_CEILING)
+    }).slice(0, PACE_SAMPLE_LIMIT) : [],
     // Trouble spots a run recorded for itself. The desktop derives these from keyMistakes, the
     // browser stores them per run, and a document carries them so neither loses the other's data.
     weakKeys: Array.isArray(value.weakKeys) ? value.weakKeys.map(String).slice(0, 6) : [],

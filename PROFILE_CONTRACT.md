@@ -67,7 +67,9 @@ The service accepts only:
 - schema and content version
 - mode, duration, target label, and reproducible challenge key
 - WPM, raw WPM, accuracy, consistency, and error count
-- a decimated WPM pace series
+- a decimated WPM pace series: at most 180 samples, one per second from the start of the run, each
+  between 0 and 1000 WPM. Both clients clamp to those bounds when they record a run, and the service
+  accepts exactly them, so a run recorded in either client can always be published.
 - completion time
 
 It never accepts the prompt, typed text, individual keystrokes, correction
