@@ -14,7 +14,7 @@ and shared Daily runs.
   builds a targeted paragraph without inserting synthetic symbols into words.
 - Shell assembles parameterized, multiline workflows from distinct command
   families such as Git, systemd, networking, archives, files, and packages.
-- Code emits complete Bash, Python, JavaScript, and Rust programs across 16
+- Code emits complete Bash, Python, JavaScript, Rust, and Ruby programs across 16
   structural families. Seeds switch between rolling and median statistics,
   grouping strategies, manifests and extension reports, and retries or batches,
   while also varying names, values, ordering, labels, and parameters.
@@ -39,8 +39,9 @@ replays should retain the engine version with the run.
 `tests/content-engine.test.mjs` checks desktop and browser engine parity,
 reproduction from challenge keys, prompt length, corpus balance, author
 diversity, and shell syntax. It also generates twelve programs per language and
-validates all 48 with `bash -n`, Python bytecode compilation, `node --check`,
-and `rustc`. One generated fixture per language is also executed end to end.
+validates all 60 with `bash -n`, Python bytecode compilation, `node --check`,
+`rustc`, and `ruby -c`. One generated fixture per language is also executed end
+to end.
 Each language must cover at least eight structural families in the fixed test
 matrix.
 

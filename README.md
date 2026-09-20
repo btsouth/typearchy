@@ -155,6 +155,11 @@ Statistics:
 ~/.local/state/typearchy/desktop/stats.json
 ```
 
+The bar plugin is a separate client and still reads the older
+`~/.local/state/typearchy/stats.json` path, without honoring
+`TYPEARCHY_STATE_DIR` or `XDG_STATE_HOME`. Installing the app disables the
+plugin UI, so the app is the primary client.
+
 Custom passages:
 
 ```text
