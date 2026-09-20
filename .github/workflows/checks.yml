@@ -34,6 +34,7 @@ jobs:
       - name: Validate desktop engines and content
         run: |
           node bin/sync-mirrors.mjs --check
+          node bin/check-plugin.mjs
           node tests/model.test.mjs
           node tests/content-engine.test.mjs
           node tests/practice-model.test.mjs
