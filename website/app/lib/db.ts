@@ -77,9 +77,9 @@ export function errorResponse(error: unknown, fallback = 'Request failed', statu
   return json({ error: fallback }, status);
 }
 
-export async function readJson(request: Request) {
+export async function readJson(request: Request, maximum = 32_000) {
   const length = Number(request.headers.get('content-length') || 0);
-  if (!length || length > 32_000) throw new ClientError('Request is too large');
+  if (!length || length > maximum) throw new ClientError('Request is too large');
   return request.json() as Promise<unknown>;
 }
 
