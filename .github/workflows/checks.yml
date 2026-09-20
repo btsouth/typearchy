@@ -59,6 +59,7 @@ jobs:
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/moderation.integration.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/challenges.integration.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/library.integration.mjs
+          TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/account-history.integration.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/race.browser.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/practice.browser.mjs
           TYPEARCHY_TEST_ORIGIN=http://localhost:5178 node tests/history.browser.mjs
