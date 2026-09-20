@@ -1,4 +1,4 @@
-// Generated from ContentEngine.js
+// Generated from ContentEngine.js by bin/sync-content-engine.mjs.
 var VERSION = "2026.08.2"
 var NOUNS = ["runs", "samples", "events", "records", "frames", "metrics", "jobs", "packets", "signals", "tasks", "entries", "snapshots"]
 var LABELS = ["alpha", "beta", "stable", "canary", "local", "remote", "active", "queued", "passed", "failed", "cached", "fresh"]

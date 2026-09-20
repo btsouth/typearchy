@@ -196,8 +196,10 @@ keystrokes never appear in public playback.
 ## Development checks
 
 ```bash
+node bin/sync-mirrors.mjs --check
 node tests/model.test.mjs
 node tests/content-engine.test.mjs
+node tests/practice-model.test.mjs
 node tests/native-practice-smoke.mjs
 node tests/native-challenge-smoke.mjs
 node tests/standalone-smoke.mjs
@@ -210,3 +212,8 @@ npx tsc --noEmit
 npm run lint
 npm run build
 ```
+
+The engines in the repository root are the source of truth for both clients. The
+desktop app loads them as QML library scripts; the browser imports generated
+copies under `website/app`. Run `node bin/sync-mirrors.mjs` after changing an
+engine, and never edit a generated copy by hand.

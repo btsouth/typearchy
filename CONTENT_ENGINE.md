@@ -1,7 +1,9 @@
 # Typearchy content engine
 
-Typearchy generates practice locally from a versioned seed. The same engine
-body is used by the desktop app and the browser game. A challenge key can
+Typearchy generates practice locally from a versioned seed. The engines in the
+repository root are the source of truth for both clients: the desktop app loads
+them directly as QML library scripts, and the browser loads generated copies
+under `website/app` produced by `bin/sync-mirrors.mjs`. A challenge key can
 reproduce the exact prompt later, which is the basis for rematch links, ghosts,
 and shared Daily runs.
 
@@ -44,6 +46,12 @@ validates all 60 with `bash -n`, Python bytecode compilation, `node --check`,
 to end.
 Each language must cover at least eight structural families in the fixed test
 matrix.
+
+Every generated browser copy is checked for freshness with
+`node bin/sync-mirrors.mjs --check`, and `tests/practice-model.test.mjs` compares
+the QML practice model with its browser copy across input alignment, scoring,
+state parsing, history merging, and result copy, so the two clients cannot
+disagree about what a run means.
 
 New code families should not ship until every seeded fixture passes its real
 parser or compiler. New quotes require a source entry. Generated prose should

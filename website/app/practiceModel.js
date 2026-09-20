@@ -1,0 +1,650 @@
+// Generated from TypearchyModel.js by bin/sync-practice-model.mjs.
+import * as Learning from './learningEngine.js';
+
+var STATE_VERSION = 6
+var MODES = ["sprint", "daily", "quote", "shell", "code", "drill", "custom"]
+var MISSING_CHARACTER = "\u0000"
+var ASSISTED_CHARACTER = "\u0001"
+
+function clamp(value, low, high) {
+  return Math.max(low, Math.min(high, value))
+}
+
+function round(value, places) {
+  var scale = Math.pow(10, places === undefined ? 0 : places)
+  return Math.round(value * scale) / scale
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0")
+}
+
+function dateKey(date) {
+  var value = date || new Date()
+  return value.getUTCFullYear() + "-" + pad2(value.getUTCMonth() + 1) + "-" + pad2(value.getUTCDate())
+}
+
+function localDateKey(date) {
+  var value = date || new Date()
+  return value.getFullYear() + "-" + pad2(value.getMonth() + 1) + "-" + pad2(value.getDate())
+}
+
+function correctCharacters(prompt, typed) {
+  var limit = Math.min(String(prompt || "").length, String(typed || "").length)
+  var count = 0
+  for (var i = 0; i < limit; i++) if (prompt.charAt(i) === typed.charAt(i)) count++
+  return count
+}
+
+function documentPosition(prompt, sourcePosition) {
+  var source = String(prompt || "")
+  var limit = clamp(Number(sourcePosition) || 0, 0, source.length)
+  var position = limit
+  for (var i = 0; i < limit; i++) {
+    if (source.charAt(i) === "\n") position++
+    else if (source.charAt(i) === "\t") position += 3
+  }
+  return position
+}
+
+function alignCharacter(prompt, typed, character) {
+  var source = String(prompt || "")
+  var entered = String(typed || "")
+  var value = String(character || "")
+  var index = entered.length
+  var expected = source.charAt(index)
+
+  if (!value || !expected)
+    return { text: entered, expected: expected, correct: false, recovered: false }
+  if (value === expected)
+    return { text: entered + value, expected: expected, correct: true, recovered: false }
+  if (index + 1 < source.length && value === source.charAt(index + 1))
+    return { text: entered + MISSING_CHARACTER + value, expected: expected, correct: false, recovered: true }
+  if (index > 0 && value === source.charAt(index - 1))
+    return { text: entered, expected: expected, correct: false, recovered: true }
+  return { text: entered + value, expected: expected, correct: false, recovered: false }
+}
+
+function advanceLineBreaks(mode, prompt, typed, character) {
+  var source = String(prompt || "")
+  var next = String(typed || "")
+  var technical = mode === "shell" || mode === "code"
+  if (technical && character !== "\n") return next
+  while (source.charAt(next.length) === "\n") next += ASSISTED_CHARACTER
+  if (technical) {
+    while (source.charAt(next.length) === " " || source.charAt(next.length) === "\t")
+      next += ASSISTED_CHARACTER
+  }
+  return next
+}
+
+function wordsPerMinute(characters, elapsedMs) {
+  if (!(elapsedMs > 0)) return 0
+  return round((characters / 5) / (elapsedMs / 60000), 1)
+}
+
+function accuracy(keypresses, incorrectKeypresses) {
+  if (keypresses < 1) return 100
+  return round(clamp((keypresses - incorrectKeypresses) / keypresses * 100, 0, 100), 1)
+}
+
+function consistency(samples) {
+  if (!samples || samples.length < 2) return 100
+  var total = 0
+  for (var i = 0; i < samples.length; i++) total += Number(samples[i]) || 0
+  var mean = total / samples.length
+  if (!(mean > 0)) return 0
+  var squared = 0
+  for (var j = 0; j < samples.length; j++) {
+    var delta = (Number(samples[j]) || 0) - mean
+    squared += delta * delta
+  }
+  var deviation = Math.sqrt(squared / samples.length)
+  return round(clamp(100 - deviation / mean * 100, 0, 100), 1)
+}
+
+function emptyState() {
+  return {
+    version: STATE_VERSION,
+    runs: [],
+    bestWpm: 0,
+    totalTests: 0,
+    streak: 0,
+    lastPlayedDate: "",
+    keyMistakes: {},
+    bigramMistakes: {},
+    settings: {
+      defaultMode: "sprint",
+      duration: 30,
+      sprintStyle: "prose",
+      codeLanguage: "bash",
+      showLiveStats: true,
+      ghostEnabled: true,
+      fontScale: 1
+    }
+  }
+}
+
+function normalizeCounts(value) {
+  var out = {}
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out
+  for (var key in value) {
+    var count = Math.max(0, Math.floor(Number(value[key]) || 0))
+    if (count > 0) out[String(key)] = count
+  }
+  return out
+}
+
+function capCounts(value, limit) {
+  var counts = normalizeCounts(value)
+  var keys = Object.keys(counts)
+  if (keys.length <= limit) return counts
+  keys.sort(function(left, right) { return counts[right] - counts[left] })
+  var capped = {}
+  for (var index = 0; index < limit; index++) capped[keys[index]] = counts[keys[index]]
+  return capped
+}
+
+function normalizedMode(mode) {
+  var value = String(mode || "sprint")
+  if (value === "words") return "sprint"
+  if (value === "focus") return "drill"
+  return MODES.indexOf(value) >= 0 ? value : "sprint"
+}
+
+function fallbackChallengeKey(value) {
+  var mode = normalizedMode(value.mode)
+  if (mode === "daily") return "daily:" + String(value.dailyId || value.target || "")
+  if (mode === "sprint") {
+    var sprintStyle = String(value.sprintStyle || "")
+    return "sprint:" + (sprintStyle ? sprintStyle + ":" : "") + Math.max(0, Math.round(Number(value.duration) || 0))
+  }
+  if (mode === "code") return "code:" + String(value.language || "") + ":" + String(value.target || "")
+  return mode + ":" + String(value.target || "")
+}
+
+function normalizeRun(run) {
+  var value = run || {}
+  var normalized = {
+    id: String(value.id || ""),
+    passage: typeof value.passage === "string" && value.passage.length <= 50000 ? value.passage : undefined,
+    timestamp: String(value.timestamp || ""),
+    date: String(value.date || ""),
+    mode: normalizedMode(value.mode),
+    duration: Math.max(0, Number(value.duration) || 0),
+    target: String(value.target || ""),
+    challengeKey: String(value.challengeKey || ""),
+    completed: value.completed !== false,
+    interrupted: value.interrupted === true,
+    contentVersion: String(value.contentVersion || ""),
+    language: String(value.language || ""),
+    sprintStyle: String(value.sprintStyle || "") === "words" ? "words"
+      : (String(value.sprintStyle || "") === "prose" ? "prose" : ""),
+    drillKeys: Array.isArray(value.drillKeys) ? value.drillKeys.map(String).slice(0, 2) : [],
+    drillBigrams: Array.isArray(value.drillBigrams) ? value.drillBigrams.map(String).slice(0, 2) : [],
+    targetErrors: Math.max(0, Math.floor(Number(value.targetErrors) || 0)),
+    characters: Math.max(0, Math.floor(Number(value.characters) || 0)),
+    wpm: Math.max(0, Number(value.wpm) || 0),
+    rawWpm: Math.max(0, Number(value.rawWpm) || 0),
+    accuracy: clamp(Number(value.accuracy) || 0, 0, 100),
+    consistency: clamp(Number(value.consistency) || 0, 0, 100),
+    errors: Math.max(0, Math.floor(Number(value.errors) || 0)),
+    dailyId: String(value.dailyId || ""),
+    previousBestWpm: Math.max(0, Number(value.previousBestWpm) || 0),
+    personalBest: value.personalBest === true,
+    learning: Learning.learningNormalize(value.learning),
+    keyMistakes: normalizeCounts(value.keyMistakes),
+    bigramMistakes: normalizeCounts(value.bigramMistakes),
+    pace: Array.isArray(value.pace) ? value.pace.map(function(sample) {
+      return Math.max(0, Number(sample) || 0)
+    }).slice(0, 180) : [],
+    publicSlug: /^[A-HJ-NP-Z2-9]{8}$/.test(String(value.publicSlug || "")) ? String(value.publicSlug) : "",
+    publicPinned: value.publicPinned === true
+  }
+  if (!normalized.challengeKey) normalized.challengeKey = fallbackChallengeKey(normalized)
+  return normalized
+}
+
+function stateNeedsQuarantine(raw) {
+  var text = String(raw || "")
+  if (!text.trim()) return false
+  var parsed = null
+  try { parsed = JSON.parse(text) } catch (error) { return true }
+  if (!parsed || typeof parsed !== "object") return true
+  return [1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0
+}
+
+function parseState(raw) {
+  var parsed
+  try { parsed = JSON.parse(String(raw || "")) } catch (error) { return emptyState() }
+  if (!parsed || [1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0) return emptyState()
+  var state = emptyState()
+  state.runs = Array.isArray(parsed.runs) ? parsed.runs.map(normalizeRun) : []
+  state.bestWpm = Math.max(0, Number(parsed.bestWpm) || 0)
+  for (var i = 0; i < state.runs.length; i++) if (!state.runs[i].interrupted) state.bestWpm = Math.max(state.bestWpm, state.runs[i].wpm)
+  state.totalTests = Math.max(state.runs.length, Math.floor(Number(parsed.totalTests) || 0))
+  state.streak = Math.max(0, Math.floor(Number(parsed.streak) || 0))
+  state.lastPlayedDate = String(parsed.lastPlayedDate || "")
+  state.keyMistakes = normalizeCounts(parsed.keyMistakes)
+  state.bigramMistakes = normalizeCounts(parsed.bigramMistakes)
+  if (parsed.settings && typeof parsed.settings === "object") {
+    state.settings.defaultMode = parsed.settings.defaultMode === "words" ? "sprint"
+      : (parsed.settings.defaultMode === "focus" ? "drill" : normalizedMode(parsed.settings.defaultMode))
+    if ([15, 30, 60].indexOf(Number(parsed.settings.duration)) >= 0)
+      state.settings.duration = Number(parsed.settings.duration)
+    state.settings.sprintStyle = String(parsed.settings.sprintStyle || "prose") === "words" ? "words" : "prose"
+    if (["bash", "python", "javascript", "rust", "ruby"].indexOf(String(parsed.settings.codeLanguage)) >= 0)
+      state.settings.codeLanguage = String(parsed.settings.codeLanguage)
+    state.settings.showLiveStats = parsed.settings.showLiveStats !== false
+    state.settings.ghostEnabled = parsed.settings.ghostEnabled !== false
+    if ([0.9, 1, 1.1].indexOf(Number(parsed.settings.fontScale)) >= 0)
+      state.settings.fontScale = Number(parsed.settings.fontScale)
+  }
+  return state
+}
+
+function daysBetween(previousKey, nextKey) {
+  var previous = Date.parse(previousKey + "T00:00:00Z")
+  var next = Date.parse(nextKey + "T00:00:00Z")
+  if (!isFinite(previous) || !isFinite(next)) return 0
+  return Math.round((next - previous) / 86400000)
+}
+
+function recordRun(state, run) {
+  var next = parseState(JSON.stringify(state || emptyState()))
+  var normalized = normalizeRun(run)
+  next.runs.unshift(normalized)
+  next.totalTests += 1
+  if (!normalized.interrupted) next.bestWpm = Math.max(next.bestWpm, normalized.wpm)
+
+  for (var key in normalized.keyMistakes)
+    next.keyMistakes[key] = (Number(next.keyMistakes[key]) || 0) + normalized.keyMistakes[key]
+  for (var pair in normalized.bigramMistakes)
+    next.bigramMistakes[pair] = (Number(next.bigramMistakes[pair]) || 0) + normalized.bigramMistakes[pair]
+  next.keyMistakes = capCounts(next.keyMistakes, 128)
+  next.bigramMistakes = capCounts(next.bigramMistakes, 128)
+
+  var validDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized.date)
+  if (validDate && !normalized.interrupted) {
+    var gap = daysBetween(next.lastPlayedDate, normalized.date)
+    if (next.lastPlayedDate === normalized.date) {
+      // A personal calendar day counts once, no matter how many tests are played.
+    } else if (gap === 1) {
+      next.streak += 1
+    } else {
+      next.streak = 1
+    }
+    next.lastPlayedDate = normalized.date
+  }
+  return next
+}
+
+function mistakeLabel(character) {
+  if (character === " ") return "space"
+  if (character === "\n") return "enter"
+  if (character === "\t") return "tab"
+  return String(character || "?")
+}
+
+function addMistake(keyCounts, bigramCounts, expected, previousExpected) {
+  var keys = normalizeCounts(keyCounts)
+  var bigrams = normalizeCounts(bigramCounts)
+  var key = mistakeLabel(expected)
+  keys[key] = (keys[key] || 0) + 1
+  if (previousExpected) {
+    var pair = mistakeLabel(previousExpected) + "→" + mistakeLabel(expected)
+    bigrams[pair] = (bigrams[pair] || 0) + 1
+  }
+  return { keys: keys, bigrams: bigrams }
+}
+
+function sortedCounts(counts, limit) {
+  var rows = []
+  var source = normalizeCounts(counts)
+  for (var key in source) rows.push({ key: key, count: source[key] })
+  rows.sort(function(a, b) { return b.count - a.count || a.key.localeCompare(b.key) })
+  return rows.slice(0, Math.max(0, Number(limit) || rows.length))
+}
+
+function weakKeys(state, limit) {
+  var rows = sortedCounts(state ? state.keyMistakes : {}, 100)
+  var out = []
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].key.length === 1 && /[a-z]/i.test(rows[i].key)) out.push(rows[i].key)
+    if (out.length >= (Number(limit) || 4)) break
+  }
+  return out
+}
+
+function drillProfile(state, limit) {
+  var profile = Learning.learningProfile(state && state.runs ? state.runs.slice(0, Math.max(3, Number(limit) || 12)) : [])
+  var keys = profile.keys.filter(function(row) { return /^[a-z]$/.test(row.key) }).slice(0, 2).map(function(row) { return row.key })
+  var bigrams = profile.pairs.filter(function(row) { return /^[a-z]→[a-z]$/.test(row.key) }).slice(0, 2).map(function(row) { return row.key })
+  return { keys: keys, bigrams: bigrams,
+    sampleRuns: profile.sampledRuns, calibrating: profile.calibrating, personalized: keys.length > 0 || bigrams.length > 0 }
+}
+
+function drillTargetErrors(challenge, keyMistakes, bigramMistakes) {
+  var descriptor = challenge || {}
+  var keys = Array.isArray(descriptor.drillKeys) ? descriptor.drillKeys : []
+  var bigrams = Array.isArray(descriptor.drillBigrams) ? descriptor.drillBigrams : []
+  var keyCounts = normalizeCounts(keyMistakes)
+  var pairCounts = normalizeCounts(bigramMistakes)
+  var total = 0
+  for (var i = 0; i < keys.length; i++) total += Number(keyCounts[keys[i]]) || 0
+  for (var j = 0; j < bigrams.length; j++) total += Number(pairCounts[bigrams[j]]) || 0
+  return total
+}
+
+function modeBest(state, mode) {
+  var best = 0
+  var wanted = normalizedMode(mode)
+  var runs = state && state.runs ? state.runs : []
+  for (var i = 0; i < runs.length; i++)
+    if (!runs[i].interrupted && runs[i].mode === wanted) best = Math.max(best, Number(runs[i].wpm) || 0)
+  return best
+}
+
+function recentAverage(state, field, count, mode) {
+  var runs = filteredRuns(state, mode || "all").filter(function(run) { return !run.interrupted }).slice(0, Math.max(1, Number(count) || 10))
+  if (runs.length === 0) return 0
+  var total = 0
+  for (var i = 0; i < runs.length; i++) total += Number(runs[i][field]) || 0
+  return round(total / runs.length, 1)
+}
+
+function latestRun(state) {
+  return state && state.runs && state.runs.length > 0 ? normalizeRun(state.runs[0]) : null
+}
+
+function updateRunPublication(state, timestamp, slug, pinned, challengeKey) {
+  var next = parseState(JSON.stringify(state || emptyState()))
+  var wanted = String(timestamp || "")
+  var wantedKey = String(challengeKey || "")
+  var target = -1
+  for (var index = 0; index < next.runs.length; index++) {
+    if (next.runs[index].timestamp !== wanted) continue
+    if (wantedKey && next.runs[index].challengeKey !== wantedKey) continue
+    target = index
+    break
+  }
+  if (target < 0) return next
+  if (slug !== undefined) next.runs[target].publicSlug = String(slug || "")
+  if (pinned !== undefined) next.runs[target].publicPinned = pinned === true
+  return next
+}
+
+function clearRunPublications(state) {
+  var next = parseState(JSON.stringify(state || emptyState()))
+  for (var index = 0; index < next.runs.length; index++) {
+    next.runs[index].publicSlug = ""
+    next.runs[index].publicPinned = false
+  }
+  return next
+}
+
+function bestForDate(state, key) {
+  var best = 0
+  var runs = state && state.runs ? state.runs : []
+  for (var i = 0; i < runs.length; i++) {
+    if (!runs[i].interrupted && runs[i].date === key) best = Math.max(best, Number(runs[i].wpm) || 0)
+  }
+  return best
+}
+
+function dailyRun(state, dailyId) {
+  var best = null
+  var runs = state && state.runs ? state.runs : []
+  for (var i = 0; i < runs.length; i++) {
+    if (runs[i].interrupted || runs[i].mode !== "daily" || String(runs[i].dailyId) !== String(dailyId)) continue
+    if (!best || runs[i].wpm > best.wpm) best = normalizeRun(runs[i])
+  }
+  return best
+}
+
+function filteredRuns(state, mode, limit) {
+  var wanted = String(mode || "all")
+  var source = state && state.runs ? state.runs : []
+  var rows = []
+  for (var i = 0; i < source.length; i++) {
+    var run = normalizeRun(source[i])
+    if (wanted === "all" || run.mode === wanted
+        || (wanted === "words" && run.mode === "sprint" && run.sprintStyle === "words")) rows.push(run)
+    if (rows.length >= (Number(limit) || source.length)) break
+  }
+  return rows
+}
+
+function recentTrend(state, mode, count) {
+  var rows = filteredRuns(state, mode || "all").filter(function(run) { return !run.interrupted }).slice(0, Math.max(1, Number(count) || 20))
+  rows.reverse()
+  return rows
+}
+
+function bestComparableRun(state, descriptor) {
+  var wanted = String((descriptor || {}).challengeKey || fallbackChallengeKey(descriptor || {}))
+  var best = null
+  var runs = state && state.runs ? state.runs : []
+  for (var i = 0; i < runs.length; i++) {
+    var run = normalizeRun(runs[i])
+    if (run.interrupted || run.challengeKey !== wanted) continue
+    if (!best || run.wpm > best.wpm) best = run
+  }
+  return best
+}
+
+function paceAt(run, elapsedMs) {
+  if (!run || !run.pace || run.pace.length === 0) return 0
+  var index = clamp(Math.floor(Number(elapsedMs) / 1000) - 1, 0, run.pace.length - 1)
+  return Number(run.pace[index]) || 0
+}
+
+function eraseWordIndex(text) {
+  var value = String(text || "")
+  var index = value.length
+  while (index > 0 && /\s/.test(value.charAt(index - 1))) index--
+  while (index > 0 && !/\s/.test(value.charAt(index - 1))) index--
+  return index
+}
+
+function resultAction(text, controlPressed, ageMs, autoRepeat) {
+  if (autoRepeat || Number(ageMs) < 900 || !controlPressed) return ""
+  var value = String(text || "").toLowerCase()
+  if (value === "r") return "retry"
+  if (value === "s") return "share"
+  if (value === "c") return "copy"
+  if (value === "h") return "history"
+  return ""
+}
+
+function paceSparkline(samples) {
+  var source = Array.isArray(samples) ? samples.map(function(value) {
+    return Math.max(0, Number(value) || 0)
+  }) : []
+  if (source.length < 2) return ""
+  var bars = "▁▂▃▄▅▆▇█"
+  var minimum = Math.min.apply(Math, source)
+  var maximum = Math.max.apply(Math, source)
+  var range = Math.max(1, maximum - minimum)
+  return source.map(function(value) {
+    return bars.charAt(Math.min(bars.length - 1,
+      Math.floor((value - minimum) / range * (bars.length - 1))))
+  }).join("")
+}
+
+function shareText(run) {
+  if (!run) return "TYPEARCHY"
+  var mode = normalizedMode(run.mode)
+  var label = mode === "quote" ? "QUOTE RELAY" : mode.toUpperCase()
+  if (mode === "daily") label += " #" + String(run.dailyId || "")
+  else if (mode === "sprint") label += " " + (run.sprintStyle ? run.sprintStyle.toUpperCase() + " " : "") + run.duration + "S"
+  else if (run.target) label += " " + String(run.target).toUpperCase()
+  var achievement = run.personalBest ? "\nNEW PERSONAL BEST" : ""
+  var pace = paceSparkline(run.pace)
+  return "TYPEARCHY / " + label + "\n" + Math.round(run.wpm) + " WPM  |  "
+    + round(run.accuracy, 1) + "% ACCURACY" + achievement
+    + (pace ? "\nPACE  " + pace : "")
+    + "\nBEAT THIS RUN  " + (run.publicSlug ? "TYPEARCHY.COM/R/" + run.publicSlug : "TYPEARCHY.COM")
+}
+
+// Every result belongs to exactly one visible state. Keep the wording in one
+// place so the card, history rows, and exported image never disagree.
+function runBadge(run) {
+  var value = run || {}
+  if (value.interrupted) return "PAUSED"
+  if (value.publicPinned && value.publicSlug) return "PINNED"
+  if (value.publicSlug) return "PUBLIC"
+  return ""
+}
+
+function resultStatus(run) {
+  var value = run || {}
+  if (value.interrupted) return "PAUSED PRACTICE  /  LOCAL ONLY"
+  if (value.publicPinned && value.publicSlug) return "PINNED  /  TYPEARCHY.COM/R/" + value.publicSlug
+  if (value.publicSlug) return "PUBLIC  /  TYPEARCHY.COM/R/" + value.publicSlug
+  if (normalizedMode(value.mode) === "custom") return "CUSTOM PASSAGE  /  STAYS LOCAL"
+  return "LOCAL RESULT  /  TYPEARCHY.COM"
+}
+
+// The comparison answers "against what?" A paused run is never compared, a new
+// best shows its margin, and a slower run shows the gap to close.
+function comparison(run) {
+  var value = normalizeRun(run)
+  if (value.interrupted) return { label: "PAUSED PRACTICE", value: "NOT COMPARED" }
+  if (value.personalBest) return { label: "NEW PERSONAL BEST", value: "+" + Math.max(1, Math.round(value.wpm - value.previousBestWpm)) + " WPM" }
+  if (value.previousBestWpm > 0) {
+    var gap = Math.round(value.previousBestWpm - value.wpm)
+    return { label: "COMPARABLE BEST", value: Math.round(value.previousBestWpm) + " WPM" + (gap > 0 ? "  /  -" + gap : "  /  TIED") }
+  }
+  return { label: "FIRST OF ITS KIND", value: "BASELINE SET" }
+}
+
+function nextAction(run, options) {
+  var value = normalizeRun(run)
+  var settings = options || {}
+  if (value.interrupted) return "paused runs stay local  /  ctrl+r for an uninterrupted run"
+  if (value.mode === "custom") return "custom passages stay local  /  ctrl+r retry  /  ctrl+h history"
+  if (value.accuracy < 94) return "accuracy first: slow down and retry  ctrl+r" + (settings.drillReady ? "  /  practice targets your misses" : "")
+  if (value.personalBest) return settings.connected ? "new best  /  ctrl+s shares a link  /  ctrl+r goes again" : "new best  /  connect in history to share  /  ctrl+r goes again"
+  if (value.previousBestWpm > 0 && value.wpm < value.previousBestWpm)
+    return Math.round(value.previousBestWpm - value.wpm) + " wpm short of your best  /  ctrl+r retry" + (settings.drillReady ? "  /  practice targets your misses" : "")
+  return "baseline set  /  ctrl+r retry  /  ctrl+h history"
+}
+
+// Merge a stats.json backup from another machine. Runs are matched by timestamp
+// and challenge key; the existing copy wins but picks up a public link it lacks.
+function validBackupNumber(value, max) {
+  return typeof value === "number" && isFinite(value) && value >= 0 && value <= max
+}
+
+function mergeHistory(state, raw) {
+  var parsed = null
+  try { parsed = JSON.parse(String(raw || "")) } catch (error) { return { state: state, added: 0, error: "That file is not a Typearchy history backup." } }
+  if (!parsed || typeof parsed !== "object") return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+  if (parsed.format === "typearchy-practice") {
+    if (parsed.version !== 1 || !Array.isArray(parsed.runs))
+      return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+    var browserRuns = []
+    var ids = {}
+    for (var b = 0; b < parsed.runs.length; b++) {
+      var item = parsed.runs[b]
+      if (!item || typeof item.id !== "string" || !item.id || ids[item.id]
+          || !isFinite(Date.parse(item.timestamp)) || MODES.concat(["words", "focus"]).indexOf(item.mode) < 0
+          || typeof item.challengeKey !== "string" || typeof item.target !== "string"
+          || typeof item.engineVersion !== "string"
+          || !validBackupNumber(item.wpm, 1000) || !validBackupNumber(item.raw, 2000)
+          || !validBackupNumber(item.accuracy, 100) || !validBackupNumber(item.consistency, 100)
+          || !validBackupNumber(item.errors, 100000))
+        return { state: state, added: 0, error: "This backup contains invalid or duplicate runs. Nothing was imported." }
+      ids[item.id] = true
+      browserRuns.push({ id: item.id, passage: item.passage, timestamp: new Date(item.timestamp).toISOString(), date: localDateKey(new Date(item.timestamp)),
+        mode: item.mode, target: item.target, challengeKey: item.challengeKey, contentVersion: item.engineVersion,
+        duration: validBackupNumber(item.durationMs, 3600000) ? item.durationMs / 1000 : 0,
+        interrupted: item.interrupted === true, completed: item.completed !== false,
+        wpm: item.wpm, rawWpm: item.raw, accuracy: item.accuracy, consistency: item.consistency,
+        errors: item.errors, pace: item.pace, learning: item.learning, sprintStyle: item.sprintStyle,
+        drillKeys: item.drillKeys, drillBigrams: item.drillBigrams, targetErrors: item.targetErrors,
+        publicSlug: item.publicSlug, publicPinned: item.publicPinned })
+    }
+    parsed = { version: STATE_VERSION, runs: browserRuns }
+  }
+  if ([1, 2, 3, 4, 5, 6].indexOf(Number(parsed.version)) < 0 || !Array.isArray(parsed.runs))
+    return { state: state, added: 0, error: "That file is not a Typearchy history backup." }
+  var incoming = parseState(JSON.stringify(parsed))
+  var next = parseState(JSON.stringify(state || emptyState()))
+  var seen = {}
+  for (var i = 0; i < next.runs.length; i++) seen[next.runs[i].timestamp + "|" + next.runs[i].challengeKey] = i
+  var added = 0
+  for (var j = 0; j < incoming.runs.length; j++) {
+    var run = incoming.runs[j]
+    var key = run.timestamp + "|" + run.challengeKey
+    if (seen[key] !== undefined) {
+      var existing = next.runs[seen[key]]
+      if (!existing.publicSlug && run.publicSlug) { existing.publicSlug = run.publicSlug; existing.publicPinned = run.publicPinned }
+      continue
+    }
+    next.runs.push(run)
+    seen[key] = next.runs.length - 1
+    added++
+  }
+  next.runs.sort(function(a, b) { return a.timestamp < b.timestamp ? 1 : (a.timestamp > b.timestamp ? -1 : 0) })
+  next.bestWpm = 0
+  for (var k = 0; k < next.runs.length; k++) if (!next.runs[k].interrupted) next.bestWpm = Math.max(next.bestWpm, next.runs[k].wpm)
+  next.totalTests = Math.max(next.runs.length, next.totalTests, incoming.totalTests)
+  for (var mistake in incoming.keyMistakes) next.keyMistakes[mistake] = Math.max(Number(next.keyMistakes[mistake]) || 0, incoming.keyMistakes[mistake])
+  for (var pair in incoming.bigramMistakes) next.bigramMistakes[pair] = Math.max(Number(next.bigramMistakes[pair]) || 0, incoming.bigramMistakes[pair])
+  next.keyMistakes = capCounts(next.keyMistakes, 128)
+  next.bigramMistakes = capCounts(next.bigramMistakes, 128)
+  next.streak = Math.max(next.streak, incoming.streak)
+  if (incoming.lastPlayedDate > next.lastPlayedDate) next.lastPlayedDate = incoming.lastPlayedDate
+  return { state: next, added: added, error: "" }
+}
+
+function compareVersions(left, right) {
+  var a = String(left || "0").split(".").map(function(part) { return parseInt(part, 10) || 0 })
+  var b = String(right || "0").split(".").map(function(part) { return parseInt(part, 10) || 0 })
+  for (var i = 0; i < 3; i++) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0) ? -1 : 1 }
+  return 0
+}
+
+function colorString(color) {
+  return String(color || "#ffffff")
+}
+
+function escapeHtml(character) {
+  if (character === "&") return "&amp;"
+  if (character === "<") return "&lt;"
+  if (character === ">") return "&gt;"
+  if (character === "\"") return "&quot;"
+  return character
+}
+
+function renderedPrompt(prompt, typed, colors) {
+  var source = String(prompt || "")
+  var entered = String(typed || "")
+  var palette = colors || {}
+  var normal = colorString(palette.normal || "#ffffff")
+  var dim = colorString(palette.dim || "#777777")
+  var error = colorString(palette.error || "#ff5555")
+  var cursor = colorString(palette.cursor || "#ffffff")
+  var background = colorString(palette.background || "#000000")
+  var out = []
+
+  for (var i = 0; i < source.length; i++) {
+    var expected = source.charAt(i)
+    var shown = escapeHtml(expected)
+    if (expected === "\n") shown = "↵<br/>"
+    else if (expected === "\t") shown = "&nbsp;&nbsp;&nbsp;&nbsp;"
+    if (i < entered.length && entered.charAt(i) !== expected && expected === " ") shown = "_"
+    var style
+    if (i < entered.length) style = entered.charAt(i) === expected || entered.charAt(i) === ASSISTED_CHARACTER
+      ? "color:" + normal
+      : "color:" + error + ";text-decoration:underline"
+    else if (i === entered.length) style = "color:" + background + ";background-color:" + cursor
+    else style = "color:" + dim
+    out.push("<span style=\"" + style + "\">" + shown + "</span>")
+  }
+  return out.join("")
+}
+
+export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }
