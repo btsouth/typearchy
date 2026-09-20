@@ -95,6 +95,8 @@ function advanceLineBreaks(mode, prompt, typed, character) {
   return next
 }
 
+// Practice WPM: characters divided by five, per minute, from the run's own clock. Every practice
+// record, personal best and shared practice result is stated in this metric.
 function wordsPerMinute(characters, elapsedMs) {
   if (!(elapsedMs > 0)) return 0
   return round((characters / 5) / (elapsedMs / 60000), 1)

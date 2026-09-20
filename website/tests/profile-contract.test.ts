@@ -27,7 +27,19 @@ test('published runs contain only bounded score and challenge data', () => {
   assert.deepEqual(parsePublishedRun(run), { ...run, schemaVersion: 1 });
   assert.throws(() => parsePublishedRun({ ...run, mode: 'custom' }));
   assert.throws(() => parsePublishedRun({ ...run, wpm: 900 }));
+  assert.throws(() => parsePublishedRun({ ...run, wpm: 0 }));
+  assert.throws(() => parsePublishedRun({ ...run, rawWpm: 0 }));
   assert.throws(() => parsePublishedRun({ ...run, pace: [] }));
+});
+
+test('a slow run with few correct characters is publishable, and junk is not', () => {
+  // Three characters over a 60 second test is 0.6 WPM: a real measurement, not junk.
+  const slow = { ...run, duration: 60, wpm: 0.6, rawWpm: 0.6, accuracy: 100, consistency: 87.7, errors: 0, pace: [0.6, 0.9] };
+  assert.equal(parsePublishedRun(slow).wpm, 0.6);
+  assert.equal(parsePublishedRun(slow).rawWpm, 0.6);
+  assert.throws(() => parsePublishedRun({ ...slow, wpm: -0.5 }), /Invalid WPM/);
+  assert.throws(() => parsePublishedRun({ ...slow, wpm: Number.NaN }), /Invalid WPM/);
+  assert.throws(() => parsePublishedRun({ ...slow, pace: [600] }), /Invalid pace sample/);
 });
 
 test('profile summaries use only public runs', () => {

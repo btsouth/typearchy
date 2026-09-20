@@ -14,7 +14,10 @@ import { practiceGroup, practiceHistoryDocument, type PracticeRun as WebRun } fr
 import { THEMES, selectedResultTheme } from './lib/resultTheme';
 import contentPack from './contentPack.json';
 import practicePassages from './practicePassages.json';
-import { advanceLineBreaks, alignCharacter, correctCharacters, eraseInput, isCorrectCharacter } from './practiceModel.js';
+import {
+  advanceLineBreaks, alignCharacter, correctCharacters, eraseInput, isCorrectCharacter,
+  wordsPerMinute, accuracy as accuracyOf, consistency as consistencyOf,
+} from './practiceModel.js';
 
 type ModeKey = 'sprint' | 'words' | 'daily' | 'quote' | 'shell' | 'code' | 'focus' | 'drill' | 'custom';
 type Language = 'bash' | 'python' | 'javascript' | 'rust' | 'ruby';
@@ -69,14 +72,6 @@ function drillChallenge(keys: string[], bigrams: string[], nonce: number) {
     key: `drill:v3:${labels.join('-')}:${ranked.map((entry) => entry.index).join('-')}`,
     version: 'drill-v3',
   };
-}
-
-function consistency(samples: number[]) {
-  const useful = samples.filter((sample) => sample > 0);
-  if (useful.length < 2) return 100;
-  const average = useful.reduce((sum, sample) => sum + sample, 0) / useful.length;
-  const deviation = Math.sqrt(useful.reduce((sum, sample) => sum + ((sample - average) ** 2), 0) / useful.length);
-  return Math.max(0, Math.round(100 - (deviation / average) * 100));
 }
 
 function promptRuns(prompt: string, typed: string) {
@@ -202,8 +197,9 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
   const theme = THEMES[themeIndex];
   const elapsed = startedAt ? Math.max(0, Math.min(timed ? duration : Infinity, ((completedAt ?? now) - startedAt) / 1000)) : 0;
   const correct = correctCharacters(prompt, typed);
-  const accuracy = keystrokes ? Math.round(((keystrokes - mistakes) / keystrokes) * 100) : 100;
-  const wpm = elapsed > 0.75 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
+  // Practice scoring comes from the shared model, the same functions the app records with.
+  const accuracy = accuracyOf(keystrokes, mistakes);
+  const wpm = elapsed > 0.75 ? wordsPerMinute(correct, elapsed * 1000) : 0;
   const timeValue = timed ? Math.max(0, Math.ceil(duration - elapsed)) : prompt.length ? Math.round((typed.length / prompt.length) * 100) : 0;
 
   const gameVars = {
@@ -251,8 +247,8 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
     completedRef.current = true;
     const elapsedMs = Math.max(1000, endedAt - startedRef.current);
     const correctCount = correctCharacters(prompt, typedRef.current);
-    const finalWpm = Math.round(correctCount / 5 / (elapsedMs / 60000));
-    const finalRaw = Math.round(keystrokesRef.current / 5 / (elapsedMs / 60000));
+    const finalWpm = wordsPerMinute(correctCount, elapsedMs);
+    const finalRaw = wordsPerMinute(keystrokesRef.current, elapsedMs);
     const finalPace = paceRef.current.length ? [...paceRef.current, finalWpm].slice(-20) : [finalWpm];
     const run: WebRun = {
       id: crypto.randomUUID(),
@@ -264,8 +260,8 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       learning: learningRef.current,
       wpm: finalWpm,
       raw: finalRaw,
-      accuracy: keystrokesRef.current ? Math.round(((keystrokesRef.current - mistakesRef.current) / keystrokesRef.current) * 100) : 100,
-      consistency: consistency(finalPace),
+      accuracy: accuracyOf(keystrokesRef.current, mistakesRef.current),
+      consistency: consistencyOf(finalPace),
       errors: mistakesRef.current,
       pace: finalPace,
       weakKeys: [...new Set(mistakeKeysRef.current.map((key) => key.toUpperCase()).filter((key) => key.trim()))].slice(0, 6),
@@ -292,13 +288,14 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       if (pausedAt.current !== null || completedRef.current) return;
       const current = performance.now();
       setNow(current);
-      const seconds = Math.max(0.75, (current - startedRef.current) / 1000);
+      // One sample per second, like the app, over a window of at least 750 ms so the first sample of
+      // a run cannot spike, and stated in the shared metric so a pace series means the same thing.
       const liveCorrect = correctCharacters(prompt, typedRef.current);
-      const sample = Math.round(liveCorrect / 5 / (seconds / 60));
+      const sample = wordsPerMinute(liveCorrect, Math.max(750, current - startedRef.current));
       paceRef.current = [...paceRef.current, sample].slice(-19);
       setPace(paceRef.current);
       if (timed && current - startedRef.current >= duration * 1000) finishTest(startedRef.current + duration * 1000);
-    }, 500);
+    }, 1000);
     return () => window.clearInterval(timer);
   }, [startedAt, completedAt, paused, prompt, timed, duration, finishTest]);
 
@@ -518,7 +515,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
       </>}
       {screen === 'test' && !result && <div className="game-head">
         <div className="game-instruction">{startedAt ? 'One keystroke at a time.' : 'Ready when you are.'}</div>
-        {screen === 'test' && <div className="metrics" aria-label="Live typing statistics"><span><small>Accuracy</small>{accuracy}%</span><span><small>WPM</small>{wpm}</span><span><small>{timed ? 'Seconds left' : 'Complete'}</small>{timeValue}{timed ? '' : '%'}</span></div>}
+        {screen === 'test' && <div className="metrics" aria-label="Live typing statistics"><span><small>Accuracy</small>{Math.round(accuracy)}%</span><span><small>WPM</small>{Math.round(wpm)}</span><span><small>{timed ? 'Seconds left' : 'Complete'}</small>{timeValue}{timed ? '' : '%'}</span></div>}
       </div>}
 
       {practiceSession && !result && <div className="practice-session-bar"><span>{practiceSession.stage === 'drill' ? '2 / 3 · Focused practice' : '3 / 3 · Retest your original passage'}</span><span>Baseline: {practiceSession.baseline.wpm} WPM · {practiceSession.baseline.accuracy}% accuracy</span></div>}
@@ -539,7 +536,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
         <div className="demo-result-card web-game-result" aria-live="polite" onClick={(event) => event.stopPropagation()}>
           <div className="demo-result-head"><strong>TYPEARCHY</strong><span>{result.mode.toUpperCase()} / {result.target}</span></div>
           <div className="demo-result-score"><div><b>{result.wpm}</b><small>WPM</small></div><span><small>{result.interrupted ? 'PAUSED PRACTICE' : result.completed === false ? 'INCOMPLETE' : bestForMode <= result.wpm ? 'PERSONAL BEST' : 'COMPARABLE BEST'}</small><strong>{result.interrupted || result.completed === false ? 'Not compared' : `${bestForMode || result.wpm} WPM`}</strong></span></div>
-          <div className="demo-result-metrics"><span><small>ACCURACY</small>{result.accuracy}%</span><span><small>RAW</small>{result.raw} WPM</span><span><small>CONSISTENCY</small>{result.consistency}%</span><span><small>ERRORS</small>{result.errors}</span></div>
+          <div className="demo-result-metrics"><span><small>ACCURACY</small>{result.accuracy}%</span><span><small>RAW</small>{Math.round(result.raw)} WPM</span><span><small>CONSISTENCY</small>{result.consistency}%</span><span><small>ERRORS</small>{result.errors}</span></div>
           <div className="demo-result-pace"><div><span>WPM OVER TIME</span><b>FINISH {result.wpm}</b></div><section>{result.pace.map((sample, index) => <i key={`${sample}-${index}`} style={{ height: `${Math.max(8, (sample / paceMaximum) * 100)}%` }} />)}</section></div>
           {!savedPractice(result) && !(result.mode === 'custom' && result.challengeKey === customIdentity.key) && <p>The original passage is unavailable for this older run. Your statistics are still saved; choose New test to keep practicing.</p>}
           <div className="demo-result-actions"><button type="button" disabled={!savedPractice(result) && !(result.mode === 'custom' && result.challengeKey === customIdentity.key)} onClick={() => reset()}>RETRY&nbsp;&nbsp;CTRL+R</button><button type="button" onClick={() => { if(mode==='custom')setEditingCustom(true); reset(mode!=='custom', true); }}>NEW TEST</button>{result.mode !== 'custom' && !result.interrupted && result.completed !== false && <button type="button" disabled={shareBusy || needsProfile} onClick={copyResult}>{shareBusy ? 'SHARING…' : copied ? 'LINK COPIED' : result.publicSlug ? 'COPY LINK' : 'SHARE RESULT'}</button>}{result.publicSlug && <a href={`/r/${result.publicSlug}`}>VIEW RESULT ↗</a>}</div>

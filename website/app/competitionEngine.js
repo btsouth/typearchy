@@ -89,6 +89,9 @@ function competitionStep(state, event) {
   return state
 }
 
+// Competition WPM: correct characters times 120000 over the recording duration, computed from the
+// replayed events. A ranked result is never derived from practice WPM, and every racing client is
+// scored here as well as on the service.
 function competitionResult(state) {
   if (state.finishedAt === null || state.finishedAt < 1000)
     throw new Error("Complete the passage before submitting")

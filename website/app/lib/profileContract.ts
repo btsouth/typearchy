@@ -80,8 +80,10 @@ export function parsePublishedRun(input: unknown): PublishedRunInput {
     challengeKey: boundedString(value.challengeKey, 180, 'challenge key'),
     target: boundedString(value.target || 'standard', 80, 'target'),
     duration: Math.round(finiteNumber(value.duration, 1, 3600, 'duration')),
-    wpm: finiteNumber(value.wpm, 1, 400, 'WPM'),
-    rawWpm: finiteNumber(value.rawWpm, 1, 500, 'raw WPM'),
+    // A run with very few correct characters over a long test is a real, if poor, measurement, so the
+    // floor rejects junk rather than a low score. The ceiling still rejects impossible speeds.
+    wpm: finiteNumber(value.wpm, 0.1, 400, 'WPM'),
+    rawWpm: finiteNumber(value.rawWpm, 0.1, 500, 'raw WPM'),
     accuracy: finiteNumber(value.accuracy, 0, 100, 'accuracy'),
     consistency: finiteNumber(value.consistency, 0, 100, 'consistency'),
     errors: Math.round(finiteNumber(value.errors, 0, 10000, 'errors')),
