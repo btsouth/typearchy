@@ -12,6 +12,10 @@ Practice works without an account or network connection. Practice results and
 insights stay on the device unless you explicitly share a result. Online challenges
 use the shared service to validate completed attempts and race other players.
 
+The website is a full client too. Install it from your browser to get its own
+window, or keep using the tab: either way it keeps working offline, because the
+app shell, the content engine, and your history are all local.
+
 ## Included
 
 - Timed Sprint tests with generated Words or grammatical Prose
@@ -215,6 +219,13 @@ npx tsc --noEmit
 npm run lint
 npm run build
 ```
+
+The browser suites (`race`, `practice`, `history`, `pwa`) and the integration suites
+(`moderation`, `challenges`, `library`) need a built worker and a local database:
+build, apply migrations with `--local`, write `.dev.vars`, start
+`node scripts/local-integration-worker.mjs`, then run each suite with
+`TYPEARCHY_TEST_ORIGIN=http://localhost:5178`. The `pwa` suite turns the network
+off and checks that the shell, a practice run, and local saving all work offline.
 
 The engines in the repository root are the source of truth for both clients. The
 desktop app loads them as QML library scripts; the browser imports generated

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist_Mono } from 'next/font/google';
+import ServiceWorkerRegistrar from './ServiceWorkerRegistrar';
 import './globals.css';
 
 const mono = Geist_Mono({
@@ -43,7 +44,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={mono.variable}>{children}</body>
+      <body className={mono.variable}>
+        <ServiceWorkerRegistrar />
+        {children}
+      </body>
     </html>
   );
 }

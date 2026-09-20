@@ -814,6 +814,7 @@ footer p { color: var(--accent); } footer > span { text-align: right; }
 }
 .web-game .demo-result-card::before { display: none; }
 .web-game .game-foot .practice-restart { display: inline-flex; align-items: center; gap: 12px; min-height: 40px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--demo-muted) 35%, transparent); border-radius: 6px; font-size: 12px; letter-spacing: 0; }
+.web-game .game-foot .practice-install { display: inline-flex; align-items: center; min-height: 40px; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--demo-accent) 50%, transparent); border-radius: 6px; font-size: 12px; letter-spacing: 0; color: var(--demo-accent); }
 .practice-restart kbd { color: var(--demo-muted); font-size: 10px; }
 .web-game .game-foot { align-items: center; }
 .web-game .game-foot > span:last-child { margin-left: auto; }

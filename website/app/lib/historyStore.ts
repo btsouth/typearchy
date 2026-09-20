@@ -5,6 +5,7 @@ const LEGACY = 'typearchy.web.runs.v1';
 const listeners = new Set<() => void>();
 let database: Promise<IDBDatabase> | undefined;
 let channel: BroadcastChannel | undefined;
+let persistenceRequested = false;
 function changed() { listeners.forEach(listener => listener()); }
 function announce() { changed(); channel?.postMessage('changed'); }
 function open(): Promise<IDBDatabase> {
@@ -59,6 +60,11 @@ export async function loadHistory(): Promise<PracticeRun[]> {
   });
 }
 export async function saveHistoryRuns(runs: PracticeRun[], overwrite = true) {
+  // Ask for durable storage once there is history worth keeping. Best effort: browsers may say no.
+  if (!persistenceRequested && typeof navigator !== 'undefined' && navigator.storage?.persist) {
+    persistenceRequested = true;
+    void navigator.storage.persist().catch(() => undefined);
+  }
   let recovering = false;
   try { await migrate(); } catch(error) { if(!overwrite && error instanceof HistoryRecoveryError) recovering = true; else throw error; }
   const normalized = normalizePracticeHistory(runs);
