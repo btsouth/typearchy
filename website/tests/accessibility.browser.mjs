@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test';
 
 const origin = process.env.TYPEARCHY_TEST_ORIGIN || 'http://localhost:5178';
 assert.match(origin, /^http:\/\/(?:localhost|127\.0\.0\.1):[0-9]+$/, 'this suite runs against the local worker');
-const routes = ['/', '/play', '/library', '/scores', '/history', '/account', '/race'];
+const routes = ['/', '/play', '/challenges', '/history', '/account', '/recover', '/sources'];
 
 const browser = await chromium.launch({ ...(process.env.TYPEARCHY_CHROMIUM ? { executablePath: process.env.TYPEARCHY_CHROMIUM } : {}) });
 const context = await browser.newContext({ extraHTTPHeaders: { Origin: origin } });
