@@ -5,10 +5,11 @@ import { savedPractice } from './lib/savedPractice';
 import { useClientReady } from './lib/useClientReady';
 import BrowserAccount from './account/BrowserAccount';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { generateCode, generateProse, generateQuoteRelay, generateShell, generateWords } from './contentEngine';
 import PracticeHistory from './PracticeHistory';
 import { sharedChallengeFromKey, type SharedChallenge } from './lib/sharedPractice';
+import { installAvailable, promptInstall, subscribeInstall } from './lib/installPrompt';
 import { learningState, learningRecord, learningProfile } from './learningEngine';
 import { practiceGroup, practiceHistoryDocument, type PracticeRun as WebRun } from './lib/practiceHistory';
 import { THEMES, selectedResultTheme } from './lib/resultTheme';
@@ -89,6 +90,7 @@ function promptRuns(prompt: string, typed: string) {
 
 export default function TypearchyGame({ compact = false, initialChallengeKey = '', initialRunId = '', initialPractice = '' }: { compact?: boolean; initialChallengeKey?: string; initialRunId?: string; initialPractice?: string }) {
   const clientReady = useClientReady();
+  const installReady = useSyncExternalStore(subscribeInstall, installAvailable, () => false);
   const initialShared = sharedChallengeFromKey(initialChallengeKey);
   const [sharedChallenge, setSharedChallenge] = useState<SharedChallenge | null>(initialShared);
   const [mode, setMode] = useState<ModeKey>(initialShared?.mode || (MODES.some(item=>item.key===initialPractice) ? initialPractice as ModeKey : 'sprint'));
@@ -565,7 +567,7 @@ export default function TypearchyGame({ compact = false, initialChallengeKey = '
         <><div ref={promptRef} className={`live-prompt ${technical ? 'technical' : ''}`} aria-label={prompt}>{renderedRuns.map((run) => <span className={run.state} key={`${run.start}-${run.state}`}>{run.text}</span>)}</div><div className="demo-callout">{!clientReady ? 'Loading practice…' : startedAt ? 'KEEP THE PACE' : prompt ? 'CLICK HERE, THEN START TYPING' : 'ADD A CUSTOM PASSAGE'}</div></>
       )}
 
-      <div className="game-foot" onClick={event => event.stopPropagation()}>{screen === 'test' && !result && !editingCustom && <button type="button" className="practice-restart" onClick={() => reset()} aria-label="Restart practice">Restart <kbd>Ctrl+R</kbd></button>}<span>Ctrl+H history</span><span>Saved on this device</span></div>
+      <div className="game-foot" onClick={event => event.stopPropagation()}>{screen === 'test' && !result && !editingCustom && <button type="button" className="practice-restart" onClick={() => reset()} aria-label="Restart practice">Restart <kbd>Ctrl+R</kbd></button>}{installReady && <button type="button" className="practice-install" onClick={(event) => { event.stopPropagation(); void promptInstall(); }}>Install app</button>}<span>Ctrl+H history</span><span>Saved on this device</span></div>
     </div>
   );
 }
