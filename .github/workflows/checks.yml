@@ -32,7 +32,11 @@ jobs:
         working-directory: website
         run: npm ci --ignore-scripts
       - name: Validate desktop engines and content
-        run: node tests/model.test.mjs && node tests/content-engine.test.mjs
+        run: |
+          node bin/sync-mirrors.mjs --check
+          node tests/model.test.mjs
+          node tests/content-engine.test.mjs
+          node tests/practice-model.test.mjs
       - name: Verify migrations and browser behavior
         working-directory: website
         run: node scripts/schema.mjs --check && npm test && npx tsc --noEmit && npm run lint

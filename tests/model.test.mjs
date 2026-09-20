@@ -1,22 +1,8 @@
 import assert from "node:assert/strict"
-import fs from "node:fs"
-import vm from "node:vm"
+import { loadQmlLibrary } from "./qml-library.mjs"
 
-function loadLibrary(path) {
-  const source = fs.readFileSync(new URL(path, import.meta.url), "utf8")
-    .replace(/^\.pragma library\s*/, "")
-  const library = { console, Date, Math, JSON, Array, String, Number, isFinite }
-  vm.createContext(library)
-  const executable = source.replace(/^\.import "([^"\n]+)" as (\w+)\s*$/gm, (_, file, name) => {
-    library[name] = loadLibrary(new URL(file, new URL(path, import.meta.url)).href)
-    return ""
-  })
-  vm.runInContext(executable, library)
-  return library
-}
-
-const model = loadLibrary("../TypearchyModel.js")
-const content = loadLibrary("../Content.js")
+const model = loadQmlLibrary(new URL("../TypearchyModel.js", import.meta.url))
+const content = loadQmlLibrary(new URL("../Content.js", import.meta.url))
 
 assert.equal(model.STATE_VERSION, 6)
 assert.equal(model.dateKey(new Date("2026-08-28T23:00:00Z")), "2026-08-28")
