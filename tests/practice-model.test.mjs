@@ -40,6 +40,8 @@ assert.deepEqual(Object.keys(browserModel).sort(), sourceNames,
 assert.deepEqual(plain(browserModel.MODES), plain(desktopModel.MODES));
 
 const modes = plain(desktopModel.MODES);
+const ASSISTED = plain(desktopModel.ASSISTED_CHARACTER);
+const MISSING = plain(desktopModel.MISSING_CHARACTER);
 const characters = [
   ...'azAZ09 .,;:!?-_/\\\'"()[]{}<>=+*',
   '\n', '\t', '\u0000', '\u0001', 'é', '→',
@@ -78,6 +80,22 @@ for (const mode of [...modes, 'shell', 'code']) {
 
 for (const typed of ['', 'abc', 'ab\u0001\u0001', '\u0001\u0001', 'two words here', 'trailing ', 'a\n\u0001b']) {
   parity('eraseWordIndex', typed);
+}
+
+// Backspace and the per-character state the browser renders.
+for (const prompt of prompts) {
+  for (let length = 0; length <= prompt.length; length += 1) {
+    const typed = prompt.slice(0, length);
+    parity('eraseInput', typed, false);
+    parity('eraseInput', typed, true);
+    for (const character of [prompt[length], ASSISTED, MISSING, 'a', '\n', '\t', '']) {
+      parity('isCorrectCharacter', prompt[length], character);
+    }
+  }
+}
+for (const typed of ['', '\u0001', 'two words here', '  leading', 'trailing  ', 'a\u0001\u0001b', 'a\n\u0001b', '\u0001\u0001\u0001']) {
+  parity('eraseInput', typed, false);
+  parity('eraseInput', typed, true);
 }
 
 // Scoring.

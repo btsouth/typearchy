@@ -36,6 +36,19 @@ function correctCharacters(prompt, typed) {
   return count
 }
 
+// Rendering only: an assisted break completes the prompt's own character without counting as typed.
+function isCorrectCharacter(promptCharacter, typedCharacter) {
+  return typedCharacter === promptCharacter || typedCharacter === ASSISTED_CHARACTER
+}
+
+// Backspace rules. Assisted characters disappear first, then one character or one word.
+function eraseInput(text, word) {
+  var next = String(text || "")
+  while (next.charAt(next.length - 1) === ASSISTED_CHARACTER) next = next.slice(0, -1)
+  if (!word) return next.slice(0, -1)
+  return next.slice(0, eraseWordIndex(next))
+}
+
 function documentPosition(prompt, sourcePosition) {
   var source = String(prompt || "")
   var limit = clamp(Number(sourcePosition) || 0, 0, source.length)
@@ -647,4 +660,4 @@ function renderedPrompt(prompt, typed, colors) {
   return out.join("")
 }
 
-export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }
+export { clamp, round, pad2, dateKey, localDateKey, correctCharacters, isCorrectCharacter, eraseInput, documentPosition, alignCharacter, advanceLineBreaks, wordsPerMinute, accuracy, consistency, emptyState, normalizeCounts, capCounts, normalizedMode, fallbackChallengeKey, normalizeRun, stateNeedsQuarantine, parseState, daysBetween, recordRun, mistakeLabel, addMistake, sortedCounts, weakKeys, drillProfile, drillTargetErrors, modeBest, recentAverage, latestRun, updateRunPublication, clearRunPublications, bestForDate, dailyRun, filteredRuns, recentTrend, bestComparableRun, paceAt, eraseWordIndex, resultAction, paceSparkline, shareText, runBadge, resultStatus, comparison, nextAction, validBackupNumber, mergeHistory, compareVersions, colorString, escapeHtml, renderedPrompt, STATE_VERSION, MODES, MISSING_CHARACTER, ASSISTED_CHARACTER }
