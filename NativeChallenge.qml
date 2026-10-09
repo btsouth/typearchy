@@ -4,6 +4,7 @@ import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import "CompetitionEngine.js" as Engine
 import "TypearchyModel.js" as Model
 
@@ -28,7 +29,7 @@ Item {
   property string entered: ""
   property real elapsedMs: 0
   property bool saved: false
-  readonly property var resultTheme: ({ bg: Color.background.toString(), panel: Qt.lighter(Color.background, 1.12).toString(), ink: Color.foreground.toString(), muted: Color.muted.toString(), accent: Color.accent.toString(), error: Color.urgent.toString() })
+  readonly property var resultTheme: ({ bg: Commons.Color.background.toString(), panel: Qt.lighter(Commons.Color.background, 1.12).toString(), ink: Commons.Color.foreground.toString(), muted: Commons.Color.muted.toString(), accent: Commons.Color.accent.toString(), error: Commons.Color.urgent.toString() })
   property string pendingSlug: ""
   property string pendingGhost: ""
   readonly property bool busy: worker.running
@@ -195,7 +196,7 @@ Item {
     }
   }
 
-  Rectangle { anchors.fill: parent; color: Color.background }
+  Rectangle { anchors.fill: parent; color: Commons.Color.background }
   Controls.ScrollView {
     anchors.fill: parent
     anchors.margins: Math.max(24, Math.min(root.width * 0.07, 100))
@@ -208,26 +209,26 @@ Item {
         Action { text: "Back to typing"; onClicked: { root.stop(); root.exitRequested() } }
         Action { text: "Browse challenges"; onClicked: { opener.command = ["xdg-open", "https://typearchy.com/challenges"]; opener.running = true } }
       }
-      Text { text: "TYPEARCHY / CHALLENGES"; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 16 }
-      Text { width: parent.width; text: root.challenge ? root.challenge.title : "A time to beat."; textFormat: Text.PlainText; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 38; font.bold: true; wrapMode: Text.Wrap }
+      Text { text: "TYPEARCHY / CHALLENGES"; color: Commons.Color.accent; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { width: parent.width; text: root.challenge ? root.challenge.title : "A time to beat."; textFormat: Text.PlainText; color: Commons.Color.foreground; font.family: root.fontFamily; font.pixelSize: 38; font.bold: true; wrapMode: Text.Wrap }
       Row {
         visible: root.phase === "empty"
         width: parent.width; spacing: 16
-        Controls.TextField { id: linkInput; width: parent.width - 180; placeholderText: "https://typearchy.com/c/..."; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 18; onAccepted: root.loadLink(); background: Rectangle { color: Color.background; border.color: Color.muted } }
+        Controls.TextField { id: linkInput; width: parent.width - 180; placeholderText: "https://typearchy.com/c/..."; color: Commons.Color.foreground; font.family: root.fontFamily; font.pixelSize: 18; onAccepted: root.loadLink(); background: Rectangle { color: Commons.Color.background; border.color: Commons.Color.muted } }
         Action { text: root.busy ? "Loading..." : "Open challenge"; enabled: !root.busy; onClicked: root.loadLink() }
       }
       Action { visible: root.phase === "ready"; text: root.busy ? "Preparing..." : "Start challenge"; enabled: !root.busy; onClicked: root.start() }
-      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay." + (root.challenge && root.challenge.connected === false ? " You are racing as a guest: connect a profile in History within seven days to keep and publish a result, or it is removed." : ""); width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
-      Text { visible: !!root.challenge; text: root.challenge ? root.challenge.language.toUpperCase() + " / @" + root.challenge.handle + " / Correct every mistake / " + (root.challenge.rules.autoIndent ? "Auto-indent on" : "Type every space") : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: root.phase === "ready"; text: "Online attempts send test input and timing for score validation. Only passage progress is kept for replay." + (root.challenge && root.challenge.connected === false ? " You are racing as a guest: connect a profile in History within seven days to keep and publish a result, or it is removed." : ""); width: parent.width; wrapMode: Text.Wrap; color: Commons.Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: !!root.challenge; text: root.challenge ? root.challenge.language.toUpperCase() + " / @" + root.challenge.handle + " / Correct every mistake / " + (root.challenge.rules.autoIndent ? "Auto-indent on" : "Type every space") : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Commons.Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Row {
         visible: !!root.challenge; spacing: 48
-        Text { text: "YOU  " + (root.elapsedMs / 1000).toFixed(2) + "s"; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }
-        Text { text: root.ghost ? "@" + root.ghost.handle + "  " + (root.ghost.durationMs / 1000).toFixed(2) + "s" : "SET THE FIRST TIME"; textFormat: Text.PlainText; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 24 }
+        Text { text: "YOU  " + (root.elapsedMs / 1000).toFixed(2) + "s"; color: Commons.Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }
+        Text { text: root.ghost ? "@" + root.ghost.handle + "  " + (root.ghost.durationMs / 1000).toFixed(2) + "s" : "SET THE FIRST TIME"; textFormat: Text.PlainText; color: Commons.Color.accent; font.family: root.fontFamily; font.pixelSize: 24 }
       }
       Column {
         visible: !!root.challenge; width: parent.width; spacing: 10
-        Rectangle { width: parent.width; height: 5; color: Color.muted; Rectangle { width: parent.width * (root.engine ? Math.min(1, root.playerPosition / root.engine.passage.length) : 0); height: parent.height; color: Color.accent } }
-        Rectangle { visible: !!root.ghost; width: parent.width; height: 4; color: Color.background; Rectangle { width: parent.width * (root.challenge ? Math.min(1, root.ghostPosition / Array.from(root.challenge.passage).length) : 0); height: parent.height; color: Color.muted } }
+        Rectangle { width: parent.width; height: 5; color: Commons.Color.muted; Rectangle { width: parent.width * (root.engine ? Math.min(1, root.playerPosition / root.engine.passage.length) : 0); height: parent.height; color: Commons.Color.accent } }
+        Rectangle { visible: !!root.ghost; width: parent.width; height: 4; color: Commons.Color.background; Rectangle { width: parent.width * (root.challenge ? Math.min(1, root.ghostPosition / Array.from(root.challenge.passage).length) : 0); height: parent.height; color: Commons.Color.muted } }
       }
       Flickable {
         id: passageFlick
@@ -238,8 +239,8 @@ Item {
           id: passageText
           width: parent.width; textFormat: TextEdit.RichText; wrapMode: TextEdit.Wrap
           readOnly: true; selectByMouse: false; activeFocusOnPress: false
-          color: Color.muted; font.family: root.fontFamily; font.pixelSize: 25
-          text: root.challenge ? '<pre style="white-space: pre-wrap; line-height: 165%; margin: 0">' + Model.renderedPrompt(root.challenge.passage, root.entered, { normal: Color.foreground, dim: Color.muted, error: Color.urgent, cursor: Color.accent, background: Color.background }) + "</pre>" : ""
+          color: Commons.Color.muted; font.family: root.fontFamily; font.pixelSize: 25
+          text: root.challenge ? '<pre style="white-space: pre-wrap; line-height: 165%; margin: 0">' + Model.renderedPrompt(root.challenge.passage, root.entered, { normal: Commons.Color.foreground, dim: Commons.Color.muted, error: Commons.Color.urgent, cursor: Commons.Color.accent, background: Commons.Color.background }) + "</pre>" : ""
           onTextChanged: Qt.callLater(function() {
             var offset = root.entered.length + (root.entered.match(/\n/g) || []).length
             passageFlick.contentY = Math.max(0, Math.min(passageFlick.contentHeight - passageFlick.height, passageText.positionToRectangle(offset).y - 60))
@@ -267,12 +268,12 @@ Item {
           else if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Insert) event.accepted = true
         }
       }
-      Text { visible: root.phase === "armed" || root.phase === "running"; width: parent.width; wrapMode: Text.Wrap; text: root.engine && root.engine.wrong ? "Correct the highlighted mistakes to finish." : root.phase === "armed" ? "Start typing. The first key starts the clock. Escape releases typing focus." : "Keep your rhythm."; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: root.phase === "armed" || root.phase === "running"; width: parent.width; wrapMode: Text.Wrap; text: root.engine && root.engine.wrong ? "Correct the highlighted mistakes to finish." : root.phase === "armed" ? "Start typing. The first key starts the clock. Escape releases typing focus." : "Keep your rhythm."; color: Commons.Color.muted; font.family: root.fontFamily; font.pixelSize: 16 }
       Action { visible: root.phase === "running" && !!root.engine && root.engine.wrong > 0; text: "Erase back to first mistake"; onClicked: root.correctMistake() }
       Column {
         visible: root.phase === "finished"; width: parent.width; spacing: 18
-        Text { text: !root.result ? "" : root.ghost ? root.result.durationMs < root.ghost.durationMs ? "You beat @" + root.ghost.handle + "." : ((root.result.durationMs - root.ghost.durationMs) / 1000).toFixed(2) + " seconds to catch @" + root.ghost.handle : "Time set."; textFormat: Text.PlainText; color: Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }
-        Text { text: root.result ? root.result.wpm + " WPM / " + root.result.accuracy + "% accuracy / " + root.result.errors + " mistakes corrected" : ""; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 20 }
+        Text { text: !root.result ? "" : root.ghost ? root.result.durationMs < root.ghost.durationMs ? "You beat @" + root.ghost.handle + "." : ((root.result.durationMs - root.ghost.durationMs) / 1000).toFixed(2) + " seconds to catch @" + root.ghost.handle : "Time set."; textFormat: Text.PlainText; color: Commons.Color.foreground; font.family: root.fontFamily; font.pixelSize: 32 }
+        Text { text: root.result ? root.result.wpm + " WPM / " + root.result.accuracy + "% accuracy / " + root.result.errors + " mistakes corrected" : ""; color: Commons.Color.accent; font.family: root.fontFamily; font.pixelSize: 20 }
         Flow { width: parent.width; spacing: 16
           Action { text: "Race again"; enabled: !root.busy; onClicked: root.start() }
           Action { visible: !root.saved; text: "Retry saving"; enabled: !root.busy; onClicked: recordingFile.setText(JSON.stringify({ challenge: root.challenge, session: root.session, theme: root.resultTheme, events: root.events }) + "\n") }
@@ -281,8 +282,8 @@ Item {
           Action { visible: !!root.publicUrl; text: "View result"; onClicked: { opener.command = ["xdg-open", root.publicUrl]; opener.running = true } }
         }
       }
-      Text { visible: !!root.message; text: root.message; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.accent; font.family: root.fontFamily; font.pixelSize: 16 }
-      Text { visible: !!root.challenge && !!root.challenge.attribution; text: root.challenge ? root.challenge.attribution : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Color.muted; font.family: root.fontFamily; font.pixelSize: 14 }
+      Text { visible: !!root.message; text: root.message; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Commons.Color.accent; font.family: root.fontFamily; font.pixelSize: 16 }
+      Text { visible: !!root.challenge && !!root.challenge.attribution; text: root.challenge ? root.challenge.attribution : ""; textFormat: Text.PlainText; width: parent.width; wrapMode: Text.Wrap; color: Commons.Color.muted; font.family: root.fontFamily; font.pixelSize: 14 }
     }
   }
   component Action: Controls.Button {
@@ -290,7 +291,7 @@ Item {
     focusPolicy: Qt.TabFocus
     font.family: root.fontFamily; font.pixelSize: 16
     padding: 12
-    contentItem: Text { text: actionButton.text; font: actionButton.font; color: Color.foreground; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-    background: Rectangle { color: actionButton.down ? Color.accent : Color.background; border.color: actionButton.activeFocus || actionButton.hovered ? Color.accent : Color.muted; opacity: actionButton.enabled ? 1 : 0.5 }
+    contentItem: Text { text: actionButton.text; font: actionButton.font; color: Commons.Color.foreground; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+    background: Rectangle { color: actionButton.down ? Commons.Color.accent : Commons.Color.background; border.color: actionButton.activeFocus || actionButton.hovered ? Commons.Color.accent : Commons.Color.muted; opacity: actionButton.enabled ? 1 : 0.5 }
   }
 }
