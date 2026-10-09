@@ -4,6 +4,7 @@ import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Content.js" as Content
 import "ContentEngine.js" as ContentEngine
@@ -95,11 +96,11 @@ Item {
   property bool exportingCard: false
   property int runNonce: 0
 
-  readonly property color foreground: Color.foreground
-  readonly property color background: Color.background
-  readonly property color accent: Color.accent
-  readonly property color urgent: Color.urgent
-  readonly property color muted: Color.muted
+  readonly property color foreground: Commons.Color.foreground
+  readonly property color background: Commons.Color.background
+  readonly property color accent: Commons.Color.accent
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color muted: Commons.Color.muted
   readonly property string fontFamily: Style.font.family
   readonly property bool showLiveStats: stats.settings.showLiveStats !== false
   readonly property bool ghostEnabled: stats.settings.ghostEnabled !== false
@@ -1470,9 +1471,9 @@ Item {
             height: Math.min(parent.height, Style.space(520))
             anchors.centerIn: parent
             radius: Style.cornerRadius
-            color: Color.popups.background
+            color: Commons.Color.popups.background
             border.width: Math.max(1, Style.normalBorderWidth)
-            border.color: Color.popups.border
+            border.color: Commons.Color.popups.border
 
             Rectangle {
               width: Style.space(7)
@@ -1691,9 +1692,9 @@ Item {
             height: Math.min(parent.height, statsContent.implicitHeight + Style.space(56))
             anchors.centerIn: parent
             radius: Style.cornerRadius
-            color: Color.popups.background
+            color: Commons.Color.popups.background
             border.width: Math.max(1, Style.normalBorderWidth)
-            border.color: Color.popups.border
+            border.color: Commons.Color.popups.border
 
             // Tiled windows can be shorter than the app's minimum size. Scroll the
             // whole panel instead of clipping the profile row and history off the bottom.

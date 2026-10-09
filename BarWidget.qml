@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Content.js" as Content
 import "TypearchyModel.js" as Model
@@ -24,7 +25,7 @@ Panel {
   readonly property var latest: Model.latestRun(stats)
   readonly property real todayBest: Model.bestForDate(stats, Model.localDateKey(new Date()))
   readonly property var dailyResult: Model.dailyRun(stats, String(Content.dailyNumber(new Date())))
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.58)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
@@ -267,7 +268,7 @@ Panel {
             ? Math.round(Model.recentAverage(root.stats, "wpm", 10)) + " WPM avg  ·  "
               + Math.round(Model.recentAverage(root.stats, "accuracy", 10)) + "% acc  ·  " + root.stats.totalTests + " tests"
             : "Right-click the bar widget to jump into a sprint")
-          color: root.actionStatus ? Color.accent : root.dim
+          color: root.actionStatus ? Commons.Color.accent : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           horizontalAlignment: Text.AlignHCenter
